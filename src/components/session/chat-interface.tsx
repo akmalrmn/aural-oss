@@ -17,6 +17,10 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ChatComposer } from "@/components/ui/chat-composer";
+import {
+  SkilioCandidateShell,
+  SkilioLogo,
+} from "@/components/session/skilio-brand";
 import { Progress } from "@/components/ui/progress";
 import {
     WhiteboardCanvas,
@@ -1177,13 +1181,16 @@ export function ChatInterface({
         )}
       >
         <div className="flex items-center justify-between">
-          <div className="mr-2 min-w-0 flex-1">
-            <h1 className="truncate text-sm font-semibold md:text-base">
-              {interview.title}
-            </h1>
-            <p className="hidden text-xs text-muted-foreground md:block">
-              Chat Interview with {interview.aiName}
-            </p>
+          <div className="mr-2 flex min-w-0 flex-1 items-center gap-3">
+            <SkilioLogo className="hidden h-7 w-auto sm:block" />
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-semibold md:text-base">
+                {interview.title}
+              </h1>
+              <p className="hidden text-xs text-muted-foreground md:block">
+                Interviewer: {interview.aiName}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <IntervieweeHelpPopover mode="chat" />
@@ -1329,7 +1336,7 @@ export function ChatInterface({
     const rightPanelIsWhiteboard = whiteboardOpen;
 
     return (
-      <div className="flex h-screen flex-col bg-background">
+      <SkilioCandidateShell className="flex h-screen flex-col bg-background">
         {renderSessionHeader(true)}
         {renderFinishDialog()}
 
@@ -1505,7 +1512,7 @@ export function ChatInterface({
             )}
           </div>
         </div>
-      </div>
+      </SkilioCandidateShell>
     );
   }
 
@@ -1513,7 +1520,7 @@ export function ChatInterface({
   const toolPanelOpen = whiteboardOpen || codeEditorOpen;
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <SkilioCandidateShell className="flex h-screen flex-col bg-background">
       {renderSessionHeader(toolPanelOpen)}
       {renderFinishDialog()}
 
@@ -1655,6 +1662,6 @@ export function ChatInterface({
           </>
         )}
       </div>
-    </div>
+    </SkilioCandidateShell>
   );
 }

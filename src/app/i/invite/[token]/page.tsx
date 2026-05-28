@@ -6,6 +6,7 @@ import { trpc } from "@/lib/trpc/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link2Off, CheckCircle2 } from "lucide-react";
 import { PreparingScreen } from "@/components/session/preparing-screen";
+import { SkilioCandidateShell } from "@/components/session/skilio-brand";
 
 export default function InvitePage() {
   const params = useParams();
@@ -64,7 +65,7 @@ export default function InvitePage() {
   // Error / invalid token
   if (candidate.isError || !candidate.data) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <SkilioCandidateShell className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="py-12 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -76,14 +77,14 @@ export default function InvitePage() {
             </p>
           </CardContent>
         </Card>
-      </div>
+      </SkilioCandidateShell>
     );
   }
 
   // Completed
   if (completed) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <SkilioCandidateShell className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="py-12 text-center">
             <CheckCircle2 className="mx-auto h-16 w-16 text-secondary-500" />
@@ -92,9 +93,12 @@ export default function InvitePage() {
               Your interview has been completed successfully. We appreciate your
               time and thoughtful responses.
             </p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              You can return to Skilio to view your assessment result.
+            </p>
           </CardContent>
         </Card>
-      </div>
+      </SkilioCandidateShell>
     );
   }
 

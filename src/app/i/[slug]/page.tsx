@@ -1,6 +1,10 @@
 "use client";
 
 import { PreparingScreen } from "@/components/session/preparing-screen";
+import {
+  SkilioCandidateShell,
+  SkilioLogo,
+} from "@/components/session/skilio-brand";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -104,7 +108,7 @@ export default function PublicInterviewPage() {
 
   if (interview.isError || !interview.data) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <SkilioCandidateShell className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="py-12 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -117,14 +121,14 @@ export default function PublicInterviewPage() {
             </p>
           </CardContent>
         </Card>
-      </div>
+      </SkilioCandidateShell>
     );
   }
 
   if (completed) {
     try { localStorage.removeItem(STORAGE_PREFIX + slug); } catch { /* noop */ }
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <SkilioCandidateShell className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="py-12 text-center">
             <CheckCircle2 className="mx-auto h-16 w-16 text-secondary-500" />
@@ -135,7 +139,7 @@ export default function PublicInterviewPage() {
             </p>
           </CardContent>
         </Card>
-      </div>
+      </SkilioCandidateShell>
     );
   }
 
@@ -144,11 +148,11 @@ export default function PublicInterviewPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+    <SkilioCandidateShell className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <MessageSquare className="h-6 w-6" />
+          <div className="mx-auto mb-4 flex justify-center">
+            <SkilioLogo className="h-10 w-auto" />
           </div>
           <CardTitle className="font-heading text-2xl">{interview.data.title}</CardTitle>
           {interview.data.description && (
@@ -277,6 +281,6 @@ export default function PublicInterviewPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </SkilioCandidateShell>
   );
 }

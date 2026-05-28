@@ -1,5 +1,25 @@
-export const DEFAULT_TTS_BARGE_IN_MIN_AUDIO_MS = 400;
-export const DEFAULT_TTS_BARGE_IN_MIN_AUDIO_BYTES = 32_000;
+export const DEFAULT_TTS_BARGE_IN_MIN_AUDIO_MS = 900;
+export const DEFAULT_TTS_BARGE_IN_MIN_AUDIO_BYTES = 72_000;
+
+export function normalizeRealtimeTranscriptionLanguage(
+  _language?: string | null,
+): "en" {
+  // Skilio voice assessments are English-only even if interview metadata says otherwise.
+  return "en";
+}
+
+export function buildRealtimeTranscriptionConfig(
+  model: string,
+  language?: string | null,
+) {
+  const normalizedLanguage = normalizeRealtimeTranscriptionLanguage(language);
+  return {
+    model,
+    language: normalizedLanguage,
+    prompt:
+      "Transcribe the participant's speech as English only. Preserve English words as spoken. Do not translate to Malay, Indonesian, Chinese, or any other language.",
+  };
+}
 
 export interface TtsBargeInDecision {
   inEchoCooldown: boolean;

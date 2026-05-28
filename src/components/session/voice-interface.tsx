@@ -7,6 +7,10 @@ import {
 } from "@/components/code-editor/code-editor-canvas";
 import { IntervieweeHelpPopover } from "@/components/session/interviewee-help-popover";
 import {
+  SkilioCandidateShell,
+  SkilioLogo,
+} from "@/components/session/skilio-brand";
+import {
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -1286,6 +1290,10 @@ export function VoiceInterface({
   const shouldShowCompletionScreen =
     !preview &&
     locallyCompleted;
+  const shouldShowFinalizingScreen =
+    !preview &&
+    voice.isInterviewComplete &&
+    !locallyCompleted;
 
   const formatTime = (totalSec: number) => {
     const m = Math.floor(totalSec / 60);
@@ -1303,14 +1311,18 @@ export function VoiceInterface({
   }, [farewellReadyToClose, locallyCompleted]);
 
   useEffect(() => {
-    if (!voice.isInterviewComplete || locallyCompleted || hasVisibleFarewell) return;
+    if (!voice.isInterviewComplete || locallyCompleted) return;
+
+    // The farewell path above normally closes sooner once playback drains.
+    // Always keep a relay-complete fallback so a visible farewell cannot leave
+    // the session open if its playback state never reaches "ready to close".
     const timer = setTimeout(() => {
       handleEndInterviewRef.current();
-    }, 8000);
+    }, 12_000);
     return () => clearTimeout(timer);
-  }, [voice.isInterviewComplete, locallyCompleted, hasVisibleFarewell]);
+  }, [voice.isInterviewComplete, locallyCompleted]);
   const completionScreen = (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+    <SkilioCandidateShell className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
         <CardContent className="py-12 text-center">
           <CheckCircle2 className="mx-auto h-16 w-16 text-secondary-500" />
@@ -1319,9 +1331,25 @@ export function VoiceInterface({
             Your interview has been completed successfully. We appreciate your
             time and thoughtful responses.
           </p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            You can return to Skilio to view your assessment result.
+          </p>
         </CardContent>
       </Card>
-    </div>
+    </SkilioCandidateShell>
+  );
+  const finalizingScreen = (
+    <SkilioCandidateShell className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <Card className="w-full max-w-md">
+        <CardContent className="py-12 text-center">
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+          <h2 className="mt-4 text-2xl font-bold">Finalizing assessment</h2>
+          <p className="mt-2 text-muted-foreground">
+            We are saving your interview and preparing your result.
+          </p>
+        </CardContent>
+      </Card>
+    </SkilioCandidateShell>
   );
 
   const sortedQuestions = interviewContext.questions.slice().sort((a, b) => a.order - b.order);
@@ -1508,8 +1536,12 @@ export function VoiceInterface({
   }, [voice.isConnected, isCodingQuestion, isWhiteboardQuestion]);
 
   // ── Render ──────────────────────────────────────────────────────
-  return shouldShowCompletionScreen ? completionScreen : (
-    <div className="relative flex h-screen flex-col overflow-hidden bg-background">
+  return shouldShowCompletionScreen
+    ? completionScreen
+    : shouldShowFinalizingScreen
+      ? finalizingScreen
+      : (
+    <SkilioCandidateShell className="relative flex h-screen flex-col overflow-hidden bg-background">
       {/* Saving overlay */}
       {isSaving && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
@@ -1524,11 +1556,14 @@ export function VoiceInterface({
       {/* Header */}
       <div className="shrink-0 border-b bg-card px-3 py-2 md:px-6 md:py-3">
         <div className="flex items-center justify-between">
-          <div className="mr-2 min-w-0 flex-1">
-            <h1 className="truncate text-sm font-semibold md:text-base">{interviewTitle}</h1>
-            <p className="hidden text-xs text-muted-foreground md:block">
-              Voice Interview with {aiName}
-            </p>
+          <div className="mr-2 flex min-w-0 flex-1 items-center gap-3">
+            <SkilioLogo className="hidden h-7 w-auto sm:block" />
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-semibold md:text-base">{interviewTitle}</h1>
+              <p className="hidden text-xs text-muted-foreground md:block">
+                Voice Interview with {aiName}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {videoMode && recording.isRecording && (
@@ -2647,6 +2682,6 @@ export function VoiceInterface({
           </SheetContent>
         </Sheet>
       )}
-    </div>
+    </SkilioCandidateShell>
   );
 }

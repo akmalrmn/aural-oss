@@ -7,6 +7,7 @@ import { IntervieweeOnboarding, PreviewWrapper } from "@/components/session/inte
 import { IntervieweeTourOverlay } from "@/components/session/interviewee-tour-overlay";
 import { IntervieweeTourProvider } from "@/components/session/interviewee-tour-provider";
 import { PreparingScreen } from "@/components/session/preparing-screen";
+import { SkilioCandidateShell } from "@/components/session/skilio-brand";
 import { Card, CardContent } from "@/components/ui/card";
 import type { InterviewContext } from "@/hooks/use-voice";
 import { trpc } from "@/lib/trpc/client";
@@ -73,7 +74,7 @@ export default function SlugSessionPage() {
   if (session.data.status === "COMPLETED" || completed) {
     try { localStorage.removeItem(STORAGE_PREFIX + slug); } catch { /* noop */ }
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <SkilioCandidateShell className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="py-12 text-center">
             <CheckCircle2 className="mx-auto h-16 w-16 text-secondary-500" />
@@ -87,9 +88,12 @@ export default function SlugSessionPage() {
               Your interview has been completed successfully. We appreciate your
               time and thoughtful responses.
             </p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              You can return to Skilio to view your assessment result.
+            </p>
           </CardContent>
         </Card>
-      </div>
+      </SkilioCandidateShell>
     );
   }
 

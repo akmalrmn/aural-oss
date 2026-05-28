@@ -11,7 +11,10 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AuralLogo } from "@/components/ui/aural-logo";
+import {
+  SkilioBrandHeader,
+  SkilioCandidateShell,
+} from "@/components/session/skilio-brand";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1190,18 +1193,11 @@ export function IntervieweeOnboarding({
     onComplete();
   }, [onComplete]);
 
-  const header = (
-    <header className="sticky top-0 z-50 flex h-14 items-center border-b bg-card px-4 sm:px-6">
-      <div className="flex items-center gap-1">
-        <AuralLogo size={28} className="shrink-0" />
-        <span className="font-heading text-base font-bold tracking-[2px]">AURAL</span>
-      </div>
-    </header>
-  );
+  const header = <SkilioBrandHeader />;
 
   if (step === "info") {
     return (
-      <div className="flex min-h-screen flex-col bg-muted/30">
+      <SkilioCandidateShell className="flex min-h-screen flex-col bg-muted/30">
         {header}
         <StepIndicator current="info" />
         <div className="mx-auto w-full max-w-2xl flex-1 px-4 pb-8 sm:px-6">
@@ -1322,7 +1318,7 @@ export function IntervieweeOnboarding({
             </Button>
           </div>
         </div>
-      </div>
+      </SkilioCandidateShell>
     );
   }
 
@@ -1371,7 +1367,7 @@ export function IntervieweeOnboarding({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/30">
+    <SkilioCandidateShell className="flex min-h-screen flex-col bg-muted/30">
       {header}
       <StepIndicator current="checklist" />
       <div className="mx-auto w-full max-w-2xl flex-1 space-y-4 px-4 pb-8">
@@ -1397,6 +1393,6 @@ export function IntervieweeOnboarding({
           Chrome is recommended for a better experience.
         </p>
       </div>
-    </div>
+    </SkilioCandidateShell>
   );
 }

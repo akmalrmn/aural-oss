@@ -1,7 +1,7 @@
 /**
- * Backup voice relay using Azure OpenAI Realtime API (gpt-realtime-1.5).
+ * Backup voice relay using OpenAI Realtime API.
  *
- * Browser ←→ this relay ←→ Azure OpenAI Realtime API
+ * Browser <- this relay -> OpenAI Realtime API
  *
  * Primary relay: server/voice-relay.ts (Volcengine S2S).
  * Run this as an alternative:  npm run dev:openai-voice
@@ -12,17 +12,18 @@ import { config } from "dotenv";
 import { WebSocket, WebSocketServer } from "ws";
 import { createLogger } from "../src/lib/logger";
 import {
-    DEFAULT_TTS_BARGE_IN_MIN_AUDIO_BYTES,
-    DEFAULT_TTS_BARGE_IN_MIN_AUDIO_MS,
-    shouldAllowTtsBargeIn,
+  buildRealtimeTranscriptionConfig,
+  DEFAULT_TTS_BARGE_IN_MIN_AUDIO_BYTES,
+  DEFAULT_TTS_BARGE_IN_MIN_AUDIO_MS,
+  shouldAllowTtsBargeIn,
 } from "./openai-voice-relay-helpers";
 import {
-    type BigModelAsrConfig,
-    BIGMODEL_ASR_URL,
-    buildBigModelAudioRequest,
-    buildBigModelFullRequest,
-    buildBigModelHeaders,
-    parseAsrResponse,
+  type BigModelAsrConfig,
+  BIGMODEL_ASR_URL,
+  buildBigModelAudioRequest,
+  buildBigModelFullRequest,
+  buildBigModelHeaders,
+  parseAsrResponse,
 } from "./volcengine-asr";
 
 const log = createLogger("openai-relay");
@@ -35,17 +36,35 @@ config({ path: ".env" });
 const RELAY_PORT =
   Number(process.env.OPENAI_VOICE_RELAY_PORT || process.env.VOICE_RELAY_PORT) ||
   8767;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const OPENAI_REALTIME_MODEL =
+  process.env.OPENAI_REALTIME_MODEL || "gpt-realtime";
+const OPENAI_REALTIME_VOICE = (
+  process.env.OPENAI_REALTIME_VOICE ||
+  process.env.AZURE_OPENAI_VOICE ||
+  "alloy"
+).toLowerCase();
 const AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || "";
 const AZURE_API_KEY = process.env.AZURE_OPENAI_API_KEY || "";
 const AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-realtime-1.5";
-const AZURE_VOICE = (process.env.AZURE_OPENAI_VOICE || "ash").toLowerCase();
 const OPENAI_REALTIME_TRANSCRIPTION_MODEL =
-  process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || "whisper-1";
+  process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || "gpt-4o-mini-transcribe";
 
-const OPENAI_WS_URL = `${AZURE_ENDPOINT}/openai/v1/realtime?model=${AZURE_DEPLOYMENT}`;
+const USE_AZURE_OPENAI = !!(AZURE_ENDPOINT && AZURE_API_KEY);
+const OPENAI_WS_URL = USE_AZURE_OPENAI
+  ? `${AZURE_ENDPOINT}/openai/v1/realtime?model=${AZURE_DEPLOYMENT}`
+  : `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(
+      OPENAI_REALTIME_MODEL,
+    )}`;
+const OPENAI_WS_HEADERS = USE_AZURE_OPENAI
+  ? { "api-key": AZURE_API_KEY }
+  : { Authorization: `Bearer ${OPENAI_API_KEY}` };
+const OPENAI_MODEL_LABEL = USE_AZURE_OPENAI
+  ? AZURE_DEPLOYMENT
+  : OPENAI_REALTIME_MODEL;
 
-if (!AZURE_ENDPOINT || !AZURE_API_KEY) {
-  log.error("Missing AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_API_KEY in .env.local");
+if (!USE_AZURE_OPENAI && !OPENAI_API_KEY) {
+  log.error("Missing OPENAI_API_KEY or Azure OpenAI relay credentials in .env");
   process.exit(1);
 }
 
@@ -403,7 +422,9 @@ const OPENAI_TOOLS = [{
 
 const wss = new WebSocketServer({ port: RELAY_PORT });
 log.info(`OpenAI voice relay listening on ws://localhost:${RELAY_PORT}`);
-log.info(`Deployment: ${AZURE_DEPLOYMENT}, Voice: ${AZURE_VOICE}`);
+log.info(
+  `Provider: ${USE_AZURE_OPENAI ? "Azure OpenAI" : "OpenAI"}, Model: ${OPENAI_MODEL_LABEL}, Voice: ${OPENAI_REALTIME_VOICE}`,
+);
 log.info(
   `ASR: ${USE_VOLC_ASR_PRIMARY ? "Volcengine primary" : "OpenAI primary"}`
   + ` (OpenAI transcription model: ${OPENAI_REALTIME_TRANSCRIPTION_MODEL}; `
@@ -550,7 +571,7 @@ async function handleMicTest(browserWs: WebSocket) {
   async function connectMicTestOpenAI() {
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        oaiWs = new WebSocket(OPENAI_WS_URL, { headers: { "api-key": AZURE_API_KEY } });
+        oaiWs = new WebSocket(OPENAI_WS_URL, { headers: OPENAI_WS_HEADERS });
         await new Promise<void>((resolve, reject) => {
           const t = setTimeout(() => reject(new Error("OpenAI connect timeout")), 10_000);
           oaiWs!.on("open", () => { clearTimeout(t); resolve(); });
@@ -587,10 +608,13 @@ async function handleMicTest(browserWs: WebSocket) {
           input: {
             format: { type: "audio/pcm", rate: 24000 },
             noise_reduction: { type: "far_field" },
-            transcription: { model: OPENAI_REALTIME_TRANSCRIPTION_MODEL },
+            transcription: buildRealtimeTranscriptionConfig(
+              OPENAI_REALTIME_TRANSCRIPTION_MODEL,
+              "en",
+            ),
             turn_detection: { type: "server_vad", threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 300 },
           },
-          output: { format: { type: "audio/pcm", rate: 24000 }, voice: AZURE_VOICE },
+          output: { format: { type: "audio/pcm", rate: 24000 }, voice: OPENAI_REALTIME_VOICE },
         },
       },
     }));
@@ -762,11 +786,11 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
   let pendingQuestionPrompt: string | null = null;
   let pendingPromptTimer: ReturnType<typeof setTimeout> | null = null;
   let lastTranscriptUpdateAt = 0;
-  const USER_TRANSCRIPT_STABILITY_MS = 900;
-  const USER_TRANSCRIPT_MAX_WAIT_MS = 4500;
+  const USER_TRANSCRIPT_STABILITY_MS = 1400;
+  const USER_TRANSCRIPT_MAX_WAIT_MS = 8000;
   const USER_TURN_SPLIT_SILENCE_MS = 2200;
-  const USER_SPEECH_STOP_FINALIZE_MS = 1600;
-  const SPEECH_STOP_FORWARD_GRACE_MS = 1400;
+  const USER_SPEECH_STOP_FINALIZE_MS = 2800;
+  const SPEECH_STOP_FORWARD_GRACE_MS = 2400;
   const STALE_ASR_GUARD_MS = 1500;
   let staleAsrGuardText = "";
   let staleAsrGuardUntil = 0;
@@ -1170,7 +1194,10 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     return {
       format: { type: "audio/pcm", rate: 24000 as const },
       noise_reduction: { type: "far_field" as const },
-      transcription: { model: OPENAI_REALTIME_TRANSCRIPTION_MODEL },
+      transcription: buildRealtimeTranscriptionConfig(
+        OPENAI_REALTIME_TRANSCRIPTION_MODEL,
+        ctx.language,
+      ),
       turn_detection: {
         type: "semantic_vad" as const,
         eagerness: "low" as const,
@@ -1778,9 +1805,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
   // ── OpenAI connection ─────────────────────────────────────────────
 
   async function connectOai(): Promise<WebSocket> {
-    const ws = new WebSocket(OPENAI_WS_URL, {
-      headers: { "api-key": AZURE_API_KEY },
-    });
+    const ws = new WebSocket(OPENAI_WS_URL, { headers: OPENAI_WS_HEADERS });
 
     await new Promise<void>((resolve, reject) => {
       const t = setTimeout(() => reject(new Error("OpenAI connect timeout")), 10_000);
@@ -1817,7 +1842,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
           input: buildRealtimeAudioInputConfig(),
           output: {
             format: { type: "audio/pcm", rate: 24000 },
-            voice: AZURE_VOICE,
+            voice: OPENAI_REALTIME_VOICE,
           },
         },
         tools: OPENAI_TOOLS,

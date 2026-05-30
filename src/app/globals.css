@@ -80,23 +80,23 @@
     overflow: hidden;
   }
   .skilio-assessment-theme {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --background: 102 43% 98%;
+    --foreground: 0 0% 16%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 0 0% 16%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 113 51% 55%;
+    --popover-foreground: 0 0% 16%;
+    --primary: 112 48% 39%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 113 51% 92%;
-    --secondary-foreground: 113 51% 24%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 113 51% 90%;
-    --accent-foreground: 113 51% 22%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 113 51% 45%;
+    --secondary: 113 46% 90%;
+    --secondary-foreground: 113 48% 20%;
+    --muted: 103 32% 93%;
+    --muted-foreground: 0 0% 28%;
+    --accent: 103 46% 90%;
+    --accent-foreground: 113 48% 20%;
+    --border: 103 24% 84%;
+    --input: 103 24% 84%;
+    --ring: 112 48% 39%;
     color-scheme: light;
   }
   h1, h2, h3, h4, h5, h6 {

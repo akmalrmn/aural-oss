@@ -66,7 +66,7 @@ export default function InviteSessionPage() {
 
   if (completed || session.status === "COMPLETED") {
     return (
-      <SkilioCandidateShell className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <SkilioCandidateShell className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="py-12 text-center">
             <CheckCircle2 className="mx-auto h-16 w-16 text-secondary-500" />

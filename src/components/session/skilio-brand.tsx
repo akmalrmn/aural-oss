@@ -16,7 +16,7 @@ export function SkilioLogo({ className = "" }: { className?: string }) {
 
 export function SkilioBrandHeader() {
   return (
-    <header className="sticky top-0 z-50 flex h-14 items-center border-b bg-card px-4 sm:px-6">
+    <header className="sticky top-0 z-50 flex h-14 items-center border-b bg-card px-4 shadow-sm sm:px-6">
       <SkilioLogo className="h-8 w-auto" />
     </header>
   );
@@ -30,7 +30,7 @@ export function SkilioCandidateShell({
   className?: string;
 }) {
   return (
-    <div className={`skilio-assessment-theme ${className}`}>
+    <div className={`skilio-assessment-theme bg-background text-foreground ${className}`}>
       {children}
     </div>
   );

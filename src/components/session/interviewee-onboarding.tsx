@@ -109,7 +109,7 @@ export function PreviewWrapper({
   }, [tour]);
 
   return (
-    <div className="relative flex h-screen flex-col bg-background">
+    <SkilioCandidateShell className="relative flex h-screen flex-col">
       {children}
 
       {/* Welcome overlay */}
@@ -172,7 +172,7 @@ export function PreviewWrapper({
           </div>
         </div>
       )}
-    </div>
+    </SkilioCandidateShell>
   );
 }
 
@@ -326,8 +326,8 @@ function CameraCheck({
               />
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center gap-2">
-                <User className="h-10 w-10 text-muted-foreground/30" />
-                <span className="text-[11px] text-muted-foreground/50">
+                <User className="h-10 w-10 text-muted-foreground/50" />
+                <span className="text-[11px] text-muted-foreground/70">
                   Keep your eyes on the camera
                 </span>
               </div>
@@ -798,7 +798,7 @@ function MicCheck({ done, onDone, language, allowSkip = true }: { done: boolean;
             <AudioLines
               className={cn(
                 "h-10 w-10 transition-colors",
-                isBusy ? "text-primary" : "text-muted-foreground/30"
+                isBusy ? "text-primary" : "text-muted-foreground/50"
               )}
             />
             {phase === "playing" && (
@@ -832,7 +832,7 @@ function MicCheck({ done, onDone, language, allowSkip = true }: { done: boolean;
               <span className="text-[11px] text-muted-foreground">Analyzing...</span>
             )}
             {phase === "idle" && !done && (
-              <span className="text-[11px] text-muted-foreground/50">
+              <span className="text-[11px] text-muted-foreground/70">
                 Speaker &amp; Microphone
               </span>
             )}
@@ -1079,8 +1079,8 @@ function ScreenCheck({
               />
             ) : (
               <div className="flex flex-col items-center gap-2">
-                <ScreenShare className="h-10 w-10 text-muted-foreground/30" />
-                <span className="text-[11px] text-muted-foreground/50">
+                <ScreenShare className="h-10 w-10 text-muted-foreground/50" />
+                <span className="text-[11px] text-muted-foreground/70">
                   Entire screen
                 </span>
               </div>
@@ -1197,7 +1197,7 @@ export function IntervieweeOnboarding({
 
   if (step === "info") {
     return (
-      <SkilioCandidateShell className="flex min-h-screen flex-col bg-muted/30">
+      <SkilioCandidateShell className="flex min-h-screen flex-col">
         {header}
         <StepIndicator current="info" />
         <div className="mx-auto w-full max-w-2xl flex-1 px-4 pb-8 sm:px-6">
@@ -1367,7 +1367,7 @@ export function IntervieweeOnboarding({
   }
 
   return (
-    <SkilioCandidateShell className="flex min-h-screen flex-col bg-muted/30">
+    <SkilioCandidateShell className="flex min-h-screen flex-col">
       {header}
       <StepIndicator current="checklist" />
       <div className="mx-auto w-full max-w-2xl flex-1 space-y-4 px-4 pb-8">

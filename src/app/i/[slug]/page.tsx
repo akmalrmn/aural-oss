@@ -108,7 +108,7 @@ export default function PublicInterviewPage() {
 
   if (interview.isError || !interview.data) {
     return (
-      <SkilioCandidateShell className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <SkilioCandidateShell className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="py-12 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -128,7 +128,7 @@ export default function PublicInterviewPage() {
   if (completed) {
     try { localStorage.removeItem(STORAGE_PREFIX + slug); } catch { /* noop */ }
     return (
-      <SkilioCandidateShell className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <SkilioCandidateShell className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="py-12 text-center">
             <CheckCircle2 className="mx-auto h-16 w-16 text-secondary-500" />
@@ -148,7 +148,7 @@ export default function PublicInterviewPage() {
   }
 
   return (
-    <SkilioCandidateShell className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+    <SkilioCandidateShell className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex justify-center">

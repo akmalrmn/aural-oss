@@ -5,6 +5,7 @@ import {
   buildManualRealtimeTurnDetectionConfig,
   buildRealtimeTranscriptionConfig,
   getUserTurnAssistantResponseDelayMs,
+  isRealtimeWhisperTranscriptionModel,
   normalizeRealtimeTranscriptionLanguage,
   shouldAllowTtsBargeIn,
 } from "../server/openai-voice-relay-helpers";
@@ -82,6 +83,19 @@ test("builds English-only Realtime transcription config", () => {
   );
 });
 
+test("builds low-latency config for realtime Whisper transcription", () => {
+  assert.equal(isRealtimeWhisperTranscriptionModel("gpt-realtime-whisper"), true);
+  assert.equal(isRealtimeWhisperTranscriptionModel("gpt-4o-transcribe"), false);
+  assert.deepEqual(
+    buildRealtimeTranscriptionConfig("gpt-realtime-whisper", "id-ID"),
+    {
+      model: "gpt-realtime-whisper",
+      language: "en",
+      delay: "low",
+    },
+  );
+});
+
 test("builds manual Realtime turn detection without VAD-triggered responses", () => {
   assert.deepEqual(buildManualRealtimeTurnDetectionConfig(), {
     type: "semantic_vad",
@@ -89,6 +103,10 @@ test("builds manual Realtime turn detection without VAD-triggered responses", ()
     create_response: false,
     interrupt_response: false,
   });
+});
+
+test("disables turn detection for realtime Whisper transcription", () => {
+  assert.equal(buildManualRealtimeTurnDetectionConfig("gpt-realtime-whisper"), null);
 });
 
 test("delays assistant response while user speech is still settling", () => {

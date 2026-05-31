@@ -13,13 +13,28 @@ export function buildRealtimeTranscriptionConfig(
   language?: string | null,
 ) {
   const normalizedLanguage = normalizeRealtimeTranscriptionLanguage(language);
-  return {
+  const config: {
+    model: string;
+    language: "en";
+    delay?: "minimal" | "low" | "medium" | "high" | "xhigh";
+  } = {
     model,
     language: normalizedLanguage,
   };
+  if (isRealtimeWhisperTranscriptionModel(model)) {
+    config.delay = "low";
+  }
+  return config;
 }
 
-export function buildManualRealtimeTurnDetectionConfig() {
+export function isRealtimeWhisperTranscriptionModel(model: string): boolean {
+  return model.trim().toLowerCase() === "gpt-realtime-whisper";
+}
+
+export function buildManualRealtimeTurnDetectionConfig(model?: string) {
+  if (model && isRealtimeWhisperTranscriptionModel(model)) {
+    return null;
+  }
   return {
     type: "semantic_vad" as const,
     eagerness: "low" as const,

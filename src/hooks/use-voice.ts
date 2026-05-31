@@ -7,7 +7,6 @@ import {
 } from "@/lib/voice/assistant-transcript";
 import {
   cleanPeriodArtifacts,
-  mergeAsrFinal,
   mergeClientAsrInterim,
 } from "@/lib/voice/asr-interim";
 import {
@@ -607,9 +606,7 @@ export function useVoice({
           const finalFromRelay =
             typeof msg.text === "string" ? msg.text.trim() : "";
           const finalText = cleanPeriodArtifacts(
-            finalFromRelay
-              ? mergeAsrFinal(asrBufferRef.current, finalFromRelay)
-              : asrBufferRef.current,
+            finalFromRelay || asrBufferRef.current,
           );
           let duplicateSkipped = false;
           if (finalText) {

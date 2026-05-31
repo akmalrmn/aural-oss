@@ -21,6 +21,7 @@ import {
   DEFAULT_TTS_BARGE_IN_MIN_AUDIO_BYTES,
   DEFAULT_TTS_BARGE_IN_MIN_AUDIO_MS,
   getUserTurnAssistantResponseDelayMs,
+  isRealtimeWhisperTranscriptionModel,
   shouldAllowTtsBargeIn,
 } from "./openai-voice-relay-helpers";
 import {
@@ -54,9 +55,15 @@ const AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || "";
 const AZURE_API_KEY = process.env.AZURE_OPENAI_API_KEY || "";
 const AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-realtime-1.5";
 const OPENAI_REALTIME_TRANSCRIPTION_MODEL =
-  process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || "gpt-4o-mini-transcribe";
+  process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || "gpt-realtime-whisper";
+const OPENAI_MIC_TEST_TRANSCRIPTION_MODEL =
+  process.env.OPENAI_MIC_TEST_TRANSCRIPTION_MODEL || "gpt-4o-transcribe";
 const REQUIRE_EXPLICIT_USER_TURN_DONE =
   process.env.OPENAI_VOICE_REQUIRE_USER_DONE !== "false";
+const OPENAI_TRANSCRIPTION_REQUIRES_MANUAL_COMMIT =
+  isRealtimeWhisperTranscriptionModel(OPENAI_REALTIME_TRANSCRIPTION_MODEL);
+const OPENAI_MIC_TEST_TRANSCRIPTION_REQUIRES_MANUAL_COMMIT =
+  isRealtimeWhisperTranscriptionModel(OPENAI_MIC_TEST_TRANSCRIPTION_MODEL);
 
 const USE_AZURE_OPENAI = !!(AZURE_ENDPOINT && AZURE_API_KEY);
 const OPENAI_WS_URL = USE_AZURE_OPENAI
@@ -644,17 +651,19 @@ async function handleMicTest(browserWs: WebSocket) {
             format: { type: "audio/pcm", rate: 24000 },
             noise_reduction: { type: "far_field" },
             transcription: buildRealtimeTranscriptionConfig(
-              OPENAI_REALTIME_TRANSCRIPTION_MODEL,
+              OPENAI_MIC_TEST_TRANSCRIPTION_MODEL,
               "en",
             ),
-            turn_detection: {
-              type: "server_vad",
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 800,
-              create_response: false,
-              interrupt_response: false,
-            },
+            turn_detection: OPENAI_MIC_TEST_TRANSCRIPTION_REQUIRES_MANUAL_COMMIT
+              ? null
+              : {
+                  type: "server_vad",
+                  threshold: 0.5,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 800,
+                  create_response: false,
+                  interrupt_response: false,
+                },
           },
           output: { format: { type: "audio/pcm", rate: 24000 }, voice: OPENAI_REALTIME_VOICE },
         },
@@ -831,6 +840,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
   let lastTranscriptUpdateAt = 0;
   const USER_TRANSCRIPT_STABILITY_MS = 2500;
   const USER_TRANSCRIPT_MAX_WAIT_MS = 14000;
+  const USER_DONE_TRANSCRIPTION_TIMEOUT_MS = 7000;
   const USER_TURN_SPLIT_SILENCE_MS = 6500;
   const USER_SPEECH_STOP_FINALIZE_MS = 7500;
   const SPEECH_STOP_FORWARD_GRACE_MS = 6500;
@@ -844,6 +854,8 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     | null = null;
   let pendingUserTurnResponseTimer: ReturnType<typeof setTimeout> | null = null;
   let userAudioClosedAfterDone = false;
+  let openAiInputAudioBufferActive = false;
+  let openAiUserAudioBytesSinceCommit = 0;
 
   const conversationHistory: Array<{ role: "user" | "assistant"; text: string }> = [];
   const MAX_HISTORY_ENTRIES = 30;
@@ -1125,6 +1137,32 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     if (hadPending) log.debug(`Cleared pending user transcript (${reason})`);
   }
 
+  function resetCommittedUserTurnForNextAnswer(reason: string) {
+    if (!speechTranscriptCommitted && !bestAvailableTranscript()) return;
+    speechTranscriptCommitted = false;
+    clearPendingUserTranscript(reason);
+    volcAsrPreFlushed = false;
+    vadSpeechActive = false;
+    lastVadSpeechEnd = 0;
+    speechStopForwardGraceUntil = 0;
+    log.debug(`Reset user turn transcript state (${reason})`);
+  }
+
+  function commitOpenAiInputAudioBuffer(reason: string): boolean {
+    if (!oaiWs || oaiWs.readyState !== WebSocket.OPEN) return false;
+    if (!openAiInputAudioBufferActive || openAiUserAudioBytesSinceCommit <= 0) {
+      log.info(`Skipped OpenAI input audio buffer commit (${reason}, no user audio)`);
+      return false;
+    }
+    oaiWs.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
+    log.info(
+      `Committed OpenAI input audio buffer (${reason}, ${openAiUserAudioBytesSinceCommit}B user audio)`,
+    );
+    openAiInputAudioBufferActive = false;
+    openAiUserAudioBytesSinceCommit = 0;
+    return true;
+  }
+
   function bestAvailableTranscript(): string {
     const committed = mergeAsrText(inputTranscriptBuffer, volcAsrAccumulator).trim();
     return committed || inputTranscriptInterimBuffer.trim();
@@ -1252,10 +1290,24 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     volcAsrPreFlushed = false;
   }
 
+  function appendWhisperDelta(buffer: string, delta: string): string {
+    const existing = buffer.trimEnd();
+    const incoming = delta.trim();
+    if (!existing) return incoming;
+    if (!incoming) return existing;
+    const last = existing[existing.length - 1] || "";
+    const first = incoming[0] || "";
+    const needsSpace = /[A-Za-z0-9]/.test(last) && /[A-Za-z0-9]/.test(first);
+    return `${existing}${needsSpace ? " " : ""}${incoming}`;
+  }
+
   function handleWhisperDelta(delta: string) {
     const cleanDelta = sanitizeEnglishAsrText(delta);
     if (!cleanDelta || !tryAcceptFreshAsrText(cleanDelta, "Whisper delta")) return;
-    inputTranscriptInterimBuffer += cleanDelta;
+    inputTranscriptInterimBuffer = appendWhisperDelta(
+      inputTranscriptInterimBuffer,
+      cleanDelta,
+    );
     noteTranscriptUpdate();
     if (pendingAsrUpdate) clearTimeout(pendingAsrUpdate);
     pendingAsrUpdate = setTimeout(() => {
@@ -1269,8 +1321,13 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     const cleanTranscript = sanitizeEnglishAsrText(transcript);
     if (!cleanTranscript || !tryAcceptFreshAsrText(cleanTranscript, "Whisper completion")) return;
 
-    const msSinceVadSpeech = Date.now() - lastVadSpeechEnd;
-    if (isWhisperHallucination(cleanTranscript) || (msSinceVadSpeech > 10_000 && cleanTranscript.trim().split(/\s+/).length <= 6)) {
+    const msSinceVadSpeech = lastVadSpeechEnd > 0 ? Date.now() - lastVadSpeechEnd : 0;
+    if (
+      isWhisperHallucination(cleanTranscript) ||
+      (lastVadSpeechEnd > 0 &&
+        msSinceVadSpeech > 10_000 &&
+        cleanTranscript.trim().split(/\s+/).length <= 6)
+    ) {
       log.debug(`ASR dropped (hallucination, ${msSinceVadSpeech}ms since VAD): ${JSON.stringify(cleanTranscript)}`);
       return;
     }
@@ -1282,6 +1339,10 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     if (pendingAsrUpdate) clearTimeout(pendingAsrUpdate);
     pendingAsrUpdate = null;
     emitInterimUserTranscript(inputTranscriptBuffer, true);
+    if (REQUIRE_EXPLICIT_USER_TURN_DONE && userAudioClosedAfterDone) {
+      finalizeUserTurn("user done");
+      return;
+    }
     if (!REQUIRE_EXPLICIT_USER_TURN_DONE) scheduleInputFlush();
   }
 
@@ -1336,15 +1397,19 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
   }
 
   function handleUserTurnDone() {
+    if (speechTranscriptCommitted && !bestAvailableTranscript()) {
+      resetCommittedUserTurnForNextAnswer("new explicit user turn");
+    }
     const pendingText = bestAvailableTranscript();
     log.info(`Browser signaled user turn done${pendingText ? `: ${JSON.stringify(pendingText)}` : ""}`);
     userAudioClosedAfterDone = true;
+    const committedAudioBuffer = commitOpenAiInputAudioBuffer("user done");
     clearPendingUserTurnResponse();
     vadSpeechActive = false;
     lastVadSpeechEnd = Date.now();
     speechStopForwardGraceUntil = 0;
 
-    if (pendingText && transcriptLooksStable()) {
+    if (!committedAudioBuffer && pendingText && transcriptLooksStable()) {
       finalizeUserTurn("user done");
       return;
     }
@@ -1352,7 +1417,10 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     if (pendingText) {
       send({ type: "asr_pending", text: pendingText });
     }
-    scheduleSpeechFinalize("user done", 800);
+    scheduleSpeechFinalize(
+      "user done",
+      committedAudioBuffer ? USER_DONE_TRANSCRIPTION_TIMEOUT_MS : 800,
+    );
   }
 
   function flushPendingUserTurnBeforeAssistant() {
@@ -1388,7 +1456,9 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
         OPENAI_REALTIME_TRANSCRIPTION_MODEL,
         ctx.language,
       ),
-      turn_detection: buildManualRealtimeTurnDetectionConfig(),
+      turn_detection: buildManualRealtimeTurnDetectionConfig(
+        OPENAI_REALTIME_TRANSCRIPTION_MODEL,
+      ),
     };
   }
 
@@ -1414,7 +1484,9 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
             : {
                 format: { type: "audio/pcm", rate: 24000 },
                 noise_reduction: { type: "far_field" },
-                turn_detection: buildManualRealtimeTurnDetectionConfig(),
+                turn_detection: buildManualRealtimeTurnDetectionConfig(
+                  OPENAI_REALTIME_TRANSCRIPTION_MODEL,
+                ),
               },
         },
       },
@@ -1626,6 +1698,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
   const SILENCE_100MS_24K = Buffer.alloc(4800).toString("base64");
   const keepaliveTimer = setInterval(() => {
     if (!oaiWs || oaiWs.readyState !== WebSocket.OPEN) return;
+    if (OPENAI_TRANSCRIPTION_REQUIRES_MANUAL_COMMIT) return;
     if ((Date.now() - lastAudioSentToOai) > 4_000) {
       oaiWs.send(JSON.stringify({
         type: "input_audio_buffer.append",
@@ -1700,6 +1773,16 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
           case "conversation.item.input_audio_transcription.completed": {
             if (!openAiTranscriptionEnabled || speechTranscriptCommitted) break;
             handleWhisperCompletedTranscript(msg.transcript || "");
+            break;
+          }
+
+          case "input_audio_buffer.committed": {
+            log.info(
+              `OpenAI input audio buffer committed: ${JSON.stringify({
+                item_id: msg.item_id,
+                previous_item_id: msg.previous_item_id,
+              })}`,
+            );
             break;
           }
 
@@ -1883,6 +1966,9 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
                 pushHistory("assistant", capturedModelText);
               }
               send({ type: "tts_ended" });
+              if (REQUIRE_EXPLICIT_USER_TURN_DONE) {
+                resetCommittedUserTurnForNextAnswer("assistant response completed");
+              }
             } else if (hadTts) {
               log.info(`TTS interrupted before audio (0B): ${JSON.stringify(capturedModelText)}`);
               pendingTtsText = [];
@@ -2357,6 +2443,8 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
             type: "input_audio_buffer.append",
             audio: pcm24k.toString("base64"),
           }));
+          openAiInputAudioBufferActive = true;
+          openAiUserAudioBytesSinceCommit += pcm24k.length;
         }
         if ((!inEchoCooldown || allowBargeInDuringTts) && aboveNoiseFloor) {
           sendAudioToVolc(pcm16k);

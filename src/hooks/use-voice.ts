@@ -2,6 +2,10 @@
 
 import { createLogger } from "@/lib/logger";
 import {
+  appendAssistantTranscriptDelta,
+  normalizeAssistantTranscript,
+} from "@/lib/voice/assistant-transcript";
+import {
   cleanPeriodArtifacts,
   mergeAsrFinal,
   mergeClientAsrInterim,
@@ -60,6 +64,7 @@ interface VoiceState {
   isListening: boolean;
   isSpeaking: boolean;
   isProcessing: boolean;
+  isFinalizing: boolean;
   isTransitioning: boolean;
   transitionDirection: "next" | "previous" | null;
   isSaving: boolean;
@@ -106,6 +111,7 @@ export function useVoice({
     isListening: false,
     isSpeaking: false,
     isProcessing: false,
+    isFinalizing: false,
     isTransitioning: false,
     transitionDirection: null,
     isSaving: false,
@@ -211,7 +217,7 @@ export function useVoice({
         setState((s) => ({
           ...s,
           aiTranscript: "",
-          isProcessing: true,
+          isFinalizing: true,
         }));
       }, delay);
     },
@@ -232,6 +238,7 @@ export function useVoice({
       isListening: false,
       isSpeaking: false,
       isProcessing: false,
+      isFinalizing: false,
       isTransitioning: false,
       transitionDirection: null,
       userTranscript: "",
@@ -342,6 +349,7 @@ export function useVoice({
     setState((s) => ({
       ...s,
       isSpeaking: true,
+      isFinalizing: false,
       isProcessing: false,
     }));
 
@@ -563,7 +571,12 @@ export function useVoice({
               asrBufferRef.current = merged;
               const cleaned = cleanPeriodArtifacts(merged);
               const display = cleaned.replace(/\s+$/, "").replace(/[.!?。！？]+$/, "");
-              setState((s) => ({ ...s, isProcessing: false, userTranscript: display }));
+              setState((s) => ({
+                ...s,
+                isFinalizing: false,
+                isProcessing: false,
+                userTranscript: display,
+              }));
               onTranscript?.(display, false);
             }
           }
@@ -582,7 +595,7 @@ export function useVoice({
             if (!stateRef.current.isProcessing) {
               const cleaned = cleanPeriodArtifacts(merged);
               const display = cleaned.replace(/\s+$/, "").replace(/[.!?。！？]+$/, "");
-              setState((s) => ({ ...s, userTranscript: display }));
+              setState((s) => ({ ...s, isFinalizing: true, userTranscript: display }));
               onTranscript?.(display, false);
             }
           }
@@ -625,7 +638,8 @@ export function useVoice({
           asrBufferRef.current = "";
           setState((s) => ({
             ...s,
-            userTranscript: finalText && !duplicateSkipped ? finalText : "",
+            userTranscript: "",
+            isFinalizing: false,
             isProcessing: Boolean(finalText) && !duplicateSkipped,
           }));
           break;
@@ -633,7 +647,13 @@ export function useVoice({
 
         case "response_started":
           clearAsrProcessingTimer();
-          setState((s) => ({ ...s, userTranscript: "", aiTranscript: "", isProcessing: true }));
+          setState((s) => ({
+            ...s,
+            userTranscript: "",
+            aiTranscript: "",
+            isFinalizing: false,
+            isProcessing: true,
+          }));
           break;
 
         case "chat": {
@@ -646,6 +666,7 @@ export function useVoice({
               aiTranscript: chatBufferRef.current,
               lastAssistantUtteranceEndedAt: 0,
               isProcessing: false,
+              isFinalizing: false,
             }));
           }
           break;
@@ -655,10 +676,13 @@ export function useVoice({
           const text = extractText(msg.data);
           if (text) {
             clearAsrProcessingTimer();
-            chatBufferRef.current += (chatBufferRef.current ? " " : "") + text;
+            chatBufferRef.current = appendAssistantTranscriptDelta(
+              chatBufferRef.current,
+              text,
+            );
             setState((s) => ({
               ...s,
-              aiTranscript: chatBufferRef.current,
+              aiTranscript: normalizeAssistantTranscript(chatBufferRef.current),
               lastAssistantUtteranceEndedAt: 0,
               isProcessing: false,
             }));
@@ -675,7 +699,7 @@ export function useVoice({
         case "chat_ended":
         case "tts_ended": {
           clearAsrProcessingTimer();
-          const fullResponse = chatBufferRef.current.trim();
+          const fullResponse = normalizeAssistantTranscript(chatBufferRef.current);
           chatBufferRef.current = "";
           // Keep last transcript visible until next AI speech (replaced by tts_text/chat)
           setState((s) => ({
@@ -684,6 +708,7 @@ export function useVoice({
             lastAssistantUtteranceEndedAt:
               msg.type === "tts_ended" ? Date.now() : s.lastAssistantUtteranceEndedAt,
             isProcessing: false,
+            isFinalizing: false,
           }));
           if (fullResponse) {
             // Dedupe: chat_ended and tts_ended often both fire for same response.
@@ -721,12 +746,17 @@ export function useVoice({
           }
           chatBufferRef.current = "";
           lastOnAIResponseRef.current = "";
-          setState((s) => ({ ...s, aiTranscript: "", isProcessing: true }));
+          setState((s) => ({
+            ...s,
+            aiTranscript: "",
+            isFinalizing: false,
+            isProcessing: true,
+          }));
           break;
 
         case "session_reconnected":
           clearAsrProcessingTimer();
-          setState((s) => ({ ...s, isProcessing: false }));
+          setState((s) => ({ ...s, isFinalizing: false, isProcessing: false }));
           break;
 
         case "question_change": {
@@ -927,6 +957,18 @@ export function useVoice({
     setState((s) => ({ ...s, isListening: false, audioLevel: 0 }));
   }, []);
 
+  const finishSpeaking = useCallback(() => {
+    const connector = relayConnectorRef.current;
+    if (!connector?.isReady) return;
+    clearAsrProcessingTimer();
+    connector.sendJson({ type: "user_turn_done" });
+    setState((s) => ({
+      ...s,
+      isFinalizing: true,
+      isProcessing: false,
+    }));
+  }, [clearAsrProcessingTimer]);
+
   /** Request transition to the next question */
   const nextQuestion = useCallback(() => {
     relayConnectorRef.current?.sendJson({ type: "next_question" });
@@ -968,7 +1010,7 @@ export function useVoice({
   /** Save remaining tracked messages and complete the session */
   const saveAndComplete = useCallback(async () => {
     // Flush any pending buffers before saving
-    const pendingAsrText = asrBufferRef.current.trim();
+    const pendingAsrText = cleanPeriodArtifacts(asrBufferRef.current).trim();
     if (pendingAsrText) {
       trackedMessagesRef.current.push({ role: "user", content: pendingAsrText });
       asrBufferRef.current = "";
@@ -1021,6 +1063,7 @@ export function useVoice({
     disconnect,
     startListening,
     stopListening,
+    finishSpeaking,
     nextQuestion,
     previousQuestion,
     sendTextMessage,

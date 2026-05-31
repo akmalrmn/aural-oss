@@ -5,6 +5,41 @@ function tokenize(text: string): string[] {
   return text.trim().toLowerCase().match(TOKEN_REGEX) ?? [];
 }
 
+function compactTokenKey(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\u00c0-\u024f]+/g, "")
+    .trim();
+}
+
+function formattingScore(text: string): number {
+  const spaces = (text.match(/\s/g) || []).length;
+  const punctuation = (text.match(/[,.!?;:]/g) || []).length;
+  return spaces * 2 + punctuation;
+}
+
+function preferFormattedAsrText(first: string, second: string): string {
+  const firstScore = formattingScore(first);
+  const secondScore = formattingScore(second);
+  if (secondScore !== firstScore) return secondScore > firstScore ? second : first;
+  return second.length >= first.length ? second : first;
+}
+
+function areCompactRevisions(first: string, second: string): boolean {
+  const a = compactTokenKey(first);
+  const b = compactTokenKey(second);
+  const shorter = Math.min(a.length, b.length);
+  if (shorter < 12) return false;
+  const longer = Math.max(a.length, b.length);
+  const lengthRatio = shorter / longer;
+  if (a === b) return true;
+  if (lengthRatio >= 0.82 && (a.includes(b) || b.includes(a))) return true;
+
+  let prefix = 0;
+  while (prefix < shorter && a[prefix] === b[prefix]) prefix++;
+  return prefix / shorter >= 0.82;
+}
+
 function tokenizeWithPositions(text: string): { token: string; start: number }[] {
   const results: { token: string; start: number }[] = [];
   const regex = new RegExp(TOKEN_REGEX.source, "gi");
@@ -108,10 +143,18 @@ export function stripIsolatedCjk(text: string): string {
   if (totalChars === 0) return text;
   const cjkChars = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;
   if (cjkChars === 0) return text;
-  if (cjkChars / totalChars > 0.2) return text;
 
   return text
-    .replace(/[.。]?[\u4e00-\u9fff\u3400-\u4dbf]+[.。]?/g, " ")
+    .replace(/[.。]?[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\ufffd]+[.。]?/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+export function stripTranscriptionInstructionArtifacts(text: string): string {
+  return text
+    .replace(/\bTranscribe the participant'?s speech as English only\.?/gi, " ")
+    .replace(/\bPreserve English words as spoken\.?/gi, " ")
+    .replace(/\bDo not translate to Malay, Indonesian, Chinese, or any other language\.?/gi, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
 }
@@ -119,7 +162,9 @@ export function stripIsolatedCjk(text: string): string {
 export function cleanPeriodArtifacts(text: string): string {
   // First collapse adjacent sentence-level revisions (handles duplication
   // across any punctuation, e.g. "How's my users? How's my users to download...")
-  const deduped = collapseAdjacentInterimRevisions(stripIsolatedCjk(text));
+  const deduped = collapseAdjacentInterimRevisions(
+    stripTranscriptionInstructionArtifacts(stripIsolatedCjk(text)),
+  );
 
   const parts = splitSentenceLikeParts(deduped);
   if (parts.length < 3) {
@@ -278,6 +323,9 @@ export function mergeAsrFinal(buffer: string, relayFinal: string): string {
   const fin = relayFinal.replace(/\s+/g, " ").trim();
   if (!buf) return fin;
   if (!fin) return buf;
+  if (areCompactRevisions(buf, fin)) {
+    return preferFormattedAsrText(buf, fin);
+  }
 
   const bufTokens = tokenize(buf);
   const finTokens = tokenize(fin);
@@ -347,6 +395,9 @@ export function mergeClientAsrInterim(existing: string, incoming: string): strin
   const next = collapseAdjacentInterimRevisions(incoming.replace(/\s+/g, " ").trim());
   if (!current) return next;
   if (!next) return current;
+  if (areCompactRevisions(current, next)) {
+    return preferFormattedAsrText(current, next);
+  }
 
   const currentTokens = tokenize(current);
   const nextTokens = tokenize(next);

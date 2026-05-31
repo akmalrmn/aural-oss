@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { cleanPeriodArtifacts, mergeAsrFinal, mergeClientAsrInterim, stripInterimPunctuation, stripIsolatedCjk, trimCrossTurnOverlap } from "@/lib/voice/asr-interim";
+import { cleanPeriodArtifacts, mergeAsrFinal, mergeClientAsrInterim, stripInterimPunctuation, stripIsolatedCjk, stripTranscriptionInstructionArtifacts, trimCrossTurnOverlap } from "@/lib/voice/asr-interim";
 
 test("client ASR interim keeps earlier speech when a trailing fragment arrives", () => {
   const first =
@@ -88,6 +88,16 @@ test("mergeAsrFinal uses relay text directly when it covers equal or more conten
   );
 });
 
+test("mergeAsrFinal prefers spaced final transcript over no-space interim duplicate", () => {
+  assert.equal(
+    mergeAsrFinal(
+      "Okay,thankyouforthequestion SoIhaveapracticalexperienceinEnglishstructureandwrittenexpressionsthroughoutmycollege",
+      "Okay, thank you for the question. So I have a practical experience in English structure and written expressions throughout my college.",
+    ),
+    "Okay, thank you for the question. So I have a practical experience in English structure and written expressions throughout my college.",
+  );
+});
+
 test("mergeAsrFinal falls back to buffer when relay is empty", () => {
   assert.equal(
     mergeAsrFinal("Some pending text from interims.", ""),
@@ -111,10 +121,10 @@ test("cleanPeriodArtifacts preserves legitimate short sentences", () => {
   );
 });
 
-test("cleanPeriodArtifacts ignores Chinese sentence boundaries", () => {
+test("cleanPeriodArtifacts strips non-English CJK transcript output", () => {
   assert.equal(
     cleanPeriodArtifacts("这是晓之以理。第二个正是打用情感上打动他。动之以情。"),
-    "这是晓之以理。第二个正是打用情感上打动他。动之以情。",
+    "",
   );
 });
 
@@ -160,10 +170,10 @@ test("stripIsolatedCjk removes Chinese characters from English text", () => {
   );
 });
 
-test("stripIsolatedCjk preserves predominantly Chinese text", () => {
+test("stripIsolatedCjk strips predominantly Chinese text for English-only assessments", () => {
   assert.equal(
     stripIsolatedCjk("这是晓之以理。第二个正是打用情感上打动他。"),
-    "这是晓之以理。第二个正是打用情感上打动他。",
+    "",
   );
 });
 
@@ -180,6 +190,15 @@ test("cleanPeriodArtifacts strips isolated CJK before deduplication", () => {
       "And then separately, i also.调应 the ai models for each of the test.",
     ),
     "And then separately, i also the ai models for each of the test.",
+  );
+});
+
+test("stripTranscriptionInstructionArtifacts removes leaked ASR prompt text", () => {
+  assert.equal(
+    stripTranscriptionInstructionArtifacts(
+      "I use English every day. Preserve English words as spoken. Do not translate to Malay, Indonesian, Chinese, or any other language.",
+    ),
+    "I use English every day.",
   );
 });
 

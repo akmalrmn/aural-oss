@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildRealtimeTranscriptionConfig,
+  getUserTurnAssistantResponseDelayMs,
   normalizeRealtimeTranscriptionLanguage,
   shouldAllowTtsBargeIn,
 } from "../server/openai-voice-relay-helpers";
@@ -76,8 +77,36 @@ test("builds English-only Realtime transcription config", () => {
     {
       model: "gpt-4o-mini-transcribe",
       language: "en",
-      prompt:
-        "Transcribe the participant's speech as English only. Preserve English words as spoken. Do not translate to Malay, Indonesian, Chinese, or any other language.",
     },
+  );
+});
+
+test("delays assistant response while user speech is still settling", () => {
+  assert.equal(
+    getUserTurnAssistantResponseDelayMs({
+      vadSpeechActive: false,
+      speechStopForwardGraceUntil: 13_500,
+      lastVadSpeechEnd: 10_000,
+      lastTranscriptUpdateAt: 11_000,
+      nowMs: 12_000,
+      speechStopFinalizeMs: 4_200,
+      transcriptStabilityMs: 2_200,
+    }),
+    2_200,
+  );
+});
+
+test("does not delay assistant response after speech and transcript are stable", () => {
+  assert.equal(
+    getUserTurnAssistantResponseDelayMs({
+      vadSpeechActive: false,
+      speechStopForwardGraceUntil: 13_500,
+      lastVadSpeechEnd: 10_000,
+      lastTranscriptUpdateAt: 11_000,
+      nowMs: 15_000,
+      speechStopFinalizeMs: 4_200,
+      transcriptStabilityMs: 2_200,
+    }),
+    0,
   );
 });

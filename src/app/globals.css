@@ -79,6 +79,7 @@
   body:has(.dashboard-shell) {
     overflow: hidden;
   }
+  body.skilio-assessment-body,
   .skilio-assessment-theme {
     --background: 102 43% 98%;
     --foreground: 0 0% 16%;

@@ -1249,7 +1249,7 @@ export function VoiceInterface({
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, voice.aiTranscript, voice.userTranscript, voice.isProcessing]);
+  }, [messages, voice.aiTranscript, voice.userTranscript, voice.isProcessing, voice.isFinalizing]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1293,7 +1293,8 @@ export function VoiceInterface({
   const shouldShowFinalizingScreen =
     !preview &&
     voice.isInterviewComplete &&
-    !locallyCompleted;
+    !locallyCompleted &&
+    !hasVisibleFarewell;
 
   const formatTime = (totalSec: number) => {
     const m = Math.floor(totalSec / 60);
@@ -1359,11 +1360,14 @@ export function VoiceInterface({
   const isWhiteboardQuestion = currentQVoice?.type === "WHITEBOARD";
   const showVoiceTransitioning = voice.isTransitioning;
   const showVoiceProcessing = !showVoiceTransitioning && voice.isProcessing;
+  const showVoiceFinalizing =
+    !showVoiceTransitioning && !showVoiceProcessing && voice.isFinalizing;
   const showVoiceSpeaking =
-    !showVoiceTransitioning && !showVoiceProcessing && voice.isSpeaking;
+    !showVoiceTransitioning && !showVoiceProcessing && !showVoiceFinalizing && voice.isSpeaking;
   const showVoiceListening =
     !showVoiceTransitioning &&
     !showVoiceProcessing &&
+    !showVoiceFinalizing &&
     !showVoiceSpeaking &&
     voice.isListening;
 
@@ -1636,6 +1640,12 @@ export function VoiceInterface({
                     <span className="text-xs font-medium">Listening</span>
                   </div>
                 )}
+                {voice.isFinalizing && !voice.isProcessing && (
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-xs font-medium">Finalizing answer</span>
+                  </div>
+                )}
                 {voice.isProcessing && (
                   <div className="flex items-center gap-1.5 text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1650,7 +1660,7 @@ export function VoiceInterface({
                     </span>
                   </div>
                 )}
-                {!voice.isSpeaking && !voice.isListening && !voice.isProcessing && !voice.isTransitioning && (
+                {!voice.isSpeaking && !voice.isListening && !voice.isProcessing && !voice.isFinalizing && !voice.isTransitioning && (
                   <span className="text-xs text-muted-foreground">
                     {voice.isConnected
                       ? `Voice active — ${whiteboardActive ? "draw" : "code"} freely`
@@ -1975,6 +1985,19 @@ export function VoiceInterface({
                     })()}
                   </div>
                 )}
+                {showVoiceFinalizing && (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span className="text-sm font-medium">Finalizing your answer...</span>
+                    </div>
+                    {voice.userTranscript && (
+                      <p className="max-w-md text-center text-sm text-muted-foreground">
+                        &ldquo;{voice.userTranscript}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                )}
                 {showVoiceSpeaking && (
                   <div className="flex items-center gap-2 text-primary">
                     <Volume2 className="h-5 w-5 animate-pulse" />
@@ -2077,7 +2100,7 @@ export function VoiceInterface({
               )}
               {voice.isConnected && showVoiceListening && (
                 <p className="text-sm text-muted-foreground">
-                  Speak naturally — AI will respond automatically
+                  Speak naturally, then click Done speaking
                 </p>
               )}
               </div>
@@ -2442,6 +2465,24 @@ export function VoiceInterface({
               {voice.isListening ? "Mute" : "Unmute"}
             </span>
           </div>
+
+          {voice.isListening && (
+            <div className="flex flex-col items-center gap-0.5">
+              <Button
+                type="button"
+                variant="default"
+                className="h-9 rounded-full bg-primary px-4 text-primary-foreground hover:bg-primary/90"
+                onClick={voice.finishSpeaking}
+                disabled={voice.isFinalizing || voice.isProcessing || voice.isSpeaking}
+              >
+                <Check className="h-4 w-4" />
+                Done speaking
+              </Button>
+              <span className="hidden text-[10px] text-muted-foreground md:block">
+                Send answer
+              </span>
+            </div>
+          )}
 
           {/* Chat toggle (mobile: opens transcript+chat sheet; same layout as other icon buttons) */}
           {chatEnabled && (

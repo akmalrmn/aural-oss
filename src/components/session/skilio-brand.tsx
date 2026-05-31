@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import type React from "react";
+import { useEffect } from "react";
 
 export function SkilioLogo({ className = "" }: { className?: string }) {
   return (
@@ -29,6 +32,13 @@ export function SkilioCandidateShell({
   children: React.ReactNode;
   className?: string;
 }) {
+  useEffect(() => {
+    document.body.classList.add("skilio-assessment-body");
+    return () => {
+      document.body.classList.remove("skilio-assessment-body");
+    };
+  }, []);
+
   return (
     <div className={`skilio-assessment-theme bg-background text-foreground ${className}`}>
       {children}

@@ -16,8 +16,6 @@ export function buildRealtimeTranscriptionConfig(
   return {
     model,
     language: normalizedLanguage,
-    prompt:
-      "Transcribe the participant's speech as English only. Preserve English words as spoken. Do not translate to Malay, Indonesian, Chinese, or any other language.",
   };
 }
 
@@ -34,6 +32,39 @@ export interface TtsBargeInDecision {
   thresholdFrames: number;
   minAudioMs?: number;
   minAudioBytes?: number;
+}
+
+export interface UserTurnAssistantResponseDelayInput {
+  vadSpeechActive: boolean;
+  speechStopForwardGraceUntil: number;
+  lastVadSpeechEnd: number;
+  lastTranscriptUpdateAt: number;
+  nowMs: number;
+  speechStopFinalizeMs: number;
+  transcriptStabilityMs: number;
+}
+
+export function getUserTurnAssistantResponseDelayMs({
+  vadSpeechActive,
+  speechStopForwardGraceUntil,
+  lastVadSpeechEnd,
+  lastTranscriptUpdateAt,
+  nowMs,
+  speechStopFinalizeMs,
+  transcriptStabilityMs,
+}: UserTurnAssistantResponseDelayInput): number {
+  const waits: number[] = [];
+  if (vadSpeechActive) waits.push(speechStopFinalizeMs);
+  if (speechStopForwardGraceUntil > nowMs) {
+    waits.push(speechStopForwardGraceUntil - nowMs);
+  }
+  if (lastVadSpeechEnd > 0) {
+    waits.push(speechStopFinalizeMs - (nowMs - lastVadSpeechEnd));
+  }
+  if (lastTranscriptUpdateAt > 0) {
+    waits.push(transcriptStabilityMs - (nowMs - lastTranscriptUpdateAt));
+  }
+  return Math.max(0, ...waits);
 }
 
 export function shouldAllowTtsBargeIn({

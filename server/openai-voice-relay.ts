@@ -773,6 +773,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
   let browserClosed = false;
 
   let inputTranscriptBuffer = "";
+  let inputTranscriptInterimBuffer = "";
   let outputTranscriptBuffer = "";
   let modelIsSpeaking = false;
   let lastOaiActivity = Date.now();
@@ -842,6 +843,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     | { reason: string; response?: Record<string, unknown> }
     | null = null;
   let pendingUserTurnResponseTimer: ReturnType<typeof setTimeout> | null = null;
+  let userAudioClosedAfterDone = false;
 
   const conversationHistory: Array<{ role: "user" | "assistant"; text: string }> = [];
   const MAX_HISTORY_ENTRIES = 30;
@@ -999,6 +1001,12 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     reason: string,
     response?: Record<string, unknown>,
   ) {
+    if (REQUIRE_EXPLICIT_USER_TURN_DONE && reason === "user done") {
+      pendingUserTurnResponse = null;
+      requestAssistantResponse(reason, response);
+      return;
+    }
+
     const delayMs = userTurnAssistantResponseDelayMs();
     if (delayMs <= 0) {
       pendingUserTurnResponse = null;
@@ -1096,6 +1104,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
   function clearPendingUserTranscript(reason: string) {
     const hadPending =
       !!inputTranscriptBuffer ||
+      !!inputTranscriptInterimBuffer ||
       !!volcAsrAccumulator ||
       !!pendingAsrUpdate ||
       !!pendingInputFlush ||
@@ -1110,13 +1119,15 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     }
     clearSpeechFinalizeTimer();
     inputTranscriptBuffer = "";
+    inputTranscriptInterimBuffer = "";
     volcAsrAccumulator = "";
     lastTranscriptUpdateAt = 0;
     if (hadPending) log.debug(`Cleared pending user transcript (${reason})`);
   }
 
   function bestAvailableTranscript(): string {
-    return mergeAsrText(inputTranscriptBuffer, volcAsrAccumulator).trim();
+    const committed = mergeAsrText(inputTranscriptBuffer, volcAsrAccumulator).trim();
+    return committed || inputTranscriptInterimBuffer.trim();
   }
 
   function noteTranscriptUpdate() {
@@ -1150,6 +1161,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     send({ type: "asr_ended", text: committedText });
     log.info(`Committed user transcript (${reason}): ${JSON.stringify(committedText)}`);
     inputTranscriptBuffer = "";
+    inputTranscriptInterimBuffer = "";
     volcAsrAccumulator = "";
     lastTranscriptUpdateAt = 0;
     armStaleAsrGuard(committedText);
@@ -1160,7 +1172,15 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     clearSpeechFinalizeTimer();
     pendingSpeechFinalize = setTimeout(() => {
       pendingSpeechFinalize = null;
-      if (speechTranscriptCommitted || !bestAvailableTranscript()) return;
+      if (speechTranscriptCommitted) return;
+      if (!bestAvailableTranscript()) {
+        if (REQUIRE_EXPLICIT_USER_TURN_DONE && reason === "user done") {
+          userAudioClosedAfterDone = false;
+          send({ type: "asr_ended", text: "" });
+          log.info("User clicked Done but no transcript was available");
+        }
+        return;
+      }
       if (!transcriptLooksStable()) {
         const now = Date.now();
         const waitForStability = Math.max(
@@ -1235,12 +1255,12 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
   function handleWhisperDelta(delta: string) {
     const cleanDelta = sanitizeEnglishAsrText(delta);
     if (!cleanDelta || !tryAcceptFreshAsrText(cleanDelta, "Whisper delta")) return;
-    inputTranscriptBuffer += cleanDelta;
+    inputTranscriptInterimBuffer += cleanDelta;
     noteTranscriptUpdate();
     if (pendingAsrUpdate) clearTimeout(pendingAsrUpdate);
     pendingAsrUpdate = setTimeout(() => {
       pendingAsrUpdate = null;
-      emitInterimUserTranscript(inputTranscriptBuffer, true);
+      emitInterimUserTranscript(inputTranscriptInterimBuffer, true);
     }, 150);
     if (!REQUIRE_EXPLICIT_USER_TURN_DONE && pendingInputFlush) scheduleInputFlush();
   }
@@ -1257,6 +1277,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
 
     log.info(`ASR completed: ${JSON.stringify(cleanTranscript)}`);
     inputTranscriptBuffer = mergeAsrText(inputTranscriptBuffer, cleanTranscript);
+    inputTranscriptInterimBuffer = "";
     noteTranscriptUpdate();
     if (pendingAsrUpdate) clearTimeout(pendingAsrUpdate);
     pendingAsrUpdate = null;
@@ -1266,6 +1287,10 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
 
   function handleSpeechStartedEvent() {
     log.debug("VAD: user speech started");
+    if (REQUIRE_EXPLICIT_USER_TURN_DONE && userAudioClosedAfterDone) {
+      log.debug("Ignored VAD speech start after user clicked Done");
+      return;
+    }
     speechStopForwardGraceUntil = 0;
     if (!REQUIRE_EXPLICIT_USER_TURN_DONE) {
       queuedAssistantResponse = null;
@@ -1287,6 +1312,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
       speechTranscriptCommitted = false;
       volcAsrAccumulator = "";
       inputTranscriptBuffer = "";
+      inputTranscriptInterimBuffer = "";
     }
     if (!assistantOutputActive) {
       send({ type: "interrupt" });
@@ -1296,6 +1322,10 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
   }
 
   function handleSpeechStoppedEvent() {
+    if (REQUIRE_EXPLICIT_USER_TURN_DONE && userAudioClosedAfterDone) {
+      log.debug("Ignored VAD speech stop after user clicked Done");
+      return;
+    }
     vadSpeechActive = false;
     lastVadSpeechEnd = Date.now();
     speechStopForwardGraceUntil = lastVadSpeechEnd + SPEECH_STOP_FORWARD_GRACE_MS;
@@ -1308,6 +1338,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
   function handleUserTurnDone() {
     const pendingText = bestAvailableTranscript();
     log.info(`Browser signaled user turn done${pendingText ? `: ${JSON.stringify(pendingText)}` : ""}`);
+    userAudioClosedAfterDone = true;
     clearPendingUserTurnResponse();
     vadSpeechActive = false;
     lastVadSpeechEnd = Date.now();
@@ -1863,6 +1894,10 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
             responseTtsBytes = 0;
             responseAudioStarted = false;
             responseAudioStartedAt = 0;
+            if (REQUIRE_EXPLICIT_USER_TURN_DONE && userAudioClosedAfterDone) {
+              userAudioClosedAfterDone = false;
+              log.debug("Re-opened user audio after assistant response completed");
+            }
 
             // Detect empty responses and retry: the model sometimes
             // produces responses with no audio and no function calls.
@@ -2257,6 +2292,10 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
 
       if (msg.type === "audio" && msg.data) {
         if (isTransitioning) return;
+        if (REQUIRE_EXPLICIT_USER_TURN_DONE && userAudioClosedAfterDone) {
+          log.debug("Ignored browser audio after user clicked Done");
+          return;
+        }
         const pcm16k = Buffer.from(msg.data, "hex");
         const nowMs = Date.now();
 

@@ -962,12 +962,13 @@ export function useVoice({
     if (!connector?.isReady) return;
     clearAsrProcessingTimer();
     connector.sendJson({ type: "user_turn_done" });
+    stopListening();
     setState((s) => ({
       ...s,
       isFinalizing: true,
       isProcessing: false,
     }));
-  }, [clearAsrProcessingTimer]);
+  }, [clearAsrProcessingTimer, stopListening]);
 
   /** Request transition to the next question */
   const nextQuestion = useCallback(() => {

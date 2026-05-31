@@ -2447,6 +2447,7 @@ export function VoiceInterface({
                   ? "bg-secondary-500 hover:bg-secondary-600 border-secondary-500"
                   : ""
               }`}
+              aria-label={voice.isListening ? "Mute" : "Unmute"}
               onClick={() => {
                 if (voice.isListening) {
                   voice.stopListening();
@@ -2533,6 +2534,7 @@ export function VoiceInterface({
                 size="icon"
                 variant="secondary"
                 className="h-9 w-9 rounded-full"
+                aria-label="Previous question"
                 onClick={handlePreviousQuestion}
                 disabled={
                   voice.isTransitioning ||
@@ -2553,6 +2555,7 @@ export function VoiceInterface({
                 size="icon"
                 variant="secondary"
                 className="h-9 w-9 rounded-full"
+                aria-label="Next question"
                 onClick={handleNextQuestion}
                 disabled={
                   voice.isTransitioning ||
@@ -2573,6 +2576,7 @@ export function VoiceInterface({
                 size="icon"
                 variant="destructive"
                 className="h-9 w-9 rounded-full"
+                aria-label="End interview"
                 onClick={() => setShowEndDialog(true)}
               >
                 <PhoneOff className="h-4 w-4" />

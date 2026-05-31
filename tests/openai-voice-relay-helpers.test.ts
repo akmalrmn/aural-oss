@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildManualRealtimeTurnDetectionConfig,
   buildRealtimeTranscriptionConfig,
   getUserTurnAssistantResponseDelayMs,
   normalizeRealtimeTranscriptionLanguage,
@@ -79,6 +80,15 @@ test("builds English-only Realtime transcription config", () => {
       language: "en",
     },
   );
+});
+
+test("builds manual Realtime turn detection without VAD-triggered responses", () => {
+  assert.deepEqual(buildManualRealtimeTurnDetectionConfig(), {
+    type: "semantic_vad",
+    eagerness: "low",
+    create_response: false,
+    interrupt_response: false,
+  });
 });
 
 test("delays assistant response while user speech is still settling", () => {

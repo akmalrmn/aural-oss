@@ -19,6 +19,15 @@ export function buildRealtimeTranscriptionConfig(
   };
 }
 
+export function buildManualRealtimeTurnDetectionConfig() {
+  return {
+    type: "semantic_vad" as const,
+    eagerness: "low" as const,
+    create_response: false,
+    interrupt_response: false,
+  };
+}
+
 export interface TtsBargeInDecision {
   inEchoCooldown: boolean;
   modelIsSpeaking: boolean;

@@ -11,8 +11,12 @@ import { randomUUID } from "crypto";
 import { config } from "dotenv";
 import { WebSocket, WebSocketServer } from "ws";
 import { createLogger } from "../src/lib/logger";
-import { stripTranscriptionInstructionArtifacts } from "../src/lib/voice/asr-interim";
 import {
+  stripIsolatedCjk,
+  stripTranscriptionInstructionArtifacts,
+} from "../src/lib/voice/asr-interim";
+import {
+  buildManualRealtimeTurnDetectionConfig,
   buildRealtimeTranscriptionConfig,
   DEFAULT_TTS_BARGE_IN_MIN_AUDIO_BYTES,
   DEFAULT_TTS_BARGE_IN_MIN_AUDIO_MS,
@@ -51,6 +55,8 @@ const AZURE_API_KEY = process.env.AZURE_OPENAI_API_KEY || "";
 const AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-realtime-1.5";
 const OPENAI_REALTIME_TRANSCRIPTION_MODEL =
   process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || "gpt-4o-mini-transcribe";
+const REQUIRE_EXPLICIT_USER_TURN_DONE =
+  process.env.OPENAI_VOICE_REQUIRE_USER_DONE !== "false";
 
 const USE_AZURE_OPENAI = !!(AZURE_ENDPOINT && AZURE_API_KEY);
 const OPENAI_WS_URL = USE_AZURE_OPENAI
@@ -98,6 +104,10 @@ const WHISPER_HALLUCINATIONS = new Set([
 function isWhisperHallucination(text: string): boolean {
   const trimmed = text.trim().toLowerCase();
   return trimmed.length === 0 || WHISPER_HALLUCINATIONS.has(trimmed);
+}
+
+function sanitizeEnglishAsrText(text: string): string {
+  return stripIsolatedCjk(stripTranscriptionInstructionArtifacts(text));
 }
 
 function looksLikeFarewell(text: string, isZh: boolean): boolean {
@@ -454,6 +464,9 @@ log.info(
     ? (USE_VOLC_ASR_PRIMARY ? "Volcengine primary" : "Volcengine interims enabled")
     : "Volcengine unavailable"})`
 );
+log.info(
+  `User turn boundary: ${REQUIRE_EXPLICIT_USER_TURN_DONE ? "explicit Done button" : "automatic VAD timers"}`
+);
 
 wss.on("connection", (browserWs) => {
   log.info("Browser connected, waiting for init...");
@@ -634,7 +647,14 @@ async function handleMicTest(browserWs: WebSocket) {
               OPENAI_REALTIME_TRANSCRIPTION_MODEL,
               "en",
             ),
-            turn_detection: { type: "server_vad", threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 300 },
+            turn_detection: {
+              type: "server_vad",
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 800,
+              create_response: false,
+              interrupt_response: false,
+            },
           },
           output: { format: { type: "audio/pcm", rate: 24000 }, voice: OPENAI_REALTIME_VOICE },
         },
@@ -1101,7 +1121,12 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
 
   function noteTranscriptUpdate() {
     lastTranscriptUpdateAt = Date.now();
-    if (!vadSpeechActive && !speechTranscriptCommitted && bestAvailableTranscript()) {
+    if (
+      !REQUIRE_EXPLICIT_USER_TURN_DONE &&
+      !vadSpeechActive &&
+      !speechTranscriptCommitted &&
+      bestAvailableTranscript()
+    ) {
       scheduleSpeechFinalize("asr stability", USER_TRANSCRIPT_STABILITY_MS);
     }
   }
@@ -1172,14 +1197,15 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
 
   function emitInterimUserTranscript(text: string, allowWhenVolcSilent = false) {
     if (allowWhenVolcSilent && volcAsrAccumulator.trim()) return;
-    const cleanText = stripTranscriptionInstructionArtifacts(text);
+    const cleanText = sanitizeEnglishAsrText(text);
     if (!cleanText) return;
     send({ type: "asr", data: { results: [{ text: cleanText }] } });
   }
 
   function handleVolcInterimText(text: string, label: string) {
-    if (!tryAcceptFreshAsrText(text, label)) return;
-    volcAsrAccumulator = mergeAsrText(volcAsrAccumulator, text);
+    const cleanText = sanitizeEnglishAsrText(text);
+    if (!cleanText || !tryAcceptFreshAsrText(cleanText, label)) return;
+    volcAsrAccumulator = mergeAsrText(volcAsrAccumulator, cleanText);
     noteTranscriptUpdate();
     emitInterimUserTranscript(volcAsrAccumulator);
   }
@@ -1189,7 +1215,12 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     if (userText && !volcAsrPreFlushed) {
       if (USE_VOLC_ASR_PRIMARY) {
         log.info(`${logLabel}: ${JSON.stringify(userText)}`);
-        finalizeUserTurn(reason);
+        if (REQUIRE_EXPLICIT_USER_TURN_DONE) {
+          noteTranscriptUpdate();
+          emitInterimUserTranscript(userText);
+        } else {
+          finalizeUserTurn(reason);
+        }
       } else {
         log.debug(`${logLabel} (interim-only): ${JSON.stringify(userText)}`);
         noteTranscriptUpdate();
@@ -1202,7 +1233,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
   }
 
   function handleWhisperDelta(delta: string) {
-    const cleanDelta = stripTranscriptionInstructionArtifacts(delta);
+    const cleanDelta = sanitizeEnglishAsrText(delta);
     if (!cleanDelta || !tryAcceptFreshAsrText(cleanDelta, "Whisper delta")) return;
     inputTranscriptBuffer += cleanDelta;
     noteTranscriptUpdate();
@@ -1211,11 +1242,11 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
       pendingAsrUpdate = null;
       emitInterimUserTranscript(inputTranscriptBuffer, true);
     }, 150);
-    if (pendingInputFlush) scheduleInputFlush();
+    if (!REQUIRE_EXPLICIT_USER_TURN_DONE && pendingInputFlush) scheduleInputFlush();
   }
 
   function handleWhisperCompletedTranscript(transcript: string) {
-    const cleanTranscript = stripTranscriptionInstructionArtifacts(transcript);
+    const cleanTranscript = sanitizeEnglishAsrText(transcript);
     if (!cleanTranscript || !tryAcceptFreshAsrText(cleanTranscript, "Whisper completion")) return;
 
     const msSinceVadSpeech = Date.now() - lastVadSpeechEnd;
@@ -1230,20 +1261,25 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     if (pendingAsrUpdate) clearTimeout(pendingAsrUpdate);
     pendingAsrUpdate = null;
     emitInterimUserTranscript(inputTranscriptBuffer, true);
-    scheduleInputFlush();
+    if (!REQUIRE_EXPLICIT_USER_TURN_DONE) scheduleInputFlush();
   }
 
   function handleSpeechStartedEvent() {
     log.debug("VAD: user speech started");
     speechStopForwardGraceUntil = 0;
-    queuedAssistantResponse = null;
-    clearPendingUserTurnResponse();
-    if (shouldSplitUserTurnOnSpeechStart()) {
+    if (!REQUIRE_EXPLICIT_USER_TURN_DONE) {
+      queuedAssistantResponse = null;
+      clearPendingUserTurnResponse();
+    }
+    if (!REQUIRE_EXPLICIT_USER_TURN_DONE && shouldSplitUserTurnOnSpeechStart()) {
       const splitText = bestAvailableTranscript();
       log.info(`Splitting pending user turn on new speech start: ${JSON.stringify(splitText)}`);
       finalizeUserTurn("speech restart", false);
     }
-    cancelOngoingResponse();
+    const assistantOutputActive = responseInFlight || modelIsSpeaking || responseAudioStarted;
+    if (!assistantOutputActive) {
+      cancelOngoingResponse();
+    }
     clearSpeechFinalizeTimer();
     vadSpeechActive = true;
     lastTranscriptUpdateAt = 0;
@@ -1252,7 +1288,11 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
       volcAsrAccumulator = "";
       inputTranscriptBuffer = "";
     }
-    send({ type: "interrupt" });
+    if (!assistantOutputActive) {
+      send({ type: "interrupt" });
+    } else {
+      log.debug("VAD speech start observed while assistant is speaking; waiting for barge-in threshold");
+    }
   }
 
   function handleSpeechStoppedEvent() {
@@ -1260,7 +1300,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
     lastVadSpeechEnd = Date.now();
     speechStopForwardGraceUntil = lastVadSpeechEnd + SPEECH_STOP_FORWARD_GRACE_MS;
     log.debug("VAD: user speech stopped");
-    if (!speechTranscriptCommitted && bestAvailableTranscript()) {
+    if (!REQUIRE_EXPLICIT_USER_TURN_DONE && !speechTranscriptCommitted && bestAvailableTranscript()) {
       scheduleSpeechFinalize("speech stop", USER_SPEECH_STOP_FINALIZE_MS);
     }
   }
@@ -1285,6 +1325,10 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
   }
 
   function flushPendingUserTurnBeforeAssistant() {
+    if (REQUIRE_EXPLICIT_USER_TURN_DONE) {
+      return;
+    }
+
     if (!speechTranscriptCommitted && bestAvailableTranscript()) {
       const pendingUserText = bestAvailableTranscript();
       if (transcriptLooksStable()) {
@@ -1313,12 +1357,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
         OPENAI_REALTIME_TRANSCRIPTION_MODEL,
         ctx.language,
       ),
-      turn_detection: {
-        type: "semantic_vad" as const,
-        eagerness: "low" as const,
-        create_response: false,
-        interrupt_response: true,
-      },
+      turn_detection: buildManualRealtimeTurnDetectionConfig(),
     };
   }
 
@@ -1344,12 +1383,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
             : {
                 format: { type: "audio/pcm", rate: 24000 },
                 noise_reduction: { type: "far_field" },
-                turn_detection: {
-                  type: "semantic_vad",
-                  eagerness: "low",
-                  create_response: false,
-                  interrupt_response: true,
-                },
+                turn_detection: buildManualRealtimeTurnDetectionConfig(),
               },
         },
       },
@@ -1810,7 +1844,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
               // Flush any pending user text BEFORE committing agent text
               // so the transcript order matches the conversation order.
               flushPendingUserTurnBeforeAssistant();
-              if (inputTranscriptBuffer) {
+              if (!REQUIRE_EXPLICIT_USER_TURN_DONE && inputTranscriptBuffer) {
                 flushUserInput();
               }
               if (capturedModelText) {
@@ -1871,7 +1905,7 @@ async function handleInterview(browserWs: WebSocket, ctx: InterviewContext) {
               markInterviewComplete("after farewell");
             }
 
-            if (inputTranscriptBuffer) {
+            if (!REQUIRE_EXPLICIT_USER_TURN_DONE && inputTranscriptBuffer) {
               scheduleInputFlush();
             }
             break;

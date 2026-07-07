@@ -22,29 +22,23 @@ const spaceGrotesk = Space_Grotesk({
   variable: "--font-heading",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://aural-ai.com";
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://assessment.skilio.co";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Aural - AI Interview Platform | Voice & Video Interviews",
-    template: "%s | Aural",
+    default: "Skilio Assessment - Job Portal",
+    template: "%s | Skilio Assessment",
   },
   description:
-    "Aural is the AI interview platform for structured voice, chat, and video interviews. Automate candidate screening, get real-time insights, and scale your interview process.",
+    "Skilio Assessment helps employers publish jobs, manage applicants, and connect candidate applications with Skilio portfolio profiles.",
   keywords: [
-    "AI interview platform",
-    "voice interview",
-    "AI interviews",
-    "interview platform",
-    "structured interviews",
-    "voice interviews",
-    "video interviews",
-    "AI voice interview",
-    "automated interviews",
-    "interview automation",
+    "job portal",
+    "candidate applications",
+    "employer hiring",
+    "Skilio portfolio",
     "candidate assessment",
-    "interview analytics",
+    "applicant management",
   ],
   alternates: {
     canonical: siteUrl,
@@ -52,25 +46,25 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    siteName: "Aural",
-    title: "Aural - AI Interview Platform | Voice & Video Interviews",
+    siteName: "Skilio Assessment",
+    title: "Skilio Assessment - Job Portal",
     description:
-      "Aural is the AI interview platform for structured voice, chat, and video interviews. Automate candidate screening, get real-time insights, and scale your interview process.",
+      "Publish jobs, manage applicants, and connect hiring workflows with Skilio portfolio profiles.",
     url: siteUrl,
     images: [
       {
         url: `${siteUrl}/images/marketing/hero-screenshots.webp`,
         width: 1920,
         height: 960,
-        alt: "Aural AI Interview Platform",
+        alt: "Skilio Assessment Job Portal",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Aural - AI Interview Platform | Voice & Video Interviews",
+    title: "Skilio Assessment - Job Portal",
     description:
-      "Aural is the AI interview platform for structured voice, chat, and video interviews. Automate candidate screening, get real-time insights, and scale your interview process.",
+      "Publish jobs, manage applicants, and connect hiring workflows with Skilio portfolio profiles.",
     images: [`${siteUrl}/images/marketing/hero-screenshots.webp`],
   },
 };

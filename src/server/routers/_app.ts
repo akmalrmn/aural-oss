@@ -13,6 +13,7 @@ import { webhookRouter } from "./webhook";
 import { candidateRouter } from "./candidate";
 import { prepRouter } from "./prep";
 import { usageRouter } from "./usage";
+import { jobRouter } from "./job";
 
 export const appRouter = router({
   auth: authRouter,
@@ -29,6 +30,7 @@ export const appRouter = router({
   candidate: candidateRouter,
   prep: prepRouter,
   usage: usageRouter,
+  job: jobRouter,
 });
 
 export type AppRouter = typeof appRouter;

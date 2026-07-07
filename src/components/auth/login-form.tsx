@@ -1,7 +1,6 @@
 "use client";
 
 import { useAppLocale } from "@/components/app-locale-provider";
-import { AuralLogo } from "@/components/ui/aural-logo";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -15,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { createClient } from "@/lib/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, LogIn } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -47,7 +46,7 @@ export function LoginForm() {
         });
         setLoading(false);
       } else {
-        router.push("/dashboard");
+        router.push("/jobs");
         router.refresh();
       }
     } catch {
@@ -58,14 +57,27 @@ export function LoginForm() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <AuralLogo size={64} className="mx-auto mb-2" />
-        <CardTitle className="font-heading text-2xl">
-          {t("auth.welcomeBack")}
-        </CardTitle>
-        <CardDescription>{t("auth.signInSubtitle")}</CardDescription>
+        <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-xl bg-[#7bc957] text-xl font-black text-[#0e2148]">
+          S
+        </div>
+        <CardTitle className="font-heading text-2xl">Welcome back</CardTitle>
+        <CardDescription>Sign in to manage Skilio job postings.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
+          <Button asChild className="w-full gap-2 bg-[#2f7d4f] text-white hover:bg-[#256a42]">
+            <a href="/auth/skilio/start?next=/jobs">
+              <LogIn className="h-4 w-4" />
+              Continue with Skilio
+            </a>
+          </Button>
+          <div className="flex items-center gap-3 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <div className="h-px flex-1 bg-border" />
+            or
+            <div className="h-px flex-1 bg-border" />
+          </div>
+        </div>
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">{t("auth.email")}</Label>
             <Input
@@ -89,7 +101,7 @@ export function LoginForm() {
           </div>
           <Button className="w-full" type="submit" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t("auth.signIn")}
+            Sign in with password
           </Button>
         </form>
       </CardContent>

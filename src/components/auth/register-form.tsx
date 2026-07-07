@@ -86,9 +86,9 @@ export function RegisterForm() {
   };
 
   return (
-    <Card>
+    <Card className="overflow-hidden rounded-3xl border-white/80 bg-white/95 shadow-[0_28px_100px_rgba(14,33,72,0.16)]">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-xl bg-[#7bc957] text-xl font-black text-[#0e2148]">
+        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#7bc957] text-xl font-black text-[#0e2148] shadow-[0_16px_35px_rgba(123,201,87,0.32)]">
           S
         </div>
         <CardTitle className="font-heading text-2xl">Create employer access</CardTitle>
@@ -96,7 +96,7 @@ export function RegisterForm() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <Button asChild className="w-full gap-2 bg-[#2f7d4f] text-white hover:bg-[#256a42]">
+          <Button asChild className="w-full gap-2 rounded-xl bg-[#2f7d4f] text-white hover:bg-[#256a42]">
             <a href="/auth/skilio/start?next=/jobs">
               <LogIn className="h-4 w-4" />
               Continue with Skilio
@@ -132,7 +132,7 @@ export function RegisterForm() {
               minLength={8}
             />
           </div>
-          <Button className="w-full" type="submit" disabled={loading}>
+          <Button className="w-full rounded-xl" type="submit" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {t("auth.createAccount")}
           </Button>

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { SkilioHero, SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { useProject } from "@/components/project-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,7 +95,7 @@ export default function JobCreationWizardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <SkilioMotionRoot className="mx-auto max-w-6xl">
       <button
         onClick={() => router.push("/jobs")}
         className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-[#466255] hover:text-[#2f7d4f]"
@@ -103,8 +104,27 @@ export default function JobCreationWizardPage() {
         Job postings
       </button>
 
-      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-        <aside className="rounded-lg border border-[#dfe8db] bg-white p-4 shadow-sm">
+      <div className="mb-6">
+        <SkilioHero
+          title="Build a job link candidates can trust."
+          description="Define the role, weight the right skills, and publish a clean Skilio application page without turning on interview assessment."
+          aside={
+            <div className="space-y-3 text-sm text-white/75">
+              <div className="font-medium text-white">Wizard progress</div>
+              <div className="h-2 overflow-hidden rounded-full bg-white/12">
+                <div
+                  className="h-full rounded-full bg-[#7bc957] transition-all"
+                  style={{ width: `${((step + 1) / steps.length) * 100}%` }}
+                />
+              </div>
+              <div>{step + 1} of {steps.length}: {steps[step]}</div>
+            </div>
+          }
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+        <SkilioPanel className="p-4">
           <div className="text-sm font-semibold text-[#14213d]">Create job</div>
           <div className="mt-5 space-y-3">
             {steps.map((item, index) => (
@@ -112,7 +132,7 @@ export default function JobCreationWizardPage() {
                 key={item}
                 onClick={() => index <= step && setStep(index)}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-lg border px-3 py-3 text-left text-sm transition",
+                  "flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition",
                   index === step
                     ? "border-[#2f7d4f] bg-[#e6f6df] text-[#24533b]"
                     : "border-[#edf2ea] text-[#66765f]",
@@ -125,9 +145,9 @@ export default function JobCreationWizardPage() {
               </button>
             ))}
           </div>
-        </aside>
+        </SkilioPanel>
 
-        <section className="rounded-lg border border-[#dfe8db] bg-white p-5 shadow-sm">
+        <SkilioPanel className="p-5 shadow-[0_28px_90px_rgba(14,33,72,0.09)]">
           {step === 0 && (
             <div className="space-y-5">
               <div>
@@ -221,7 +241,7 @@ export default function JobCreationWizardPage() {
                   Must-have skills carry more weight in applicant match scoring.
                 </p>
               </div>
-              <div className="grid gap-3 rounded-lg border border-[#edf2ea] bg-[#fbfdf9] p-4 md:grid-cols-[1fr_140px_140px_auto]">
+              <div className="grid gap-3 rounded-2xl border border-[#edf2ea] bg-[#fbfdf9] p-4 md:grid-cols-[1fr_140px_140px_auto]">
                 <Input
                   value={skillName}
                   onChange={(event) => setSkillName(event.target.value)}
@@ -263,7 +283,7 @@ export default function JobCreationWizardPage() {
                 {skills.map((skill, index) => (
                   <div
                     key={`${skill.name}-${index}`}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#edf2ea] p-3"
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#edf2ea] p-3"
                   >
                     <div>
                       <div className="font-medium text-[#14213d]">{skill.name}</div>
@@ -305,7 +325,7 @@ export default function JobCreationWizardPage() {
                   Save as a draft for internal review or publish immediately.
                 </p>
               </div>
-              <div className="rounded-lg border border-[#dfe8db] bg-[#fbfdf9] p-5">
+              <div className="rounded-2xl border border-[#dfe8db] bg-[#fbfdf9] p-5">
                 <div className="text-sm font-medium text-[#2f7d4f]">{department || "Department"}</div>
                 <h2 className="mt-2 text-2xl font-semibold text-[#14213d]">
                   {title || "Untitled role"}
@@ -362,8 +382,8 @@ export default function JobCreationWizardPage() {
               </div>
             )}
           </div>
-        </section>
+        </SkilioPanel>
       </div>
-    </div>
+    </SkilioMotionRoot>
   );
 }

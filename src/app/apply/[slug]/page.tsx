@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { ArrowRight, BriefcaseBusiness, CheckCircle2, LogIn, Sparkles } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
+import { SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,11 +94,11 @@ export default function CandidateApplicationPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f8f5] text-[#14213d]">
-      <header className="border-b border-[#dfe8db] bg-white">
+    <main className="min-h-screen overflow-x-hidden bg-[#eef4ec] text-[#14213d]">
+      <header className="sticky top-0 z-20 border-b border-white/70 bg-white/86 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#7bc957] text-sm font-black text-[#0e2148]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#7bc957] text-sm font-black text-[#0e2148] shadow-[0_12px_28px_rgba(123,201,87,0.25)]">
               S
             </div>
             <div>
@@ -106,7 +107,7 @@ export default function CandidateApplicationPage() {
             </div>
           </Link>
           {!user && (
-            <Button asChild variant="outline" className="gap-2">
+            <Button asChild variant="outline" className="gap-2 rounded-xl">
               <a href={`/auth/skilio/start?next=/apply/${params.slug}`}>
                 <LogIn className="h-4 w-4" />
                 Login with Skilio
@@ -116,30 +117,40 @@ export default function CandidateApplicationPage() {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[380px_1fr]">
+      <SkilioMotionRoot className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[400px_1fr]">
         <aside className="space-y-4">
           {jobQuery.isLoading ? (
             <Skeleton className="h-80 w-full" />
           ) : jobUnavailable ? (
-            <div className="rounded-lg border border-[#dfe8db] bg-white p-6 shadow-sm">
+            <SkilioPanel className="p-6">
               <h1 className="text-xl font-semibold">Job not available</h1>
               <p className="mt-2 text-sm text-[#5f6b7a]">
                 This application link may be closed or unpublished.
               </p>
-            </div>
+            </SkilioPanel>
           ) : job ? (
-            <div className="rounded-lg border border-[#dfe8db] bg-white p-6 shadow-sm">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#e6f6df] text-[#2f7d4f]">
+            <SkilioPanel className="relative overflow-hidden bg-[#0e2148] p-6 text-white">
+              <div
+                className="absolute inset-0 opacity-25 mix-blend-luminosity"
+                style={{
+                  backgroundImage: "url('https://picsum.photos/seed/skilio-candidate-apply/1200/900')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }}
+              />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_12%,rgba(123,201,87,0.34),transparent_32%),linear-gradient(180deg,rgba(14,33,72,0.76),rgba(14,33,72,0.96))]" />
+              <div className="relative">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#7bc957] text-[#0e2148]">
                 <BriefcaseBusiness className="h-5 w-5" />
               </div>
-              <div className="mt-5 text-sm font-medium text-[#2f7d4f]">
+              <div className="mt-5 text-sm font-medium text-[#9ee27c]">
                 {job.department || "Open role"}
               </div>
               <h1 className="mt-2 text-3xl font-semibold tracking-normal">{job.title}</h1>
-              <div className="mt-3 text-sm text-[#5f6b7a]">
+              <div className="mt-3 text-sm text-white/68">
                 {[job.location, job.employmentType, job.seniority].filter(Boolean).join(" / ")}
               </div>
-              <p className="mt-5 whitespace-pre-line text-sm leading-6 text-[#364255]">
+              <p className="mt-5 whitespace-pre-line text-sm leading-6 text-white/76">
                 {job.description || "Share your Skilio profile and tell us why this role fits you."}
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
@@ -148,22 +159,30 @@ export default function CandidateApplicationPage() {
                     key={skill.id}
                     variant="outline"
                     className={cn(
-                      "rounded-md",
+                      "rounded-md border-white/16",
                       skill.priority === "MUST"
-                        ? "border-[#b6dfaa] bg-[#e6f6df] text-[#24533b]"
-                        : "border-[#d6dde8] text-[#5f6b7a]",
+                        ? "bg-[#e6f6df] text-[#24533b]"
+                        : "text-white/78",
                     )}
                   >
                     {skill.name}
                   </Badge>
                 ))}
               </div>
-            </div>
+              </div>
+            </SkilioPanel>
           ) : null}
         </aside>
 
-        <section className="rounded-lg border border-[#dfe8db] bg-white p-5 shadow-sm">
-          {jobUnavailable ? (
+        <SkilioPanel className="p-5 shadow-[0_28px_90px_rgba(14,33,72,0.09)]">
+          {jobQuery.isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-10 w-64" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          ) : jobUnavailable ? (
             <div className="flex min-h-[520px] flex-col items-center justify-center text-center">
               <BriefcaseBusiness className="h-14 w-14 text-[#9aa89a]" />
               <h2 className="mt-5 text-2xl font-semibold">Application unavailable</h2>
@@ -180,14 +199,14 @@ export default function CandidateApplicationPage() {
                 Your profile has been sent to the employer. You can keep improving your Skilio
                 portfolio while they review your application.
               </p>
-              <Button asChild className="mt-6 bg-[#2f7d4f] text-white hover:bg-[#256a42]">
+              <Button asChild className="mt-6 rounded-xl bg-[#2f7d4f] text-white hover:bg-[#256a42]">
                 <a href="https://portfolio.skilio.co/">Open Skilio portfolio</a>
               </Button>
             </div>
           ) : (
             <form onSubmit={submit} className="space-y-6">
               <div>
-                <div className="inline-flex items-center gap-2 rounded-lg bg-[#e6f6df] px-3 py-1 text-sm font-medium text-[#24533b]">
+                <div className="inline-flex items-center gap-2 rounded-xl bg-[#e6f6df] px-3 py-1 text-sm font-medium text-[#24533b]">
                   <Sparkles className="h-4 w-4" />
                   {user ? "Signed in with Skilio" : "Apply as guest or connect Skilio"}
                 </div>
@@ -293,15 +312,15 @@ export default function CandidateApplicationPage() {
               <Button
                 type="submit"
                 disabled={apply.isLoading || !job}
-                className="w-full gap-2 bg-[#2f7d4f] text-white hover:bg-[#256a42]"
+                className="w-full gap-2 rounded-xl bg-[#2f7d4f] text-white hover:bg-[#256a42]"
               >
                 Submit application
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </form>
           )}
-        </section>
-      </div>
+        </SkilioPanel>
+      </SkilioMotionRoot>
     </main>
   );
 }

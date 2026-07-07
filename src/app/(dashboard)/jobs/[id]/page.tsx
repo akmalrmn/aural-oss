@@ -12,6 +12,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { JobStatusBadge } from "@/components/jobs/job-status-badge";
+import { SkilioHero, SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -63,12 +64,12 @@ function Metric({
   value: string | number;
 }) {
   return (
-    <div className="rounded-lg border border-[#dfe8db] bg-white p-4 shadow-sm">
+    <SkilioPanel className="p-4">
       <div className="text-xs font-medium uppercase tracking-[0.1em] text-[#66765f]">
         {label}
       </div>
       <div className="mt-2 text-2xl font-semibold text-[#14213d]">{value}</div>
-    </div>
+    </SkilioPanel>
   );
 }
 
@@ -99,7 +100,7 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6">
+    <SkilioMotionRoot className="mx-auto flex max-w-7xl flex-col gap-6">
       <Link
         href="/jobs"
         className="inline-flex w-fit items-center gap-2 text-sm font-medium text-[#466255] hover:text-[#2f7d4f]"
@@ -115,24 +116,13 @@ export default function JobDetailPage() {
         </div>
       ) : (
         <>
-          <div className="rounded-lg border border-[#dfe8db] bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <JobStatusBadge status={job.status} />
-                  <span className="text-sm text-[#5f6b7a]">
-                    {[job.department, job.location, job.employmentType, job.seniority]
-                      .filter(Boolean)
-                      .join(" / ")}
-                  </span>
-                </div>
-                <h1 className="mt-3 text-3xl font-semibold tracking-normal text-[#14213d]">
-                  {job.title}
-                </h1>
-                <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-[#4b596d]">
-                  {job.description || "No description added."}
-                </p>
-              </div>
+          <SkilioHero
+            title={job.title}
+            description={
+              job.description ||
+              "Track applicants, publish status changes, and keep the public application link close to the hiring team."
+            }
+            action={
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={copyLink} className="gap-2">
                   <Copy className="h-4 w-4" />
@@ -145,10 +135,22 @@ export default function JobDetailPage() {
                   </a>
                 </Button>
               </div>
-            </div>
-          </div>
+            }
+            aside={
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <JobStatusBadge status={job.status} />
+                </div>
+                <div className="mt-4 text-sm leading-6 text-white/72">
+                  {[job.department, job.location, job.employmentType, job.seniority]
+                    .filter(Boolean)
+                    .join(" / ") || "Opening details"}
+                </div>
+              </div>
+            }
+          />
 
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid grid-flow-dense gap-3 md:grid-cols-4">
             <Metric label="Applicants" value={job.summary.totalApplicants} />
             <Metric label="Shortlisted" value={job.summary.shortlisted} />
             <Metric
@@ -159,7 +161,7 @@ export default function JobDetailPage() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-            <section className="rounded-lg border border-[#dfe8db] bg-white shadow-sm">
+            <SkilioPanel className="shadow-[0_28px_90px_rgba(14,33,72,0.09)]">
               <div className="flex items-center justify-between border-b border-[#edf2ea] p-4">
                 <div>
                   <h2 className="font-semibold text-[#14213d]">Applicants</h2>
@@ -228,10 +230,10 @@ export default function JobDetailPage() {
                   </Table>
                 </div>
               )}
-            </section>
+            </SkilioPanel>
 
             <aside className="space-y-4">
-              <div className="rounded-lg border border-[#dfe8db] bg-white p-4 shadow-sm">
+              <SkilioPanel className="p-4">
                 <h2 className="font-semibold text-[#14213d]">Opening status</h2>
                 <div className="mt-4 grid gap-2">
                   {(job.status === "DRAFT" || job.status === "PAUSED") && (
@@ -267,9 +269,9 @@ export default function JobDetailPage() {
                     </Button>
                   )}
                 </div>
-              </div>
+              </SkilioPanel>
 
-              <div className="rounded-lg border border-[#dfe8db] bg-white p-4 shadow-sm">
+              <SkilioPanel className="p-4" scroll>
                 <h2 className="font-semibold text-[#14213d]">Application sources</h2>
                 <div className="mt-4 space-y-3">
                   {job.summary.sources.length === 0 ? (
@@ -291,9 +293,9 @@ export default function JobDetailPage() {
                     ))
                   )}
                 </div>
-              </div>
+              </SkilioPanel>
 
-              <div className="rounded-lg border border-[#dfe8db] bg-white p-4 shadow-sm">
+              <SkilioPanel className="p-4" scroll>
                 <h2 className="font-semibold text-[#14213d]">Skills</h2>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {job.job_skills.map((skill) => (
@@ -309,11 +311,11 @@ export default function JobDetailPage() {
                     </Badge>
                   ))}
                 </div>
-              </div>
+              </SkilioPanel>
             </aside>
           </div>
         </>
       )}
-    </div>
+    </SkilioMotionRoot>
   );
 }

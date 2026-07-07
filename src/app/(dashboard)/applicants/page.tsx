@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Search, UsersRound } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useProject } from "@/components/project-provider";
+import { SkilioHero, SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,11 +33,10 @@ type Applicant = {
 };
 
 export default function ApplicantsPage() {
-  const { currentProject, isLoading: projectLoading } = useProject();
   const [search, setSearch] = useState("");
   const { data = [], isLoading } = trpc.job.applications.useQuery(
-    { projectId: currentProject?.id },
-    { enabled: !!currentProject },
+    {},
+    { enabled: true },
   );
 
   const applicants = data as Applicant[];
@@ -54,30 +53,25 @@ export default function ApplicantsPage() {
   const shortlisted = applicants.filter((applicant) => applicant.status === "SHORTLISTED").length;
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="text-sm font-medium text-[#2f7d4f]">Pipeline</div>
-          <h1 className="mt-1 text-3xl font-semibold tracking-normal text-[#14213d]">
-            Applicants
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5f6b7a]">
-            Review candidates across all open jobs in the selected project.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:w-72">
-          <div className="rounded-lg border border-[#dfe8db] bg-white p-3 shadow-sm">
-            <div className="text-xs text-[#66765f]">Total</div>
-            <div className="mt-1 text-xl font-semibold text-[#14213d]">{applicants.length}</div>
+    <SkilioMotionRoot className="mx-auto flex max-w-7xl flex-col gap-6">
+      <SkilioHero
+        title="Applicant review without losing the hiring context."
+        description="Scan candidates across active openings, compare match signals, and jump back to the exact job dashboard when the team needs detail."
+        aside={
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-white/12 p-3">
+              <div className="text-xs uppercase tracking-[0.12em] text-white/55">Total</div>
+              <div className="mt-2 text-2xl font-semibold text-white">{applicants.length}</div>
+            </div>
+            <div className="rounded-xl bg-white/12 p-3">
+              <div className="text-xs uppercase tracking-[0.12em] text-white/55">Shortlist</div>
+              <div className="mt-2 text-2xl font-semibold text-white">{shortlisted}</div>
+            </div>
           </div>
-          <div className="rounded-lg border border-[#dfe8db] bg-white p-3 shadow-sm">
-            <div className="text-xs text-[#66765f]">Shortlist</div>
-            <div className="mt-1 text-xl font-semibold text-[#14213d]">{shortlisted}</div>
-          </div>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="rounded-lg border border-[#dfe8db] bg-white shadow-sm">
+      <SkilioPanel className="shadow-[0_28px_90px_rgba(14,33,72,0.09)]">
         <div className="flex flex-col gap-3 border-b border-[#edf2ea] p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative max-w-md flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7a8874]" />
@@ -90,19 +84,15 @@ export default function ApplicantsPage() {
           </div>
           <div className="flex items-center gap-2 text-sm text-[#5f6b7a]">
             <UsersRound className="h-4 w-4 text-[#2f7d4f]" />
-            {currentProject?.name ?? "No project selected"}
+            All accessible jobs
           </div>
         </div>
 
-        {projectLoading || isLoading ? (
+        {isLoading ? (
           <div className="space-y-3 p-4">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
-          </div>
-        ) : !currentProject ? (
-          <div className="p-10 text-center text-sm text-[#5f6b7a]">
-            Select a project to view applicants.
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-10 text-center text-sm text-[#5f6b7a]">
@@ -160,7 +150,7 @@ export default function ApplicantsPage() {
             </Table>
           </div>
         )}
-      </div>
-    </div>
+      </SkilioPanel>
+    </SkilioMotionRoot>
   );
 }

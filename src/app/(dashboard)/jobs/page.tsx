@@ -221,7 +221,7 @@ export default function JobPostingsPage() {
                       <JobStatusBadge status={job.status} />
                     </TableCell>
                     <TableCell className="font-medium text-[#14213d]">
-                      {job.summary.totalApplicants}
+                      <span>{job.summary.totalApplicants} applicants</span>
                       <span className="ml-2 text-xs text-[#6a7686]">
                         {job.summary.shortlisted} shortlisted
                       </span>

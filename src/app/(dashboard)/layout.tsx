@@ -1,4 +1,4 @@
-import { DashboardShell } from "@/components/layout/sidebar";
+import { SkilioEmployerShell } from "@/components/layout/skilio-employer-shell";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -16,5 +16,5 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  return <DashboardShell>{children}</DashboardShell>;
+  return <SkilioEmployerShell>{children}</SkilioEmployerShell>;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowRight, BriefcaseBusiness, CheckCircle2, LogIn, Sparkles } from "lucide-react";
@@ -94,20 +95,25 @@ export default function CandidateApplicationPage() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#eef4ec] text-[#14213d]">
-      <header className="sticky top-0 z-20 border-b border-white/70 bg-white/86 backdrop-blur-xl">
+    <main className="skilio-interface min-h-screen overflow-x-hidden bg-[var(--skilio-canvas)] text-[var(--skilio-ink)]">
+      <header className="sticky top-0 z-20 border-b border-[var(--skilio-border)] bg-[rgba(244,249,242,0.86)] backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#7bc957] text-sm font-black text-[#0e2148] shadow-[0_12px_28px_rgba(123,201,87,0.25)]">
-              S
-            </div>
+            <Image
+              src="/logos/skilio-leaf-square.png"
+              alt="Skilio"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-xl shadow-[0_12px_28px_rgba(123,201,87,0.25)]"
+              priority
+            />
             <div>
               <div className="text-sm font-semibold">Skilio</div>
-              <div className="text-xs text-[#66765f]">Candidate application</div>
+              <div className="text-xs text-[var(--skilio-ink-muted)]">Candidate application</div>
             </div>
           </Link>
           {!user && (
-            <Button asChild variant="outline" className="gap-2 rounded-xl">
+            <Button asChild variant="outline" className="gap-2 rounded-[var(--skilio-radius-md)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] hover:bg-[var(--skilio-control)]">
               <a href={`/auth/skilio/start?next=/apply/${params.slug}`}>
                 <LogIn className="h-4 w-4" />
                 Login with Skilio
@@ -129,46 +135,39 @@ export default function CandidateApplicationPage() {
               </p>
             </SkilioPanel>
           ) : job ? (
-            <SkilioPanel className="relative overflow-hidden bg-[#0e2148] p-6 text-white">
-              <div
-                className="absolute inset-0 opacity-25 mix-blend-luminosity"
-                style={{
-                  backgroundImage: "url('https://picsum.photos/seed/skilio-candidate-apply/1200/900')",
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                }}
-              />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_12%,rgba(123,201,87,0.34),transparent_32%),linear-gradient(180deg,rgba(14,33,72,0.76),rgba(14,33,72,0.96))]" />
+            <SkilioPanel className="relative overflow-hidden bg-[var(--skilio-ink)] p-6 text-white">
+              <div className="absolute inset-y-0 left-0 w-1 bg-[var(--skilio-signal)]" />
+              <div className="absolute right-6 top-6 h-20 w-20 rounded-2xl border border-white/12 bg-white/5" />
               <div className="relative">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#7bc957] text-[#0e2148]">
-                <BriefcaseBusiness className="h-5 w-5" />
-              </div>
-              <div className="mt-5 text-sm font-medium text-[#9ee27c]">
-                {job.department || "Open role"}
-              </div>
-              <h1 className="mt-2 text-3xl font-semibold tracking-normal">{job.title}</h1>
-              <div className="mt-3 text-sm text-white/68">
-                {[job.location, job.employmentType, job.seniority].filter(Boolean).join(" / ")}
-              </div>
-              <p className="mt-5 whitespace-pre-line text-sm leading-6 text-white/76">
-                {job.description || "Share your Skilio profile and tell us why this role fits you."}
-              </p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                {job.job_skills.map((skill) => (
-                  <Badge
-                    key={skill.id}
-                    variant="outline"
-                    className={cn(
-                      "rounded-md border-white/16",
-                      skill.priority === "MUST"
-                        ? "bg-[#e6f6df] text-[#24533b]"
-                        : "text-white/78",
-                    )}
-                  >
-                    {skill.name}
-                  </Badge>
-                ))}
-              </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-[var(--skilio-radius-md)] bg-[var(--skilio-signal)] text-[var(--skilio-ink)]">
+                  <BriefcaseBusiness className="h-5 w-5" />
+                </div>
+                <div className="mt-5 text-sm font-medium text-[var(--skilio-signal)]">
+                  {job.department || "Open role"}
+                </div>
+                <h1 className="mt-2 text-3xl font-semibold tracking-normal">{job.title}</h1>
+                <div className="mt-3 text-sm text-white/68">
+                  {[job.location, job.employmentType, job.seniority].filter(Boolean).join(" / ")}
+                </div>
+                <p className="mt-5 whitespace-pre-line text-sm leading-6 text-white/76">
+                  {job.description || "Share your Skilio profile and tell us why this role fits you."}
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {job.job_skills.map((skill) => (
+                    <Badge
+                      key={skill.id}
+                      variant="outline"
+                      className={cn(
+                        "rounded-md border-white/16",
+                        skill.priority === "MUST"
+                          ? "bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]"
+                          : "text-white/78",
+                      )}
+                    >
+                      {skill.name}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             </SkilioPanel>
           ) : null}
@@ -184,34 +183,34 @@ export default function CandidateApplicationPage() {
             </div>
           ) : jobUnavailable ? (
             <div className="flex min-h-[520px] flex-col items-center justify-center text-center">
-              <BriefcaseBusiness className="h-14 w-14 text-[#9aa89a]" />
+              <BriefcaseBusiness className="h-14 w-14 text-[var(--skilio-ink-muted)]" />
               <h2 className="mt-5 text-2xl font-semibold">Application unavailable</h2>
-              <p className="mt-2 max-w-md text-sm leading-6 text-[#5f6b7a]">
+              <p className="mt-2 max-w-md text-sm leading-6 text-[var(--skilio-ink-soft)]">
                 This job is not accepting applications right now. Ask the employer for a current
                 Skilio application link.
               </p>
             </div>
           ) : submitted ? (
             <div className="flex min-h-[520px] flex-col items-center justify-center text-center">
-              <CheckCircle2 className="h-14 w-14 text-[#2f7d4f]" />
+              <CheckCircle2 className="h-14 w-14 text-[var(--skilio-brand)]" />
               <h2 className="mt-5 text-2xl font-semibold">Application submitted</h2>
-              <p className="mt-2 max-w-md text-sm leading-6 text-[#5f6b7a]">
+              <p className="mt-2 max-w-md text-sm leading-6 text-[var(--skilio-ink-soft)]">
                 Your profile has been sent to the employer. You can keep improving your Skilio
                 portfolio while they review your application.
               </p>
-              <Button asChild className="mt-6 rounded-xl bg-[#2f7d4f] text-white hover:bg-[#256a42]">
+              <Button asChild className="mt-6 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
                 <a href="https://portfolio.skilio.co/">Open Skilio portfolio</a>
               </Button>
             </div>
           ) : (
             <form onSubmit={submit} className="space-y-6">
               <div>
-                <div className="inline-flex items-center gap-2 rounded-xl bg-[#e6f6df] px-3 py-1 text-sm font-medium text-[#24533b]">
+                <div className="inline-flex items-center gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control-strong)] px-3 py-1 text-sm font-medium text-[var(--skilio-brand-strong)]">
                   <Sparkles className="h-4 w-4" />
                   {user ? "Signed in with Skilio" : "Apply as guest or connect Skilio"}
                 </div>
-                <h2 className="mt-4 text-2xl font-semibold text-[#14213d]">Your application</h2>
-                <p className="mt-1 text-sm text-[#5f6b7a]">
+                <h2 className="mt-4 text-2xl font-semibold text-[var(--skilio-ink)]">Your application</h2>
+                <p className="mt-1 text-sm text-[var(--skilio-ink-soft)]">
                   Add your contact information, relevant skills, and links for the employer.
                 </p>
               </div>

@@ -59,13 +59,13 @@ export default function ApplicantsPage() {
         description="Scan candidates across active openings, compare match signals, and jump back to the exact job dashboard when the team needs detail."
         aside={
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-white/12 p-3">
-              <div className="text-xs uppercase tracking-[0.12em] text-white/55">Total</div>
-              <div className="mt-2 text-2xl font-semibold text-white">{applicants.length}</div>
+            <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--skilio-ink-muted)]">Total</div>
+              <div className="mt-1 font-heading text-2xl font-semibold tabular-nums text-[var(--skilio-ink)]">{applicants.length}</div>
             </div>
-            <div className="rounded-xl bg-white/12 p-3">
-              <div className="text-xs uppercase tracking-[0.12em] text-white/55">Shortlist</div>
-              <div className="mt-2 text-2xl font-semibold text-white">{shortlisted}</div>
+            <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--skilio-ink-muted)]">Shortlist</div>
+              <div className="mt-1 font-heading text-2xl font-semibold tabular-nums text-[var(--skilio-ink)]">{shortlisted}</div>
             </div>
           </div>
         }

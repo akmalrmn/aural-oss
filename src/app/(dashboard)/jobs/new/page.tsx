@@ -34,11 +34,16 @@ const starterSkills: SkillDraft[] = [
   { name: "Problem solving", kind: "SOFT", priority: "MUST" },
 ];
 
+const fieldClass =
+  "mt-2 border-[#cfe3c8] bg-white shadow-none focus-visible:ring-[#7bc957]";
+const selectTriggerClass =
+  "mt-2 border-[#cfe3c8] bg-white shadow-none focus:ring-[#7bc957]";
+
 export default function JobCreationWizardPage() {
   const router = useRouter();
   const utils = trpc.useUtils();
   const { toast } = useToast();
-  const { currentProject } = useProject();
+  const { currentProject, isLoading: projectLoading } = useProject();
   const [step, setStep] = useState(0);
   const [title, setTitle] = useState("");
   const [department, setDepartment] = useState("");
@@ -55,10 +60,10 @@ export default function JobCreationWizardPage() {
   const transition = trpc.job.transition.useMutation();
 
   const canContinue = useMemo(() => {
-    if (step === 0) return title.trim().length >= 2 && !!currentProject;
+    if (step === 0) return title.trim().length >= 2 && !!currentProject && !projectLoading;
     if (step === 1) return skills.length > 0;
     return true;
-  }, [currentProject, skills.length, step, title]);
+  }, [currentProject, projectLoading, skills.length, step, title]);
 
   function addSkill() {
     const normalized = skillName.trim();
@@ -107,13 +112,13 @@ export default function JobCreationWizardPage() {
       <div className="mb-6">
         <SkilioHero
           title="Build a job link candidates can trust."
-          description="Define the role, weight the right skills, and publish a clean Skilio application page without turning on interview assessment."
+          description="Define the role, weight the right skills, and publish a clean Skilio application page for candidates."
           aside={
-            <div className="space-y-3 text-sm text-white/75">
-              <div className="font-medium text-white">Wizard progress</div>
-              <div className="h-2 overflow-hidden rounded-full bg-white/12">
+            <div className="space-y-3 text-sm text-[var(--skilio-ink-soft)]">
+              <div className="font-medium text-[var(--skilio-ink)]">Wizard progress</div>
+              <div className="h-2 overflow-hidden rounded-full bg-[var(--skilio-control-strong)]">
                 <div
-                  className="h-full rounded-full bg-[#7bc957] transition-all"
+                  className="h-full rounded-full bg-[var(--skilio-brand)] transition-all"
                   style={{ width: `${((step + 1) / steps.length) * 100}%` }}
                 />
               </div>
@@ -124,21 +129,24 @@ export default function JobCreationWizardPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <SkilioPanel className="p-4">
-          <div className="text-sm font-semibold text-[#14213d]">Create job</div>
+        <SkilioPanel className="bg-[var(--skilio-panel)] p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--skilio-brand)]">
+            Creation lane
+          </div>
+          <div className="mt-1 text-lg font-semibold text-[var(--skilio-ink)]">Create job</div>
           <div className="mt-5 space-y-3">
             {steps.map((item, index) => (
               <button
                 key={item}
                 onClick={() => index <= step && setStep(index)}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition",
+                  "flex w-full items-center gap-3 rounded-[var(--skilio-radius-md)] border px-3 py-3 text-left text-sm transition-[background-color,border-color,color] duration-150",
                   index === step
-                    ? "border-[#2f7d4f] bg-[#e6f6df] text-[#24533b]"
-                    : "border-[#edf2ea] text-[#66765f]",
+                    ? "border-[var(--skilio-brand)] bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]"
+                    : "border-[var(--skilio-border)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink-soft)] hover:bg-[var(--skilio-control)] hover:text-[var(--skilio-ink)]",
                 )}
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-xs font-semibold">
+                <span className="flex h-6 w-6 items-center justify-center rounded-[var(--skilio-radius-sm)] bg-[var(--skilio-canvas)] text-xs font-semibold text-[var(--skilio-ink)]">
                   {index < step ? <Check className="h-4 w-4" /> : index + 1}
                 </span>
                 {item}
@@ -147,7 +155,7 @@ export default function JobCreationWizardPage() {
           </div>
         </SkilioPanel>
 
-        <SkilioPanel className="p-5 shadow-[0_28px_90px_rgba(14,33,72,0.09)]">
+        <SkilioPanel className="bg-[var(--skilio-panel)] p-5">
           {step === 0 && (
             <div className="space-y-5">
               <div>
@@ -156,7 +164,7 @@ export default function JobCreationWizardPage() {
                   Define the opening candidates will see on the public application page.
                 </p>
               </div>
-              {!currentProject && (
+              {!projectLoading && !currentProject && (
                 <div className="rounded-lg border border-[#f0d39d] bg-[#fff8e8] p-3 text-sm text-[#7a4d0b]">
                   Create or select a project before publishing a job.
                 </div>
@@ -169,7 +177,7 @@ export default function JobCreationWizardPage() {
                     value={title}
                     onChange={(event) => setTitle(event.target.value)}
                     placeholder="Senior Product Designer"
-                    className="mt-2"
+                    className={fieldClass}
                   />
                 </div>
                 <div>
@@ -179,7 +187,7 @@ export default function JobCreationWizardPage() {
                     value={department}
                     onChange={(event) => setDepartment(event.target.value)}
                     placeholder="Design"
-                    className="mt-2"
+                    className={fieldClass}
                   />
                 </div>
                 <div>
@@ -188,13 +196,13 @@ export default function JobCreationWizardPage() {
                     id="location"
                     value={location}
                     onChange={(event) => setLocation(event.target.value)}
-                    className="mt-2"
+                    className={fieldClass}
                   />
                 </div>
                 <div>
                   <Label>Employment type</Label>
                   <Select value={employmentType} onValueChange={setEmploymentType}>
-                    <SelectTrigger className="mt-2">
+                    <SelectTrigger className={selectTriggerClass}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -208,7 +216,7 @@ export default function JobCreationWizardPage() {
                 <div>
                   <Label>Seniority</Label>
                   <Select value={seniority} onValueChange={setSeniority}>
-                    <SelectTrigger className="mt-2">
+                    <SelectTrigger className={selectTriggerClass}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -226,7 +234,7 @@ export default function JobCreationWizardPage() {
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
                     placeholder="Describe responsibilities, outcomes, and hiring expectations."
-                    className="mt-2 min-h-44"
+                    className={`${fieldClass} min-h-44`}
                   />
                 </div>
               </div>
@@ -241,11 +249,12 @@ export default function JobCreationWizardPage() {
                   Must-have skills carry more weight in applicant match scoring.
                 </p>
               </div>
-              <div className="grid gap-3 rounded-2xl border border-[#edf2ea] bg-[#fbfdf9] p-4 md:grid-cols-[1fr_140px_140px_auto]">
+              <div className="grid gap-3 rounded-2xl border border-[#cfe3c8] bg-white p-4 md:grid-cols-[1fr_140px_140px_auto]">
                 <Input
                   value={skillName}
                   onChange={(event) => setSkillName(event.target.value)}
                   placeholder="Add a skill"
+                  className="border-[#cfe3c8] bg-white shadow-none focus-visible:ring-[#7bc957]"
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
@@ -254,7 +263,7 @@ export default function JobCreationWizardPage() {
                   }}
                 />
                 <Select value={skillKind} onValueChange={(value) => setSkillKind(value as "HARD" | "SOFT")}>
-                  <SelectTrigger>
+                  <SelectTrigger className="border-[#cfe3c8] bg-white shadow-none focus:ring-[#7bc957]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -266,7 +275,7 @@ export default function JobCreationWizardPage() {
                   value={skillPriority}
                   onValueChange={(value) => setSkillPriority(value as "MUST" | "NICE")}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-[#cfe3c8] bg-white shadow-none focus:ring-[#7bc957]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -283,7 +292,7 @@ export default function JobCreationWizardPage() {
                 {skills.map((skill, index) => (
                   <div
                     key={`${skill.name}-${index}`}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#edf2ea] p-3"
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#dfe8db] bg-white p-3"
                   >
                     <div>
                       <div className="font-medium text-[#14213d]">{skill.name}</div>
@@ -367,13 +376,13 @@ export default function JobCreationWizardPage() {
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  disabled={createJob.isLoading || transition.isLoading || !currentProject}
+                  disabled={createJob.isLoading || transition.isLoading || projectLoading || !currentProject}
                   onClick={() => submit(false)}
                 >
                   Save draft
                 </Button>
                 <Button
-                  disabled={createJob.isLoading || transition.isLoading || !currentProject}
+                  disabled={createJob.isLoading || transition.isLoading || projectLoading || !currentProject}
                   onClick={() => submit(true)}
                   className="bg-[#2f7d4f] text-white hover:bg-[#256a42]"
                 >

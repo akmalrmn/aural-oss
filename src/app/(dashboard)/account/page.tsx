@@ -2,9 +2,8 @@
 
 import { useAppLocale } from "@/components/app-locale-provider";
 import { useAuth } from "@/components/auth-provider";
-import { LanguageSwitcher } from "@/components/language-switcher";
+import { SkilioHero, SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { createClient } from "@/lib/supabase/client";
@@ -135,45 +134,30 @@ export default function AccountPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">{t("account.title")}</h1>
-        <p className="text-muted-foreground">{t("account.subtitle")}</p>
-      </div>
+    <SkilioMotionRoot className="mx-auto flex max-w-5xl flex-col gap-6">
+      <SkilioHero
+        title="Account controls"
+        description="Manage the identity used for job postings, applicant review, and workspace access."
+      />
 
-      <section>
-        <h2 className="mb-2 text-base font-semibold">{t("common.language")}</h2>
-        <Card>
-          <CardContent className="flex items-center justify-between gap-4 py-4">
-            <p className="text-sm text-muted-foreground">
-              {t("common.language")}
-            </p>
-            <LanguageSwitcher />
-          </CardContent>
-        </Card>
-      </section>
-
-      <div className="space-y-8">
+      <div className="grid gap-5 lg:grid-cols-2">
         {/* Email */}
         <section>
-          <h2 className="text-base font-semibold mb-2">{t("account.email")}</h2>
-          <Card>
-            <CardContent className="py-3 px-4">
-              <p className="text-sm">
+          <SkilioPanel className="p-5">
+              <h2 className="text-base font-semibold text-[#10233f]">{t("account.email")}</h2>
+              <p className="mt-3 rounded-2xl border border-[#dfe8db] bg-[#fbfdf8] p-3 text-sm text-[#5e6b7a]">
                 {t("account.emailValue", { email: user?.email ?? "—" })}
               </p>
-            </CardContent>
-          </Card>
+          </SkilioPanel>
         </section>
 
         {/* Display Name */}
         <section>
-          <h2 className="text-base font-semibold mb-2">
-            {t("account.displayName")}
-          </h2>
-          <Card>
-            <CardContent className="py-3 px-4 space-y-3">
-              <p className="text-sm">
+          <SkilioPanel className="space-y-3 p-5">
+              <h2 className="text-base font-semibold text-[#10233f]">
+                {t("account.displayName")}
+              </h2>
+              <p className="text-sm text-[#5e6b7a]">
                 {t("account.displayNameCurrent", {
                   name: profile?.name ?? "—",
                 })}
@@ -182,33 +166,32 @@ export default function AccountPage() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder={t("account.displayNamePlaceholder")}
-                className="w-full"
+                className="w-full border-[#dfe8db] bg-[#fbfdf8]"
               />
               <Button
                 size="sm"
-                variant="outline"
+                className="rounded-xl bg-[#2f7d4f] text-white hover:bg-[#256a42]"
                 onClick={handleSaveName}
                 disabled={savingName}
               >
                 {savingName ? t("account.saving") : t("account.save")}
               </Button>
-            </CardContent>
-          </Card>
+          </SkilioPanel>
         </section>
 
         {/* Password */}
-        <section>
-          <h2 className="text-base font-semibold mb-2">
-            {t("account.password")}
-          </h2>
-          <Card>
-            <CardContent className="py-3 px-4 space-y-3">
+        <section className="lg:col-span-2">
+          <SkilioPanel className="space-y-3 p-5">
+              <h2 className="text-base font-semibold text-[#10233f]">
+                {t("account.password")}
+              </h2>
               {passwordStep === "idle" && (
                 <>
-                  <p className="text-sm">{t("account.passwordDescription")}</p>
+                  <p className="text-sm text-[#5e6b7a]">{t("account.passwordDescription")}</p>
                   <Button
                     size="sm"
                     variant="outline"
+                    className="rounded-xl border-[#b8dfa9] text-[#24533b] hover:bg-[#e6f6df]"
                     onClick={() => setPasswordStep("form")}
                   >
                     {t("account.changePassword")}
@@ -228,6 +211,7 @@ export default function AccountPage() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       minLength={8}
+                      className="border-[#dfe8db] bg-[#fbfdf8]"
                     />
                   </div>
                   <div className="space-y-2">
@@ -240,6 +224,7 @@ export default function AccountPage() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       minLength={8}
+                      className="border-[#dfe8db] bg-[#fbfdf8]"
                     />
                   </div>
                   <div className="flex gap-2">
@@ -264,24 +249,22 @@ export default function AccountPage() {
                   </div>
                 </>
               )}
-            </CardContent>
-          </Card>
+          </SkilioPanel>
         </section>
 
         {/* Danger Zone */}
-        <section>
-          <h2 className="text-base font-semibold mb-2 text-destructive">
-            {t("account.deleteStep")}
-          </h2>
-          <Card className="border-destructive/40">
-            <CardContent className="py-3 px-4 space-y-3">
+        <section className="lg:col-span-2">
+          <SkilioPanel className="space-y-3 border-[#f2c7c7] bg-[#fffafa] p-5">
+              <h2 className="text-base font-semibold text-[#b42318]">
+                {t("account.deleteStep")}
+              </h2>
               {deleteStep === "idle" && (
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium">
+                    <p className="text-sm font-medium text-[#10233f]">
                       {t("account.deleteStep")}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-[#6f4b4b]">
                       {t("account.deleteDescription")}
                     </p>
                   </div>
@@ -329,10 +312,9 @@ export default function AccountPage() {
                   </div>
                 </>
               )}
-            </CardContent>
-          </Card>
+          </SkilioPanel>
         </section>
       </div>
-    </div>
+    </SkilioMotionRoot>
   );
 }

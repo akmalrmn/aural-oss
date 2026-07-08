@@ -6,6 +6,26 @@ import { NextResponse, type NextRequest } from "next/server";
  * This is the official Supabase pattern for Next.js App Router.
  */
 export async function middleware(request: NextRequest) {
+  const legacyEmployerRoutes = [
+    "/candidates",
+    "/interviews",
+    "/organizations",
+    "/org",
+    "/practices",
+    "/projects",
+    "/questions",
+    "/usage",
+  ];
+  const isLegacyEmployerRoute = legacyEmployerRoutes.some(
+    (route) =>
+      request.nextUrl.pathname === route ||
+      request.nextUrl.pathname.startsWith(`${route}/`),
+  );
+
+  if (isLegacyEmployerRoute) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
   // Skip cookie refresh for mobile requests using Bearer token auth
   if (request.headers.get("authorization")?.startsWith("Bearer ")) {
     return NextResponse.next({ request });

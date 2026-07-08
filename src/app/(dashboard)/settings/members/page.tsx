@@ -1,6 +1,5 @@
 "use client";
 
-import { useAppLocale } from "@/components/app-locale-provider";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { useOrg } from "@/components/org-provider";
@@ -52,12 +51,11 @@ import { Loader2, Trash2, Plus, LogOut, Pencil } from "lucide-react";
 
 export default function ProjectMembersPage() {
   const { toast } = useToast();
-  const { locale } = useAppLocale();
   const { currentOrg } = useOrg();
   const { currentProject } = useProject();
   useAuth();
   const utils = trpc.useUtils();
-  const isZh = locale === "zh";
+  const isZh = false;
   const roleLabel = (role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER") =>
     isZh
       ? {
@@ -156,8 +154,8 @@ export default function ProjectMembersPage() {
 
   if (!currentOrg) {
     return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        {isZh ? "尚未选择组织" : "No organization selected"}
+      <div className="rounded-3xl border border-[#dfe8db] bg-[#fbfdf8] p-10 text-center text-[#5e6b7a]">
+        No workspace selected
       </div>
     );
   }
@@ -184,20 +182,21 @@ export default function ProjectMembersPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 rounded-3xl border border-[#dfe8db] bg-[#fbfdf8] p-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold">{isZh ? "成员" : "Members"}</h2>
-          <p className="text-sm text-muted-foreground">
-            {isZh
-              ? `“${currentOrg.name}”中有权访问此项目的成员。`
-              : `Members of "${currentOrg.name}" who have access to this project.`}
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2f7d4f]">
+            Team access
+          </div>
+          <h2 className="mt-2 text-2xl font-semibold text-[#10233f]">Members</h2>
+          <p className="mt-2 text-sm leading-6 text-[#5e6b7a]">
+            Members of &quot;{currentOrg.name}&quot; who can manage job openings and review applicants.
           </p>
         </div>
         {isAdmin && (
           <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
             <DialogTrigger asChild>
-              <Button size="sm">
+              <Button size="sm" className="rounded-xl bg-[#2f7d4f] text-white hover:bg-[#256a42]">
                 <Plus className="mr-2 h-4 w-4" />
                 {isZh ? "添加成员" : "Add Member"}
               </Button>
@@ -276,7 +275,7 @@ export default function ProjectMembersPage() {
         )}
       </div>
 
-      <Card>
+      <Card className="overflow-hidden border-[#dfe8db] bg-white/95 shadow-[0_18px_60px_rgba(14,33,72,0.07)]">
         <CardContent className="p-0">
           <Table>
             <TableHeader>

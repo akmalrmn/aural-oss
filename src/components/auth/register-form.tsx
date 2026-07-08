@@ -14,7 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { createClient } from "@/lib/supabase/client";
-import { Loader2, LogIn } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -86,29 +87,21 @@ export function RegisterForm() {
   };
 
   return (
-    <Card className="overflow-hidden rounded-3xl border-white/80 bg-white/95 shadow-[0_28px_100px_rgba(14,33,72,0.16)]">
+    <Card className="overflow-hidden rounded-[var(--skilio-radius-lg)] border-[var(--skilio-border)] bg-[var(--skilio-elevated)] shadow-[var(--skilio-shadow-2)]">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#7bc957] text-xl font-black text-[#0e2148] shadow-[0_16px_35px_rgba(123,201,87,0.32)]">
-          S
-        </div>
+        <Image
+          src="/logos/skilio-leaf-square.png"
+          alt="Skilio"
+          width={56}
+          height={56}
+          className="mx-auto mb-3 h-14 w-14 rounded-[var(--skilio-radius-md)] shadow-[var(--skilio-shadow-1)]"
+          priority
+        />
         <CardTitle className="font-heading text-2xl">Create employer access</CardTitle>
-        <CardDescription>Use your Skilio account when possible.</CardDescription>
+        <CardDescription>Create a workspace login for hiring operations.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          <Button asChild className="w-full gap-2 rounded-xl bg-[#2f7d4f] text-white hover:bg-[#256a42]">
-            <a href="/auth/skilio/start?next=/jobs">
-              <LogIn className="h-4 w-4" />
-              Continue with Skilio
-            </a>
-          </Button>
-          <div className="flex items-center gap-3 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-            <div className="h-px flex-1 bg-border" />
-            or
-            <div className="h-px flex-1 bg-border" />
-          </div>
-        </div>
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">{t("auth.email")}</Label>
             <Input
@@ -132,7 +125,7 @@ export function RegisterForm() {
               minLength={8}
             />
           </div>
-          <Button className="w-full rounded-xl" type="submit" disabled={loading}>
+          <Button className="w-full rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]" type="submit" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {t("auth.createAccount")}
           </Button>
@@ -141,7 +134,7 @@ export function RegisterForm() {
       <CardFooter className="justify-center">
         <p className="text-sm text-muted-foreground">
           {t("auth.haveAccount")}{" "}
-          <Link href="/login" className="text-primary hover:underline">
+          <Link href="/login" className="font-medium text-[var(--skilio-brand)] hover:underline">
             {t("auth.signIn")}
           </Link>
         </p>

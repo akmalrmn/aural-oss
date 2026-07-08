@@ -1,6 +1,5 @@
 "use client";
 
-import { useAppLocale } from "@/components/app-locale-provider";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,8 +54,8 @@ function formatDate(value: string | null, locale: string, neverLabel: string) {
 
 export default function ApiKeysSettingsPage() {
   const { toast } = useToast();
-  const { locale } = useAppLocale();
-  const isZh = locale === "zh";
+  const locale = "en";
+  const isZh = false;
   const utils = trpc.useUtils();
 
   const [name, setName] = useState("");
@@ -127,18 +126,19 @@ export default function ApiKeysSettingsPage() {
   const keys = listQuery.data ?? [];
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div>
-        <h2 className="text-xl font-semibold">{isZh ? "API 密钥" : "API Keys"}</h2>
-        <p className="text-sm text-muted-foreground">
-          {isZh
-            ? "管理用于以编程方式访问 Aural API 的 API 密钥。"
-            : "Manage API keys for programmatic access to the Aural API."}
+    <div className="max-w-5xl space-y-5">
+      <div className="rounded-3xl border border-[#dfe8db] bg-[#fbfdf8] p-6">
+        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2f7d4f]">
+          Developer access
+        </div>
+        <h2 className="mt-2 text-2xl font-semibold text-[#10233f]">API keys</h2>
+        <p className="mt-2 text-sm leading-6 text-[#5e6b7a]">
+          Manage API keys for programmatic access to the Skilio Hiring API.
           {" "}
           <Link
             href="/docs/developer-api"
             target="_blank"
-            className="inline-flex items-center gap-1 text-primary font-medium underline-offset-4 hover:underline"
+            className="inline-flex items-center gap-1 font-medium text-[#2f7d4f] underline-offset-4 hover:underline"
           >
             {isZh ? "查看 API 文档" : "View API docs"}
             <ExternalLink className="h-3 w-3" />
@@ -146,7 +146,7 @@ export default function ApiKeysSettingsPage() {
         </p>
       </div>
 
-      <Card>
+      <Card className="border-[#dfe8db] bg-white/95 shadow-[0_18px_60px_rgba(14,33,72,0.07)]">
         <CardHeader>
           <CardTitle>{isZh ? "创建新密钥" : "Create a new key"}</CardTitle>
           <CardDescription>
@@ -176,7 +176,7 @@ export default function ApiKeysSettingsPage() {
               />
             </div>
             <Button
-              className="shrink-0"
+              className="shrink-0 rounded-xl bg-[#2f7d4f] text-white hover:bg-[#256a42]"
               disabled={createMutation.isPending || !name.trim()}
               onClick={() => {
                 const expiresAt =
@@ -226,7 +226,7 @@ export default function ApiKeysSettingsPage() {
         </DialogContent>
       </Dialog>
 
-      <Card>
+      <Card className="border-[#dfe8db] bg-white/95 shadow-[0_18px_60px_rgba(14,33,72,0.07)]">
         <CardHeader>
           <CardTitle>{isZh ? "你的密钥" : "Your keys"}</CardTitle>
           <CardDescription>

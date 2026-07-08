@@ -22,14 +22,13 @@ export function SkilioMotionRoot({
       const cards = gsap.utils.toArray<HTMLElement>("[data-skillio-reveal]");
       gsap.fromTo(
         cards,
-        { autoAlpha: 0, y: 22, scale: 0.985 },
+        { autoAlpha: 0, y: 10 },
         {
           autoAlpha: 1,
           y: 0,
-          scale: 1,
-          duration: 0.7,
-          ease: "power3.out",
-          stagger: 0.06,
+          duration: 0.28,
+          ease: "power2.out",
+          stagger: 0.035,
         },
       );
 
@@ -75,7 +74,7 @@ export function SkilioPanel({
       data-skillio-reveal
       data-skillio-scroll={scroll ? "" : undefined}
       className={cn(
-        "group overflow-hidden rounded-2xl border border-[#dfe8db] bg-white/95 shadow-[0_24px_80px_rgba(14,33,72,0.08)] transition-transform duration-500 hover:-translate-y-0.5",
+        "overflow-hidden rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-elevated)] shadow-[var(--skilio-shadow-1)]",
         className,
       )}
     >
@@ -98,29 +97,21 @@ export function SkilioHero({
   return (
     <section
       data-skillio-reveal
-      className="relative isolate overflow-hidden rounded-3xl bg-[#0e2148] px-5 py-8 text-white shadow-[0_28px_120px_rgba(14,33,72,0.28)] sm:px-8 lg:px-10"
+      className="relative overflow-hidden rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-panel)] p-4 text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-1)] sm:p-5"
     >
-      <div
-        className="absolute inset-0 -z-10 opacity-30 mix-blend-luminosity"
-        style={{
-          backgroundImage: "url('https://picsum.photos/seed/skilio-hiring-console/1920/1080')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      />
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_70%_20%,rgba(123,201,87,0.36),transparent_32%),linear-gradient(120deg,rgba(14,33,72,0.92),rgba(14,33,72,0.72))]" />
-      <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="max-w-5xl">
-          <h1 className="text-[clamp(2.25rem,4vw,4.35rem)] font-semibold leading-[1] tracking-normal">
+      <div className="absolute inset-y-0 left-0 w-1 bg-[var(--skilio-signal)]" />
+      <div className="grid items-center gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+        <div className="pl-3">
+          <h1 className="max-w-4xl text-[clamp(1.75rem,3vw,2.6rem)] font-semibold leading-[1.04] text-[var(--skilio-ink)]">
             {title}
           </h1>
-          <p className="mt-5 max-w-3xl text-base leading-7 text-white/78 sm:text-lg">
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--skilio-ink-soft)] sm:text-[15px]">
             {description}
           </p>
-          {action && <div className="mt-7 flex flex-wrap gap-3">{action}</div>}
+          {action && <div className="mt-4 flex flex-wrap gap-2">{action}</div>}
         </div>
         {aside && (
-          <div className="rounded-2xl border border-white/14 bg-white/10 p-4 backdrop-blur-xl">
+          <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-elevated)] p-3 shadow-[var(--skilio-shadow-1)]">
             {aside}
           </div>
         )}

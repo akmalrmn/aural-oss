@@ -27,17 +27,16 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://assessment.skilio.co
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Skilio Assessment - Job Portal",
-    template: "%s | Skilio Assessment",
+    default: "Skilio Hiring - Job Portal",
+    template: "%s | Skilio Hiring",
   },
   description:
-    "Skilio Assessment helps employers publish jobs, manage applicants, and connect candidate applications with Skilio portfolio profiles.",
+    "Skilio Hiring helps employers publish jobs, manage applicants, and connect candidate applications with Skilio portfolio profiles.",
   keywords: [
     "job portal",
     "candidate applications",
     "employer hiring",
     "Skilio portfolio",
-    "candidate assessment",
     "applicant management",
   ],
   alternates: {
@@ -46,8 +45,8 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    siteName: "Skilio Assessment",
-    title: "Skilio Assessment - Job Portal",
+    siteName: "Skilio Hiring",
+    title: "Skilio Hiring - Job Portal",
     description:
       "Publish jobs, manage applicants, and connect hiring workflows with Skilio portfolio profiles.",
     url: siteUrl,
@@ -56,13 +55,13 @@ export const metadata: Metadata = {
         url: `${siteUrl}/images/marketing/hero-screenshots.webp`,
         width: 1920,
         height: 960,
-        alt: "Skilio Assessment Job Portal",
+        alt: "Skilio Hiring Job Portal",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Skilio Assessment - Job Portal",
+    title: "Skilio Hiring - Job Portal",
     description:
       "Publish jobs, manage applicants, and connect hiring workflows with Skilio portfolio profiles.",
     images: [`${siteUrl}/images/marketing/hero-screenshots.webp`],

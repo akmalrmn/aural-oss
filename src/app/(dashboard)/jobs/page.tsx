@@ -108,9 +108,9 @@ export default function JobPostingsPage() {
     <SkilioMotionRoot className="mx-auto flex max-w-7xl flex-col gap-6">
       <SkilioHero
         title="Manage hiring from role to applicant signal."
-        description="Create openings, publish Skilio application links, and keep every candidate source visible without returning to the old assessment workflow."
+        description="Create openings, publish Skilio application links, and keep every candidate source visible from one hiring workspace."
         action={
-          <Button asChild className="gap-2 rounded-xl bg-[#7bc957] text-[#0e2148] hover:bg-[#8fd86c]">
+          <Button asChild className="h-9 gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
             <Link href="/jobs/new">
               <Plus className="h-4 w-4" />
               Create job
@@ -118,9 +118,9 @@ export default function JobPostingsPage() {
           </Button>
         }
         aside={
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-white/80">
-              <Sparkles className="h-4 w-4 text-[#7bc957]" />
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-[var(--skilio-ink-soft)]">
+              <Sparkles className="h-4 w-4 text-[var(--skilio-brand)]" />
               Live hiring console
             </div>
             <div className="grid grid-cols-3 gap-2">
@@ -129,9 +129,9 @@ export default function JobPostingsPage() {
                 ["Applicants", totals.applicants],
                 ["Match", totals.averageMatch],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-xl bg-white/12 p-3">
-                  <div className="text-[11px] uppercase tracking-[0.12em] text-white/50">{label}</div>
-                  <div className="mt-2 text-xl font-semibold text-white">{value}</div>
+                <div key={label} className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--skilio-ink-muted)]">{label}</div>
+                  <div className="mt-1 font-heading text-xl font-semibold tabular-nums text-[var(--skilio-ink)]">{value}</div>
                 </div>
               ))}
             </div>

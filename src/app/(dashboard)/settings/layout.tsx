@@ -1,10 +1,10 @@
 "use client";
 
-import { useAppLocale } from "@/components/app-locale-provider";
+import { SkilioHero, SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUpRight, Building2, KeyRound, Settings, Users } from "lucide-react";
+import { KeyRound, Settings, Users } from "lucide-react";
 
 export default function SettingsLayout({
   children,
@@ -12,8 +12,6 @@ export default function SettingsLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { locale } = useAppLocale();
-  const isZh = locale === "zh";
   const settingsNav: {
     name: string;
     href: string;
@@ -22,59 +20,56 @@ export default function SettingsLayout({
     external?: boolean;
   }[] = [
     {
-      name: isZh ? "通用" : "General",
+      name: "General",
       href: "/settings",
       icon: Settings,
       exact: true,
     },
     {
-      name: isZh ? "成员" : "Members",
+      name: "Members",
       href: "/settings/members",
       icon: Users,
     },
     {
-      name: isZh ? "API 密钥" : "API Keys",
+      name: "API keys",
       href: "/settings/api-keys",
       icon: KeyRound,
-    },
-    {
-      name: isZh ? "组织" : "Organizations",
-      href: "/organizations",
-      icon: Building2,
-      external: true,
     },
   ];
 
   return (
-    <div className="flex gap-8">
-      <nav className="w-48 shrink-0 space-y-1">
-        {settingsNav.map((item) => {
-          const isActive = item.exact
-            ? pathname === item.href
-            : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                item.external
-                  ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  : isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              <span className="flex-1">{item.name}</span>
-              {item.external && (
-                <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              )}
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="flex-1 min-w-0">{children}</div>
-    </div>
+    <SkilioMotionRoot className="mx-auto flex max-w-7xl flex-col gap-6">
+      <SkilioHero
+        title="Configure the hiring room."
+        description="Manage the workspace, teammates, and API access used by job postings and applicant review."
+      />
+
+      <SkilioPanel className="p-2">
+        <nav className="grid gap-2 sm:grid-cols-3">
+          {settingsNav.map((item) => {
+            const isActive = item.exact
+              ? pathname === item.href
+              : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex min-h-12 items-center gap-3 rounded-[var(--skilio-radius-md)] px-4 py-3 text-sm font-semibold transition-[background-color,box-shadow,color] duration-150",
+                  isActive
+                    ? "bg-[var(--skilio-ink)] text-white shadow-[var(--skilio-shadow-1)]"
+                    : "bg-[var(--skilio-control)] text-[var(--skilio-ink-soft)] hover:bg-[var(--skilio-control-strong)] hover:text-[var(--skilio-ink)]",
+                )}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </SkilioPanel>
+
+      <div className="min-w-0">{children}</div>
+    </SkilioMotionRoot>
   );
 }

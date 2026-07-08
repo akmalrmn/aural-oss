@@ -451,10 +451,7 @@ const translations: TranslationMap = {
 const AppLocaleContext = createContext<AppLocaleContextValue | null>(null);
 
 function resolveInitialLocale(): AppLocale {
-  if (typeof window === "undefined") return "en";
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  if (stored === "zh" || stored === "en") return stored;
-  return window.navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+  return "en";
 }
 
 function interpolate(
@@ -477,10 +474,10 @@ export function AppLocaleProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AppLocaleContextValue>(
     () => ({
       locale,
-      setLocale: (next) => {
-        setLocaleState(next);
+      setLocale: () => {
+        setLocaleState("en");
         if (typeof window !== "undefined") {
-          window.localStorage.setItem(STORAGE_KEY, next);
+          window.localStorage.setItem(STORAGE_KEY, "en");
         }
       },
       t: (key, params) =>

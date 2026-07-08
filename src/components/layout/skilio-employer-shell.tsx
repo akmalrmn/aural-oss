@@ -58,7 +58,7 @@ const navItems = [
 ];
 
 const assessmentNavItems = [
-  { label: "Interviews", href: "/interviews", icon: MessageSquare, match: ["/interviews"] },
+  { label: "Interview manager", href: "/interviews", icon: MessageSquare, match: ["/interviews"] },
   { label: "Sessions", href: "/candidates", icon: UsersRound, match: ["/candidates"] },
   { label: "Questions", href: "/questions", icon: ClipboardList, match: ["/questions"] },
   { label: "Practices", href: "/practices", icon: BrainCircuit, match: ["/practices"] },
@@ -89,11 +89,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const interviewsActive = navItems
     .find((item) => item.href === "/assessments")!
     .match.some((prefix) => pathname.startsWith(prefix));
-
-  function handleSidebarAction() {
-    resetDocumentScroll();
-    onNavigate?.();
-  }
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden border-r border-[var(--skilio-border)] bg-[var(--skilio-canvas)] text-[var(--skilio-ink)]">
@@ -133,16 +128,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </nav>
 
-      <div className="relative border-t border-[var(--skilio-border)] p-3">
-        <Link
-          href="/settings"
-          onClick={handleSidebarAction}
-          className="flex h-10 items-center justify-center gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-elevated)] px-3 text-sm font-semibold text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-1)] transition-[background-color,transform] duration-150 hover:bg-[var(--skilio-control)] active:scale-[0.98]"
-        >
-          <Settings className="h-4 w-4" />
-          Workspace settings
-        </Link>
-      </div>
     </div>
   );
 }

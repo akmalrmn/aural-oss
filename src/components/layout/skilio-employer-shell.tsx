@@ -4,11 +4,17 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  BarChart3,
   Bell,
+  BrainCircuit,
   BriefcaseBusiness,
+  ClipboardCheck,
+  ClipboardList,
+  FolderKanban,
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquare,
   Plus,
   Settings,
   UserRound,
@@ -34,7 +40,21 @@ const navItems = [
   { label: "Overview", href: "/dashboard", icon: LayoutDashboard, match: ["/dashboard"] },
   { label: "Jobs", href: "/jobs", icon: BriefcaseBusiness, match: ["/jobs"] },
   { label: "Applicants", href: "/applicants", icon: UsersRound, match: ["/applicants"] },
-  { label: "Workspace", href: "/settings", icon: Settings, match: ["/settings", "/account"] },
+];
+
+const assessmentNavItems = [
+  { label: "Dashboard", href: "/assessments", icon: ClipboardCheck, match: ["/assessments"] },
+  { label: "Interviews", href: "/interviews", icon: MessageSquare, match: ["/interviews"] },
+  { label: "Sessions", href: "/candidates", icon: UsersRound, match: ["/candidates"] },
+  { label: "Questions", href: "/questions", icon: ClipboardList, match: ["/questions"] },
+  { label: "Practices", href: "/practices", icon: BrainCircuit, match: ["/practices"] },
+  { label: "Projects", href: "/projects", icon: FolderKanban, match: ["/projects"] },
+  { label: "Usage", href: "/usage", icon: BarChart3, match: ["/usage"] },
+  { label: "New interview", href: "/interviews/new", icon: Plus, match: ["/interviews/new"] },
+];
+
+const workspaceNavItems = [
+  { label: "Workspace", href: "/settings", icon: Settings, match: ["/settings", "/account", "/org", "/organizations"] },
 ];
 
 function initials(name: string) {
@@ -64,26 +84,15 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
 
-      <nav className="relative flex-1 space-y-1 px-2.5 py-4">
-        {navItems.map((item) => {
-          const active = item.match.some((prefix) => pathname.startsWith(prefix));
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={cn(
-                "flex h-10 items-center gap-3 rounded-[var(--skilio-radius-md)] px-3 text-sm font-medium transition-[background-color,box-shadow,color,transform] duration-150 active:scale-[0.99]",
-                active
-                  ? "bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-1)]"
-                  : "text-[var(--skilio-ink-soft)] hover:bg-[var(--skilio-control)] hover:text-[var(--skilio-ink)]",
-              )}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{item.label}</span>
-            </Link>
-          );
-        })}
+      <nav className="relative flex-1 overflow-y-auto px-2.5 py-4">
+        <NavSection items={navItems} onNavigate={onNavigate} pathname={pathname} />
+        <div className="my-4 h-px bg-[var(--skilio-border)]" />
+        <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--skilio-ink-muted)]">
+          Assessments
+        </div>
+        <NavSection child items={assessmentNavItems} onNavigate={onNavigate} pathname={pathname} />
+        <div className="my-4 h-px bg-[var(--skilio-border)]" />
+        <NavSection items={workspaceNavItems} onNavigate={onNavigate} pathname={pathname} />
       </nav>
 
       <div className="relative border-t border-[var(--skilio-border)] p-3">
@@ -96,6 +105,48 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           New job
         </Link>
       </div>
+    </div>
+  );
+}
+
+function NavSection({
+  child = false,
+  items,
+  onNavigate,
+  pathname,
+}: {
+  child?: boolean;
+  items: {
+    label: string;
+    href: string;
+    icon: React.ElementType;
+    match: string[];
+  }[];
+  onNavigate?: () => void;
+  pathname: string;
+}) {
+  return (
+    <div className="space-y-1">
+      {items.map((item) => {
+        const active = item.match.some((prefix) => pathname.startsWith(prefix));
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center gap-3 rounded-[var(--skilio-radius-md)] font-medium transition-[background-color,box-shadow,color,transform] duration-150 active:scale-[0.99]",
+              child ? "h-9 px-3 text-[13px]" : "h-10 px-3 text-sm",
+              active
+                ? "bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-1)]"
+                : "text-[var(--skilio-ink-soft)] hover:bg-[var(--skilio-control)] hover:text-[var(--skilio-ink)]",
+            )}
+          >
+            <item.icon className={cn("shrink-0", child ? "h-3.5 w-3.5" : "h-4 w-4")} />
+            <span className="truncate">{item.label}</span>
+          </Link>
+        );
+      })}
     </div>
   );
 }

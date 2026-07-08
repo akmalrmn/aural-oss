@@ -40,10 +40,24 @@ const navItems = [
   { label: "Overview", href: "/dashboard", icon: LayoutDashboard, match: ["/dashboard"] },
   { label: "Jobs", href: "/jobs", icon: BriefcaseBusiness, match: ["/jobs"] },
   { label: "Applicants", href: "/applicants", icon: UsersRound, match: ["/applicants"] },
+  {
+    label: "Interviews",
+    href: "/assessments",
+    icon: ClipboardCheck,
+    match: [
+      "/assessments",
+      "/interviews",
+      "/candidates",
+      "/questions",
+      "/practices",
+      "/projects",
+      "/usage",
+    ],
+  },
+  { label: "Workspace", href: "/settings", icon: Settings, match: ["/settings", "/account", "/org", "/organizations"] },
 ];
 
 const assessmentNavItems = [
-  { label: "Dashboard", href: "/assessments", icon: ClipboardCheck, match: ["/assessments"] },
   { label: "Interviews", href: "/interviews", icon: MessageSquare, match: ["/interviews"] },
   { label: "Sessions", href: "/candidates", icon: UsersRound, match: ["/candidates"] },
   { label: "Questions", href: "/questions", icon: ClipboardList, match: ["/questions"] },
@@ -51,10 +65,6 @@ const assessmentNavItems = [
   { label: "Projects", href: "/projects", icon: FolderKanban, match: ["/projects"] },
   { label: "Usage", href: "/usage", icon: BarChart3, match: ["/usage"] },
   { label: "New interview", href: "/interviews/new", icon: Plus, match: ["/interviews/new"] },
-];
-
-const workspaceNavItems = [
-  { label: "Workspace", href: "/settings", icon: Settings, match: ["/settings", "/account", "/org", "/organizations"] },
 ];
 
 function initials(name: string) {
@@ -71,6 +81,9 @@ function initials(name: string) {
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const interviewsActive = navItems
+    .find((item) => item.href === "/assessments")!
+    .match.some((prefix) => pathname.startsWith(prefix));
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden border-r border-[var(--skilio-border)] bg-[var(--skilio-canvas)] text-[var(--skilio-ink)]">
@@ -85,69 +98,77 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="relative flex-1 overflow-y-auto px-2.5 py-4">
-        <NavSection items={navItems} onNavigate={onNavigate} pathname={pathname} />
-        <div className="my-4 h-px bg-[var(--skilio-border)]" />
-        <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--skilio-ink-muted)]">
-          Assessments
+        <div className="space-y-1">
+          {navItems.map((item) => {
+            const showChildren = item.href === "/assessments" && interviewsActive;
+            return (
+              <div key={item.href}>
+                <NavLink item={item} onNavigate={onNavigate} pathname={pathname} />
+                {showChildren && (
+                  <div className="ml-5 mt-1 space-y-1 border-l border-[var(--skilio-border)] pl-2">
+                    {assessmentNavItems.map((child) => (
+                      <NavLink
+                        key={child.href}
+                        child
+                        item={child}
+                        onNavigate={onNavigate}
+                        pathname={pathname}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
-        <NavSection child items={assessmentNavItems} onNavigate={onNavigate} pathname={pathname} />
-        <div className="my-4 h-px bg-[var(--skilio-border)]" />
-        <NavSection items={workspaceNavItems} onNavigate={onNavigate} pathname={pathname} />
       </nav>
 
       <div className="relative border-t border-[var(--skilio-border)] p-3">
         <Link
-          href="/jobs/new"
+          href="/settings"
           onClick={onNavigate}
-          className="flex h-10 items-center justify-center gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] px-3 text-sm font-semibold text-white shadow-[var(--skilio-shadow-1)] transition-[background-color,transform] duration-150 hover:bg-[var(--skilio-brand-strong)] active:scale-[0.98]"
+          className="flex h-10 items-center justify-center gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-elevated)] px-3 text-sm font-semibold text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-1)] transition-[background-color,transform] duration-150 hover:bg-[var(--skilio-control)] active:scale-[0.98]"
         >
-          <Plus className="h-4 w-4" />
-          New job
+          <Settings className="h-4 w-4" />
+          Workspace settings
         </Link>
       </div>
     </div>
   );
 }
 
-function NavSection({
+function NavLink({
   child = false,
-  items,
+  item,
   onNavigate,
   pathname,
 }: {
   child?: boolean;
-  items: {
+  item: {
     label: string;
     href: string;
     icon: React.ElementType;
     match: string[];
-  }[];
+  };
   onNavigate?: () => void;
   pathname: string;
 }) {
+  const active = item.match.some((prefix) => pathname.startsWith(prefix));
   return (
-    <div className="space-y-1">
-      {items.map((item) => {
-        const active = item.match.some((prefix) => pathname.startsWith(prefix));
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center gap-3 rounded-[var(--skilio-radius-md)] font-medium transition-[background-color,box-shadow,color,transform] duration-150 active:scale-[0.99]",
-              child ? "h-9 px-3 text-[13px]" : "h-10 px-3 text-sm",
-              active
-                ? "bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-1)]"
-                : "text-[var(--skilio-ink-soft)] hover:bg-[var(--skilio-control)] hover:text-[var(--skilio-ink)]",
-            )}
-          >
-            <item.icon className={cn("shrink-0", child ? "h-3.5 w-3.5" : "h-4 w-4")} />
-            <span className="truncate">{item.label}</span>
-          </Link>
-        );
-      })}
-    </div>
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      className={cn(
+        "flex items-center gap-3 rounded-[var(--skilio-radius-md)] font-medium transition-[background-color,box-shadow,color,transform] duration-150 active:scale-[0.99]",
+        child ? "h-8 px-2.5 text-[13px]" : "h-10 px-3 text-sm",
+        active
+          ? "bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-1)]"
+          : "text-[var(--skilio-ink-soft)] hover:bg-[var(--skilio-control)] hover:text-[var(--skilio-ink)]",
+      )}
+    >
+      <item.icon className={cn("shrink-0", child ? "h-3.5 w-3.5" : "h-4 w-4")} />
+      <span className="truncate">{item.label}</span>
+    </Link>
   );
 }
 

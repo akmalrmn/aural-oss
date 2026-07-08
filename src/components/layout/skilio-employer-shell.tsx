@@ -20,7 +20,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { useOrg } from "@/components/org-provider";
 import { useProject } from "@/components/project-provider";
@@ -79,11 +79,21 @@ function initials(name: string) {
   );
 }
 
+function resetDocumentScroll() {
+  window.scrollTo({ left: 0, top: 0, behavior: "auto" });
+  document.scrollingElement?.scrollTo({ left: 0, top: 0, behavior: "auto" });
+}
+
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const interviewsActive = navItems
     .find((item) => item.href === "/assessments")!
     .match.some((prefix) => pathname.startsWith(prefix));
+
+  function handleSidebarAction() {
+    resetDocumentScroll();
+    onNavigate?.();
+  }
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden border-r border-[var(--skilio-border)] bg-[var(--skilio-canvas)] text-[var(--skilio-ink)]">
@@ -126,7 +136,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="relative border-t border-[var(--skilio-border)] p-3">
         <Link
           href="/settings"
-          onClick={onNavigate}
+          onClick={handleSidebarAction}
           className="flex h-10 items-center justify-center gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-elevated)] px-3 text-sm font-semibold text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-1)] transition-[background-color,transform] duration-150 hover:bg-[var(--skilio-control)] active:scale-[0.98]"
         >
           <Settings className="h-4 w-4" />
@@ -154,10 +164,16 @@ function NavLink({
   pathname: string;
 }) {
   const active = item.match.some((prefix) => pathname.startsWith(prefix));
+
+  function handleClick() {
+    resetDocumentScroll();
+    onNavigate?.();
+  }
+
   return (
     <Link
       href={item.href}
-      onClick={onNavigate}
+      onClick={handleClick}
       className={cn(
         "flex items-center gap-3 rounded-[var(--skilio-radius-md)] font-medium transition-[background-color,box-shadow,color,transform] duration-150 active:scale-[0.99]",
         child ? "h-8 px-2.5 text-[13px]" : "h-10 px-3 text-sm",
@@ -174,6 +190,7 @@ function NavLink({
 
 export function SkilioEmployerShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, profile } = useAuth();
   const { currentOrg } = useOrg();
   const { currentProject } = useProject();
@@ -181,6 +198,28 @@ export function SkilioEmployerShell({ children }: { children: React.ReactNode })
   const [signingOut, setSigningOut] = useState(false);
 
   const displayName = profile?.name || user?.email?.split("@")[0] || "Employer";
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const previousScrollBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = "auto";
+    resetDocumentScroll();
+    const frame = requestAnimationFrame(() => {
+      resetDocumentScroll();
+    });
+    const timeouts = [80, 240, 500].map((delay) =>
+      window.setTimeout(resetDocumentScroll, delay),
+    );
+    const restoreTimeout = window.setTimeout(() => {
+      root.style.scrollBehavior = previousScrollBehavior;
+    }, 520);
+    return () => {
+      cancelAnimationFrame(frame);
+      timeouts.forEach((timeout) => window.clearTimeout(timeout));
+      window.clearTimeout(restoreTimeout);
+      root.style.scrollBehavior = previousScrollBehavior;
+    };
+  }, [pathname]);
 
   async function signOut() {
     setSigningOut(true);
@@ -227,7 +266,7 @@ export function SkilioEmployerShell({ children }: { children: React.ReactNode })
                 {currentProject?.name ?? "Hiring workspace"}
               </div>
             </div>
-            <Link href="/jobs/new">
+            <Link href="/jobs/new" onClick={resetDocumentScroll}>
               <Button className="hidden h-10 gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white shadow-[var(--skilio-shadow-1)] hover:bg-[var(--skilio-brand-strong)] active:scale-[0.98] sm:inline-flex">
                 <Plus className="h-4 w-4" />
                 New job
@@ -252,13 +291,13 @@ export function SkilioEmployerShell({ children }: { children: React.ReactNode })
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem asChild>
-                  <Link href="/account">
+                  <Link href="/account" onClick={resetDocumentScroll}>
                     <UserRound className="mr-2 h-4 w-4" />
                     Account
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/settings">
+                  <Link href="/settings" onClick={resetDocumentScroll}>
                     <Settings className="mr-2 h-4 w-4" />
                     Workspace settings
                   </Link>

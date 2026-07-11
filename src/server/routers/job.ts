@@ -52,6 +52,7 @@ const linksSchema = z
     linkedin: optionalUrlSchema,
     website: optionalUrlSchema,
     github: optionalUrlSchema,
+    resume: optionalUrlSchema,
   })
   .partial()
   .default({});

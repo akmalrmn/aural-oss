@@ -124,6 +124,44 @@ function buildProfileSummary(profile: Record<string, unknown>) {
   return summary.slice(0, 600);
 }
 
+function getCvAttachment(profile: Record<string, unknown>) {
+  const cv = asRecord(profile.cv as Json | undefined);
+  const filename = firstNonEmpty(cv.filename);
+  const url = firstNonEmpty(cv.url);
+  return filename || url ? { filename, url } : null;
+}
+
+function getSkillEvidence(profile: Record<string, unknown>) {
+  const evidence = profile.skillEvidence;
+  return Array.isArray(evidence) ? (evidence as Record<string, unknown>[]) : [];
+}
+
+function summarizePortfolioEvidence(skill: string, evidence: Record<string, unknown>[]) {
+  const item = evidence.find(
+    (entry) => normalizeSkill(asString(entry.name)) === normalizeSkill(skill),
+  );
+  if (!item) return "";
+
+  const proofs = Array.isArray(item.proofs) ? (item.proofs as Record<string, unknown>[]) : [];
+  const videos = Array.isArray(item.videos) ? (item.videos as Record<string, unknown>[]) : [];
+  const proofLabels = proofs
+    .map((proof) => firstNonEmpty(proof.description, proof.fileName, proof.url, proof.fileUrl))
+    .filter(Boolean)
+    .slice(0, 3);
+  const videoLabels = videos
+    .map((video) => firstNonEmpty(video.title, video.fileName, video.url))
+    .filter(Boolean)
+    .slice(0, 2);
+  const details = [
+    firstNonEmpty(item.proficiency) && `Proficiency: ${firstNonEmpty(item.proficiency)}`,
+    typeof item.yearsOfExperience === "number" && `Experience: ${item.yearsOfExperience} years`,
+    proofLabels.length && `Proofs: ${proofLabels.join("; ")}`,
+    videoLabels.length && `Videos: ${videoLabels.join("; ")}`,
+  ].filter(Boolean);
+
+  return details.join("\n");
+}
+
 function StepRail({ current }: { current: number }) {
   return (
     <div className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-panel)] p-3 shadow-[var(--skilio-shadow-1)]">
@@ -241,6 +279,7 @@ export default function CandidateApplicationPage() {
   const [skillConfidence, setSkillConfidence] = useState<Record<string, number>>({});
   const [workSamplePrompt, setWorkSamplePrompt] = useState("");
   const [resumeFileName, setResumeFileName] = useState("");
+  const [resumeUrl, setResumeUrl] = useState("");
   const [certificateFileNames, setCertificateFileNames] = useState<string[]>([]);
 
   const jobQuery = trpc.job.getPublicBySlug.useQuery(
@@ -272,6 +311,14 @@ export default function CandidateApplicationPage() {
     () => asStringArray(skilioIdentity?.skillsSnapshot),
     [skilioIdentity?.skillsSnapshot],
   );
+  const skilioCv = useMemo(
+    () => getCvAttachment(skilioProfileSnapshot),
+    [skilioProfileSnapshot],
+  );
+  const skilioSkillEvidence = useMemo(
+    () => getSkillEvidence(skilioProfileSnapshot),
+    [skilioProfileSnapshot],
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -296,6 +343,9 @@ export default function CandidateApplicationPage() {
 
     const nextPortfolio = firstNonEmpty(skilioProfileSnapshot.publicUrl);
     if (nextPortfolio && !portfolio) setPortfolio(nextPortfolio);
+
+    if (skilioCv?.filename && !resumeFileName) setResumeFileName(skilioCv.filename);
+    if (skilioCv?.url && !resumeUrl) setResumeUrl(skilioCv.url);
   }, [
     authChoice,
     bio,
@@ -306,6 +356,10 @@ export default function CandidateApplicationPage() {
     portfolio,
     profile?.email,
     profile?.name,
+    resumeFileName,
+    resumeUrl,
+    skilioCv?.filename,
+    skilioCv?.url,
     skilioIdentity?.email,
     skilioIdentity?.name,
     skilioProfileSnapshot,
@@ -326,10 +380,17 @@ export default function CandidateApplicationPage() {
 
     if (seeded.length) {
       setSelectedSkills(seeded);
-      setSkillEvidence(makeEvidenceDefaults(seeded));
+      setSkillEvidence(
+        Object.fromEntries(
+          seeded.map((skill) => [
+            skill,
+            summarizePortfolioEvidence(skill, skilioSkillEvidence),
+          ]),
+        ),
+      );
       setSkillConfidence(makeConfidenceDefaults(seeded));
     }
-  }, [expectedSkills, selectedSkills.length, skilioSkills]);
+  }, [expectedSkills, selectedSkills.length, skilioSkillEvidence, skilioSkills]);
 
   useEffect(() => {
     if (selectedSkills.length > 0 || expectedSkills.length === 0 || skilioSkills.length > 0) return;
@@ -348,7 +409,7 @@ export default function CandidateApplicationPage() {
     if (currentStep === 0) return !authLoading && (applyingWithSkilio || applyingManually);
     if (currentStep === 1) return name.trim().length >= 2 && /\S+@\S+\.\S+/.test(email);
     if (currentStep === 2) return selectedSkills.length > 0 && workSamplePrompt.trim().length >= 20;
-    if (currentStep === 3) return Boolean(portfolio || linkedin || github || website || resumeFileName || certificateFileNames.length);
+    if (currentStep === 3) return Boolean(portfolio || linkedin || github || website || resumeFileName || resumeUrl || certificateFileNames.length);
     return true;
   }, [
     applyingManually,
@@ -361,6 +422,7 @@ export default function CandidateApplicationPage() {
     name,
     portfolio,
     resumeFileName,
+    resumeUrl,
     selectedSkills.length,
     currentStep,
     submitted,
@@ -436,6 +498,7 @@ export default function CandidateApplicationPage() {
         linkedin: cleanOptionalUrl(linkedin),
         github: cleanOptionalUrl(github),
         website: cleanOptionalUrl(website),
+        resume: cleanOptionalUrl(resumeUrl),
       },
       profileSnapshot: {
         portfolioUserId: skilioIdentity?.portfolioUserId,
@@ -450,6 +513,7 @@ export default function CandidateApplicationPage() {
         skillConfidence,
         workSamplePrompt,
         resumeFileName,
+        resumeUrl,
         certificateFileNames,
       },
     });
@@ -814,12 +878,21 @@ export default function CandidateApplicationPage() {
                       <label className="flex cursor-pointer flex-col items-center justify-center rounded-[var(--skilio-radius-lg)] border border-dashed border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] p-5 text-center hover:bg-[var(--skilio-control-strong)]">
                         <UploadCloud className="h-7 w-7 text-[var(--skilio-brand)]" />
                         <span className="mt-2 text-sm font-semibold">Resume file</span>
-                        <span className="mt-1 text-xs text-[var(--skilio-ink-muted)]">{resumeFileName || "Select a PDF or DOC file"}</span>
+                        <span className="mt-1 text-xs text-[var(--skilio-ink-muted)]">
+                          {resumeFileName
+                            ? resumeUrl
+                              ? `${resumeFileName} attached from Skilio profile`
+                              : resumeFileName
+                            : "Select a PDF or DOC file"}
+                        </span>
                         <input
                           type="file"
                           accept=".pdf,.doc,.docx"
                           className="sr-only"
-                          onChange={(event) => setResumeFileName(event.target.files?.[0]?.name ?? "")}
+                          onChange={(event) => {
+                            setResumeFileName(event.target.files?.[0]?.name ?? "");
+                            setResumeUrl("");
+                          }}
                         />
                       </label>
                       <label className="flex cursor-pointer flex-col items-center justify-center rounded-[var(--skilio-radius-lg)] border border-dashed border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] p-5 text-center hover:bg-[var(--skilio-control-strong)]">

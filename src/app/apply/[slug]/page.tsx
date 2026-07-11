@@ -62,6 +62,18 @@ function makeConfidenceDefaults(skills: string[]) {
   return Object.fromEntries(skills.map((skill) => [skill, 3]));
 }
 
+function cleanOptionalText(value: string) {
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function cleanOptionalUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 function StepRail({ current }: { current: number }) {
   return (
     <div className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-panel)] p-3 shadow-[var(--skilio-shadow-1)]">
@@ -219,15 +231,19 @@ export default function CandidateApplicationPage() {
     setSkillConfidence(makeConfidenceDefaults(seeded));
   }, [expectedSkills, selectedSkills.length]);
 
+  const applyingWithSkilio = Boolean(user && authChoice === "skilio");
+  const applyingManually = authChoice === "guest";
+
   const canContinue = useMemo(() => {
     if (submitted) return false;
-    if (step === 0) return Boolean(user || authChoice === "guest");
+    if (step === 0) return applyingWithSkilio || applyingManually;
     if (step === 1) return name.trim().length >= 2 && /\S+@\S+\.\S+/.test(email);
     if (step === 2) return selectedSkills.length > 0 && workSamplePrompt.trim().length >= 20;
     if (step === 3) return Boolean(portfolio || linkedin || github || website || resumeFileName || certificateFileNames.length);
     return true;
   }, [
-    authChoice,
+    applyingManually,
+    applyingWithSkilio,
     certificateFileNames.length,
     email,
     github,
@@ -238,7 +254,6 @@ export default function CandidateApplicationPage() {
     selectedSkills.length,
     step,
     submitted,
-    user,
     website,
     workSamplePrompt,
   ]);
@@ -294,24 +309,24 @@ export default function CandidateApplicationPage() {
 
     apply.mutate({
       slug: params.slug,
-      source: user || authChoice === "skilio" ? "SKILIO" : "GUEST",
-      name,
-      email,
-      phone: phone || undefined,
-      location: location || undefined,
-      bio: bio || undefined,
-      coverLetter: coverLetter || undefined,
-      skills: selectedSkills,
+      source: applyingWithSkilio ? "SKILIO" : "GUEST",
+      name: name.trim(),
+      email: email.trim(),
+      phone: cleanOptionalText(phone),
+      location: cleanOptionalText(location),
+      bio: cleanOptionalText(bio),
+      coverLetter: cleanOptionalText(coverLetter),
+      skills: selectedSkills.map((skill) => skill.trim()).filter(Boolean),
       links: {
-        portfolio,
-        linkedin,
-        github,
-        website,
+        portfolio: cleanOptionalUrl(portfolio),
+        linkedin: cleanOptionalUrl(linkedin),
+        github: cleanOptionalUrl(github),
+        website: cleanOptionalUrl(website),
       },
       profileSnapshot: {
         profileId: profile?.id,
         organization: profile?.organization,
-        authChoice: user ? "signed_in" : authChoice,
+        authChoice: applyingWithSkilio ? "signed_in" : authChoice,
         skillEvidence,
         skillConfidence,
         workSamplePrompt,
@@ -321,7 +336,11 @@ export default function CandidateApplicationPage() {
     });
   }
 
-  const signupHref = `${profileUrl}register?next=${encodeURIComponent(`/apply/${params.slug}`)}`;
+  const applyNextPath = `/apply/${params.slug}`;
+  const signInHref = `/auth/skilio/start?next=${encodeURIComponent(applyNextPath)}`;
+  const assessmentBaseUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+  const signupRedirect = `${assessmentBaseUrl}${signInHref}`;
+  const signupHref = `${profileUrl}signup?redirect=${encodeURIComponent(signupRedirect)}`;
 
   return (
     <main className="skilio-interface min-h-screen overflow-x-hidden bg-[var(--skilio-canvas)] text-[var(--skilio-ink)]">
@@ -341,10 +360,18 @@ export default function CandidateApplicationPage() {
               <div className="text-xs text-[var(--skilio-ink-muted)]">Candidate application</div>
             </div>
           </Link>
-          {!user ? (
+          {applyingWithSkilio ? (
+            <Badge className="rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)] hover:bg-[var(--skilio-control-strong)]">
+              Signed in with Skilio
+            </Badge>
+          ) : applyingManually ? (
+            <Badge variant="outline" className="rounded-[var(--skilio-radius-md)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink-soft)]">
+              Applying manually
+            </Badge>
+          ) : (
             <div className="hidden items-center gap-2 sm:flex">
               <Button asChild variant="outline" className="gap-2 rounded-[var(--skilio-radius-md)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] hover:bg-[var(--skilio-control)]">
-                <a href={`/auth/skilio/start?next=/apply/${params.slug}`}>
+                <a href={signInHref}>
                   <LogIn className="h-4 w-4" />
                   Sign in
                 </a>
@@ -356,10 +383,6 @@ export default function CandidateApplicationPage() {
                 </a>
               </Button>
             </div>
-          ) : (
-            <Badge className="rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)] hover:bg-[var(--skilio-control-strong)]">
-              Signed in
-            </Badge>
           )}
         </div>
       </header>
@@ -439,7 +462,7 @@ export default function CandidateApplicationPage() {
 
                     <div className="grid gap-3">
                       <a
-                        href={`/auth/skilio/start?next=/apply/${params.slug}`}
+                        href={signInHref}
                         className="flex items-center justify-between rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-panel)] p-4 text-left transition hover:bg-[var(--skilio-control)]"
                       >
                         <span className="flex items-center gap-3">
@@ -737,6 +760,12 @@ export default function CandidateApplicationPage() {
                   </div>
                 )}
 
+                {apply.isError && (
+                  <div className="rounded-[var(--skilio-radius-md)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {apply.error?.message || "We could not submit this application. Check your details and try again."}
+                  </div>
+                )}
+
                 <div className="flex flex-col gap-3 border-t border-[var(--skilio-border)] pt-5 sm:flex-row sm:items-center sm:justify-between">
                   <Button type="button" variant="outline" onClick={goBack} disabled={step === 0 || apply.isLoading} className="gap-2">
                     <ArrowLeft className="h-4 w-4" />
@@ -748,7 +777,7 @@ export default function CandidateApplicationPage() {
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   ) : (
-                    <Button type="submit" disabled={apply.isLoading || !job} className="gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
+                    <Button type="submit" className="gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
                       Submit application
                       <ArrowRight className="h-4 w-4" />
                     </Button>

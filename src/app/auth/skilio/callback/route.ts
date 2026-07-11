@@ -79,13 +79,19 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    if (link.error || !link.data.properties?.action_link || !link.data.user?.id) {
+    const tokenHash = link.data.properties?.hashed_token;
+    const verificationType = link.data.properties?.verification_type ?? "magiclink";
+
+    if (link.error || !tokenHash || !link.data.user?.id) {
       throw link.error ?? new Error("Supabase did not return an SSO action link.");
     }
 
     await upsertSkilioIdentityLink(link.data.user.id, profile);
 
-    return NextResponse.redirect(link.data.properties.action_link);
+    redirectTo.searchParams.set("token_hash", tokenHash);
+    redirectTo.searchParams.set("type", verificationType);
+
+    return NextResponse.redirect(redirectTo);
   } catch (error) {
     const loginUrl = new URL("/login", origin);
     loginUrl.searchParams.set("error", "skilio_sso_failed");

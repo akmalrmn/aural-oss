@@ -33,12 +33,25 @@ const skillSchema = z.object({
   priority: z.enum(["MUST", "NICE"]).default("MUST"),
 });
 
+function normalizeOptionalUrl(value: unknown) {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+const optionalUrlSchema = z.preprocess(
+  normalizeOptionalUrl,
+  z.string().url().optional(),
+);
+
 const linksSchema = z
   .object({
-    portfolio: z.string().url().optional().or(z.literal("")),
-    linkedin: z.string().url().optional().or(z.literal("")),
-    website: z.string().url().optional().or(z.literal("")),
-    github: z.string().url().optional().or(z.literal("")),
+    portfolio: optionalUrlSchema,
+    linkedin: optionalUrlSchema,
+    website: optionalUrlSchema,
+    github: optionalUrlSchema,
   })
   .partial()
   .default({});

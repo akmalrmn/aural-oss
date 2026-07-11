@@ -260,6 +260,7 @@ export default function CandidateApplicationPage() {
   const params = useParams<{ slug: string }>();
   const { user, profile, skilioIdentity, loading: authLoading } = useAuth();
   const submittingRef = useRef(false);
+  const appliedSkilioSkillsRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
   const [step, setStep] = useState(0);
   const [authChoice, setAuthChoice] = useState<AuthChoice | null>(null);
@@ -367,38 +368,42 @@ export default function CandidateApplicationPage() {
   ]);
 
   useEffect(() => {
-    if (selectedSkills.length > 0) return;
+    if (appliedSkilioSkillsRef.current || skilioSkills.length === 0) return;
+    appliedSkilioSkillsRef.current = true;
 
     const roleSkills = expectedSkills.length
       ? expectedSkills.filter((skill) =>
           skilioSkills.some((candidateSkill) => normalizeSkill(candidateSkill) === normalizeSkill(skill)),
         )
       : [];
-    const seeded = [...roleSkills, ...skilioSkills]
+    const seeded = [...roleSkills, ...skilioSkills, ...selectedSkills]
       .filter((skill, index, all) => all.findIndex((item) => normalizeSkill(item) === normalizeSkill(skill)) === index)
-      .slice(0, 5);
+      .slice(0, 12);
 
     if (seeded.length) {
       setSelectedSkills(seeded);
-      setSkillEvidence(
-        Object.fromEntries(
-          seeded.map((skill) => [
-            skill,
-            summarizePortfolioEvidence(skill, skilioSkillEvidence),
-          ]),
+      setSkillEvidence((current) => ({
+        ...Object.fromEntries(
+          seeded.map((skill) => {
+            const portfolioEvidence = summarizePortfolioEvidence(skill, skilioSkillEvidence);
+            return [skill, current[skill] || portfolioEvidence];
+          }),
         ),
-      );
-      setSkillConfidence(makeConfidenceDefaults(seeded));
+      }));
+      setSkillConfidence((current) => ({
+        ...makeConfidenceDefaults(seeded),
+        ...current,
+      }));
     }
-  }, [expectedSkills, selectedSkills.length, skilioSkillEvidence, skilioSkills]);
+  }, [expectedSkills, selectedSkills, skilioSkillEvidence, skilioSkills]);
 
   useEffect(() => {
-    if (selectedSkills.length > 0 || expectedSkills.length === 0 || skilioSkills.length > 0) return;
+    if (authLoading || selectedSkills.length > 0 || expectedSkills.length === 0 || skilioSkills.length > 0) return;
     const seeded = expectedSkills.slice(0, 5);
     setSelectedSkills(seeded);
     setSkillEvidence(makeEvidenceDefaults(seeded));
     setSkillConfidence(makeConfidenceDefaults(seeded));
-  }, [expectedSkills, selectedSkills.length, skilioSkills.length]);
+  }, [authLoading, expectedSkills, selectedSkills.length, skilioSkills.length]);
 
   const applyingWithSkilio = Boolean(user && (authChoice === "skilio" || authChoice === null));
   const applyingManually = authChoice === "guest";

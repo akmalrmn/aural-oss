@@ -86,12 +86,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
-        fetchAccountContext(currentUser.id);
+        setLoading(true);
+        fetchAccountContext(currentUser.id).finally(() => setLoading(false));
       } else {
         setProfile(null);
         setSkilioIdentity(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();

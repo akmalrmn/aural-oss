@@ -325,7 +325,6 @@ export default function CandidateApplicationPage() {
     if (!user) return;
 
     if (!authChoice) setAuthChoice("skilio");
-    setStep((current) => (current === 0 ? 1 : current));
 
     const nextName = firstNonEmpty(skilioIdentity?.name, profile?.name);
     if (nextName && !name) setName(nextName);
@@ -407,7 +406,7 @@ export default function CandidateApplicationPage() {
 
   const applyingWithSkilio = Boolean(user && (authChoice === "skilio" || authChoice === null));
   const applyingManually = authChoice === "guest";
-  const currentStep = applyingWithSkilio && step === 0 ? 1 : step;
+  const currentStep = step;
 
   const canContinue = useMemo(() => {
     if (submitted) return false;
@@ -470,9 +469,7 @@ export default function CandidateApplicationPage() {
 
   function goNext() {
     if (!canContinue) return;
-    setStep((current) =>
-      Math.min(steps.length - 1, applyingWithSkilio && current === 0 ? 2 : current + 1),
-    );
+    setStep((current) => Math.min(steps.length - 1, current + 1));
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }
 
@@ -582,19 +579,6 @@ export default function CandidateApplicationPage() {
       <SkilioMotionRoot className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[390px_1fr]">
         <aside className="space-y-4">
           <JobSummaryCard job={job} loading={jobQuery.isLoading} unavailable={jobUnavailable} />
-          {!jobUnavailable && (
-            <SkilioPanel className="p-4">
-              <div className="flex items-start gap-3">
-                <ShieldCheck className="mt-0.5 h-5 w-5 text-[var(--skilio-brand)]" />
-                <div>
-                  <div className="font-semibold text-[var(--skilio-ink)]">No interview required to apply</div>
-                  <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">
-                    Submit your profile, skill signal, and evidence now. The employer will review and decide whether to move you forward.
-                  </p>
-                </div>
-              </div>
-            </SkilioPanel>
-          )}
         </aside>
 
         <section className="space-y-4">
@@ -653,19 +637,40 @@ export default function CandidateApplicationPage() {
                     </div>
 
                     <div className="grid gap-3">
-                      <a
-                        href={signInHref}
-                        className="flex items-center justify-between rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-panel)] p-4 text-left transition hover:bg-[var(--skilio-control)]"
-                      >
-                        <span className="flex items-center gap-3">
-                          <LogIn className="h-5 w-5 text-[var(--skilio-brand)]" />
-                          <span>
-                            <span className="block font-semibold">Sign in with Skilio</span>
-                            <span className="text-sm text-[var(--skilio-ink-soft)]">Reuse your verified profile and contact information.</span>
+                      {applyingWithSkilio ? (
+                        <button
+                          type="button"
+                          onClick={() => setAuthChoice("skilio")}
+                          className="flex items-center justify-between rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-brand)] bg-[var(--skilio-control-strong)] p-4 text-left transition hover:bg-[var(--skilio-control-strong)]"
+                        >
+                          <span className="flex items-center gap-3">
+                            <Check className="h-5 w-5 text-[var(--skilio-brand)]" />
+                            <span>
+                              <span className="block font-semibold">Already signed in with Skilio</span>
+                              <span className="text-sm text-[var(--skilio-ink-soft)]">
+                                We will reuse your verified profile, CV, skills, and evidence.
+                              </span>
+                            </span>
                           </span>
-                        </span>
-                        <ArrowRight className="h-4 w-4" />
-                      </a>
+                          <Badge className="rounded-md bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand)]">
+                            Active
+                          </Badge>
+                        </button>
+                      ) : (
+                        <a
+                          href={signInHref}
+                          className="flex items-center justify-between rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-panel)] p-4 text-left transition hover:bg-[var(--skilio-control)]"
+                        >
+                          <span className="flex items-center gap-3">
+                            <LogIn className="h-5 w-5 text-[var(--skilio-brand)]" />
+                            <span>
+                              <span className="block font-semibold">Sign in with Skilio</span>
+                              <span className="text-sm text-[var(--skilio-ink-soft)]">Reuse your verified profile and contact information.</span>
+                            </span>
+                          </span>
+                          <ArrowRight className="h-4 w-4" />
+                        </a>
+                      )}
 
                       <a
                         href={signupHref}
@@ -972,7 +977,7 @@ export default function CandidateApplicationPage() {
                     type="button"
                     variant="outline"
                     onClick={goBack}
-                    disabled={currentStep === 0 || (applyingWithSkilio && currentStep === 1) || apply.isLoading}
+                    disabled={currentStep === 0 || apply.isLoading}
                     className="gap-2"
                   >
                     <ArrowLeft className="h-4 w-4" />

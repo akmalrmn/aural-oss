@@ -219,7 +219,11 @@ export default function JobDetailPage() {
                                     updateApplicant.mutate({ id: applicant.id, status })
                                   }
                                 >
-                                  {status.toLowerCase()}
+                                  {status === "SHORTLISTED"
+                                    ? "Accept"
+                                    : status === "REJECTED"
+                                      ? "Decline"
+                                      : "Reviewed"}
                                 </Button>
                               ))}
                             </div>

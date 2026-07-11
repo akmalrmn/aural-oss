@@ -32,6 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import type { Json } from "@/lib/supabase/types";
 
 type PublicJob = {
   id: string;
@@ -72,6 +73,55 @@ function cleanOptionalUrl(value: string) {
   if (!trimmed) return undefined;
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
+}
+
+function asRecord(value: Json | undefined): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function asStringArray(value: Json | undefined) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+function firstNonEmpty(...values: unknown[]) {
+  for (const value of values) {
+    const text = asString(value);
+    if (text) return text;
+  }
+  return "";
+}
+
+function buildPhone(profile: Record<string, unknown>) {
+  const phoneNumber = asString(profile.phoneNumber);
+  if (!phoneNumber) return "";
+  const countryCode = asString(profile.phoneCountryCode);
+  return [countryCode, phoneNumber].filter(Boolean).join(" ");
+}
+
+function buildProfileSummary(profile: Record<string, unknown>) {
+  const role = asString(profile.role);
+  const experiences = Array.isArray(profile.experiences)
+    ? (profile.experiences as Record<string, unknown>[])
+    : [];
+  const current = experiences.find((experience) => experience?.isCurrent) ?? experiences[0];
+  const company = asString(current?.company);
+  const title = firstNonEmpty(current?.jobTitle, role);
+  const description = asString(current?.description);
+  const summary = [
+    title && company ? `${title} at ${company}.` : title ? `${title}.` : "",
+    description,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return summary.slice(0, 600);
 }
 
 function StepRail({ current }: { current: number }) {
@@ -170,7 +220,7 @@ function JobSummaryCard({
 
 export default function CandidateApplicationPage() {
   const params = useParams<{ slug: string }>();
-  const { user, profile } = useAuth();
+  const { user, profile, skilioIdentity, loading: authLoading } = useAuth();
   const submittingRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
   const [step, setStep] = useState(0);
@@ -214,36 +264,96 @@ export default function CandidateApplicationPage() {
     () => (job?.job_skills ?? []).map((skill) => skill.name),
     [job?.job_skills],
   );
+  const skilioProfileSnapshot = useMemo(
+    () => asRecord(skilioIdentity?.profileSnapshot),
+    [skilioIdentity?.profileSnapshot],
+  );
+  const skilioSkills = useMemo(
+    () => asStringArray(skilioIdentity?.skillsSnapshot),
+    [skilioIdentity?.skillsSnapshot],
+  );
 
   useEffect(() => {
-    if (profile?.name && !name) setName(profile.name);
-    if ((user?.email || profile?.email) && !email) {
-      setEmail(user?.email ?? profile?.email ?? "");
+    if (!user) return;
+
+    if (!authChoice) setAuthChoice("skilio");
+    setStep((current) => (current === 0 ? 1 : current));
+
+    const nextName = firstNonEmpty(skilioIdentity?.name, profile?.name);
+    if (nextName && !name) setName(nextName);
+
+    const nextEmail = firstNonEmpty(user.email, skilioIdentity?.email, profile?.email);
+    if (nextEmail && !email) setEmail(nextEmail);
+
+    const nextPhone = buildPhone(skilioProfileSnapshot);
+    if (nextPhone && !phone) setPhone(nextPhone);
+
+    const nextLocation = firstNonEmpty(skilioProfileSnapshot.country);
+    if (nextLocation && !location) setLocation(nextLocation);
+
+    const nextBio = buildProfileSummary(skilioProfileSnapshot);
+    if (nextBio && !bio) setBio(nextBio);
+
+    const nextPortfolio = firstNonEmpty(skilioProfileSnapshot.publicUrl);
+    if (nextPortfolio && !portfolio) setPortfolio(nextPortfolio);
+  }, [
+    authChoice,
+    bio,
+    email,
+    location,
+    name,
+    phone,
+    portfolio,
+    profile?.email,
+    profile?.name,
+    skilioIdentity?.email,
+    skilioIdentity?.name,
+    skilioProfileSnapshot,
+    user,
+  ]);
+
+  useEffect(() => {
+    if (selectedSkills.length > 0) return;
+
+    const roleSkills = expectedSkills.length
+      ? expectedSkills.filter((skill) =>
+          skilioSkills.some((candidateSkill) => normalizeSkill(candidateSkill) === normalizeSkill(skill)),
+        )
+      : [];
+    const seeded = [...roleSkills, ...skilioSkills]
+      .filter((skill, index, all) => all.findIndex((item) => normalizeSkill(item) === normalizeSkill(skill)) === index)
+      .slice(0, 5);
+
+    if (seeded.length) {
+      setSelectedSkills(seeded);
+      setSkillEvidence(makeEvidenceDefaults(seeded));
+      setSkillConfidence(makeConfidenceDefaults(seeded));
     }
-    if (user && !authChoice) setAuthChoice("skilio");
-  }, [authChoice, email, name, profile?.email, profile?.name, user]);
+  }, [expectedSkills, selectedSkills.length, skilioSkills]);
 
   useEffect(() => {
-    if (selectedSkills.length > 0 || expectedSkills.length === 0) return;
+    if (selectedSkills.length > 0 || expectedSkills.length === 0 || skilioSkills.length > 0) return;
     const seeded = expectedSkills.slice(0, 5);
     setSelectedSkills(seeded);
     setSkillEvidence(makeEvidenceDefaults(seeded));
     setSkillConfidence(makeConfidenceDefaults(seeded));
-  }, [expectedSkills, selectedSkills.length]);
+  }, [expectedSkills, selectedSkills.length, skilioSkills.length]);
 
-  const applyingWithSkilio = Boolean(user && authChoice === "skilio");
+  const applyingWithSkilio = Boolean(user && (authChoice === "skilio" || authChoice === null));
   const applyingManually = authChoice === "guest";
+  const currentStep = applyingWithSkilio && step === 0 ? 1 : step;
 
   const canContinue = useMemo(() => {
     if (submitted) return false;
-    if (step === 0) return applyingWithSkilio || applyingManually;
-    if (step === 1) return name.trim().length >= 2 && /\S+@\S+\.\S+/.test(email);
-    if (step === 2) return selectedSkills.length > 0 && workSamplePrompt.trim().length >= 20;
-    if (step === 3) return Boolean(portfolio || linkedin || github || website || resumeFileName || certificateFileNames.length);
+    if (currentStep === 0) return !authLoading && (applyingWithSkilio || applyingManually);
+    if (currentStep === 1) return name.trim().length >= 2 && /\S+@\S+\.\S+/.test(email);
+    if (currentStep === 2) return selectedSkills.length > 0 && workSamplePrompt.trim().length >= 20;
+    if (currentStep === 3) return Boolean(portfolio || linkedin || github || website || resumeFileName || certificateFileNames.length);
     return true;
   }, [
     applyingManually,
     applyingWithSkilio,
+    authLoading,
     certificateFileNames.length,
     email,
     github,
@@ -252,7 +362,7 @@ export default function CandidateApplicationPage() {
     portfolio,
     resumeFileName,
     selectedSkills.length,
-    step,
+    currentStep,
     submitted,
     website,
     workSamplePrompt,
@@ -293,7 +403,9 @@ export default function CandidateApplicationPage() {
 
   function goNext() {
     if (!canContinue) return;
-    setStep((current) => Math.min(steps.length - 1, current + 1));
+    setStep((current) =>
+      Math.min(steps.length - 1, applyingWithSkilio && current === 0 ? 2 : current + 1),
+    );
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }
 
@@ -309,6 +421,8 @@ export default function CandidateApplicationPage() {
 
     apply.mutate({
       slug: params.slug,
+      portfolioUserId: skilioIdentity?.portfolioUserId,
+      identityLinkId: skilioIdentity?.id,
       source: applyingWithSkilio ? "SKILIO" : "GUEST",
       name: name.trim(),
       email: email.trim(),
@@ -324,6 +438,11 @@ export default function CandidateApplicationPage() {
         website: cleanOptionalUrl(website),
       },
       profileSnapshot: {
+        portfolioUserId: skilioIdentity?.portfolioUserId,
+        identityLinkId: skilioIdentity?.id,
+        portfolioUsername: skilioIdentity?.username,
+        portfolioSnapshot: skilioProfileSnapshot,
+        portfolioSkills: skilioSkills,
         profileId: profile?.id,
         organization: profile?.organization,
         authChoice: applyingWithSkilio ? "signed_in" : authChoice,
@@ -360,7 +479,11 @@ export default function CandidateApplicationPage() {
               <div className="text-xs text-[var(--skilio-ink-muted)]">Candidate application</div>
             </div>
           </Link>
-          {applyingWithSkilio ? (
+          {authLoading ? (
+            <Badge variant="outline" className="rounded-[var(--skilio-radius-md)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink-soft)]">
+              Checking Skilio session
+            </Badge>
+          ) : applyingWithSkilio ? (
             <Badge className="rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)] hover:bg-[var(--skilio-control-strong)]">
               Signed in with Skilio
             </Badge>
@@ -406,10 +529,10 @@ export default function CandidateApplicationPage() {
         </aside>
 
         <section className="space-y-4">
-          {!submitted && !jobUnavailable && <StepRail current={step} />}
+          {!submitted && !jobUnavailable && <StepRail current={currentStep} />}
 
           <SkilioPanel className="p-5 shadow-[0_28px_90px_rgba(14,33,72,0.09)] sm:p-6">
-            {jobQuery.isLoading ? (
+            {jobQuery.isLoading || authLoading ? (
               <div className="space-y-4">
                 <Skeleton className="h-10 w-64" />
                 <Skeleton className="h-12 w-full" />
@@ -447,7 +570,7 @@ export default function CandidateApplicationPage() {
               </div>
             ) : (
               <form onSubmit={submit} className="space-y-6">
-                {step === 0 && (
+                {currentStep === 0 && (
                   <div className="space-y-5">
                     <div>
                       <div className="inline-flex items-center gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control-strong)] px-3 py-1 text-sm font-medium text-[var(--skilio-brand-strong)]">
@@ -512,7 +635,7 @@ export default function CandidateApplicationPage() {
                   </div>
                 )}
 
-                {step === 1 && (
+                {currentStep === 1 && (
                   <div className="space-y-5">
                     <div>
                       <h2 className="text-2xl font-semibold text-[var(--skilio-ink)]">Your profile</h2>
@@ -550,7 +673,7 @@ export default function CandidateApplicationPage() {
                   </div>
                 )}
 
-                {step === 2 && (
+                {currentStep === 2 && (
                   <div className="space-y-5">
                     <div>
                       <h2 className="text-2xl font-semibold text-[var(--skilio-ink)]">Interactive skill signal</h2>
@@ -653,7 +776,7 @@ export default function CandidateApplicationPage() {
                   </div>
                 )}
 
-                {step === 3 && (
+                {currentStep === 3 && (
                   <div className="space-y-5">
                     <div>
                       <h2 className="text-2xl font-semibold text-[var(--skilio-ink)]">Evidence and profiles</h2>
@@ -728,7 +851,7 @@ export default function CandidateApplicationPage() {
                   </div>
                 )}
 
-                {step === 4 && (
+                {currentStep === 4 && (
                   <div className="space-y-5">
                     <div>
                       <h2 className="text-2xl font-semibold text-[var(--skilio-ink)]">Review application</h2>
@@ -767,13 +890,19 @@ export default function CandidateApplicationPage() {
                 )}
 
                 <div className="flex flex-col gap-3 border-t border-[var(--skilio-border)] pt-5 sm:flex-row sm:items-center sm:justify-between">
-                  <Button type="button" variant="outline" onClick={goBack} disabled={step === 0 || apply.isLoading} className="gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={goBack}
+                    disabled={currentStep === 0 || (applyingWithSkilio && currentStep === 1) || apply.isLoading}
+                    className="gap-2"
+                  >
                     <ArrowLeft className="h-4 w-4" />
                     Back
                   </Button>
-                  {step < steps.length - 1 ? (
+                  {currentStep < steps.length - 1 ? (
                     <Button type="button" onClick={goNext} disabled={!canContinue} className="gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
-                      {step === 0 ? "Continue to profile" : step === 1 ? "Continue to skills" : step === 2 ? "Continue to evidence" : "Review application"}
+                      {currentStep === 0 ? "Continue to profile" : currentStep === 1 ? "Continue to skills" : currentStep === 2 ? "Continue to evidence" : "Review application"}
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   ) : (

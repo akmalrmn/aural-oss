@@ -15,6 +15,7 @@ import type { Tables } from "@/lib/supabase/types";
 type AuthContextType = {
   user: User | null;
   profile: Tables<"profiles"> | null;
+  skilioIdentity: Tables<"skilio_identity_links"> | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
 };
@@ -22,6 +23,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
+  skilioIdentity: null,
   loading: true,
   refreshProfile: async () => {},
 });
@@ -29,20 +31,33 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Tables<"profiles"> | null>(null);
+  const [skilioIdentity, setSkilioIdentity] =
+    useState<Tables<"skilio_identity_links"> | null>(null);
   const [loading, setLoading] = useState(true);
 
   const supabase = useMemo(() => createClient(), []);
 
-  const fetchProfile = useCallback(
+  const fetchAccountContext = useCallback(
     async (userId: string) => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
-      if (!error) {
-        setProfile(data as Tables<"profiles"> | null);
-      }
+      const [profileResult, identityResult] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+        supabase
+          .from("skilio_identity_links")
+          .select("*")
+          .eq("userId", userId)
+          .maybeSingle(),
+      ]);
+
+      setProfile(
+        profileResult.error
+          ? null
+          : (profileResult.data as Tables<"profiles"> | null),
+      );
+      setSkilioIdentity(
+        identityResult.error
+          ? null
+          : (identityResult.data as Tables<"skilio_identity_links"> | null),
+      );
     },
     [supabase],
   );
@@ -53,8 +68,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then(({ data: { user: u } }) => {
         setUser(u);
         if (u) {
-          fetchProfile(u.id).finally(() => setLoading(false));
+          fetchAccountContext(u.id).finally(() => setLoading(false));
         } else {
+          setProfile(null);
+          setSkilioIdentity(null);
           setLoading(false);
         }
       })
@@ -69,23 +86,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
-        fetchProfile(currentUser.id);
+        fetchAccountContext(currentUser.id);
       } else {
         setProfile(null);
+        setSkilioIdentity(null);
       }
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase, fetchProfile]);
+  }, [supabase, fetchAccountContext]);
 
   const refreshProfile = useCallback(async () => {
-    if (user) await fetchProfile(user.id);
-  }, [user, fetchProfile]);
+    if (user) await fetchAccountContext(user.id);
+  }, [user, fetchAccountContext]);
 
   const value = useMemo(
-    () => ({ user, profile, loading, refreshProfile }),
-    [user, profile, loading, refreshProfile],
+    () => ({ user, profile, skilioIdentity, loading, refreshProfile }),
+    [user, profile, skilioIdentity, loading, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

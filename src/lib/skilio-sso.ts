@@ -101,3 +101,18 @@ export async function upsertSkilioIdentityLink(
     { onConflict: "portfolioUserId" },
   );
 }
+
+export async function upsertAssessmentProfile(
+  userId: string,
+  profile: SkilioSsoProfile,
+) {
+  await supabaseAdmin.from("profiles").upsert(
+    {
+      id: userId,
+      email: profile.email,
+      name: profile.name,
+      avatar: profile.avatarUrl,
+    },
+    { onConflict: "id" },
+  );
+}

@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   fetchPortfolioProfile,
   getAssessmentBaseUrl,
+  upsertAssessmentProfile,
   upsertSkilioIdentityLink,
   verifySkilioSsoToken,
   type SkilioSsoProfile,
@@ -87,6 +88,7 @@ export async function GET(request: NextRequest) {
     }
 
     await upsertSkilioIdentityLink(link.data.user.id, profile);
+    await upsertAssessmentProfile(link.data.user.id, profile);
 
     redirectTo.searchParams.set("token_hash", tokenHash);
     redirectTo.searchParams.set("type", verificationType);

@@ -50,6 +50,51 @@ export type Database = {
         };
         Relationships: [];
       };
+      skilio_identity_links: {
+        Row: {
+          id: string;
+          userId: string;
+          portfolioUserId: string;
+          email: string;
+          username: string | null;
+          name: string | null;
+          avatarUrl: string | null;
+          profileSnapshot: Json;
+          skillsSnapshot: Json;
+          lastSyncedAt: string;
+          createdAt: string;
+          updatedAt: string;
+        };
+        Insert: {
+          id?: string;
+          userId: string;
+          portfolioUserId: string;
+          email: string;
+          username?: string | null;
+          name?: string | null;
+          avatarUrl?: string | null;
+          profileSnapshot?: Json;
+          skillsSnapshot?: Json;
+          lastSyncedAt?: string;
+          createdAt?: string;
+          updatedAt?: string;
+        };
+        Update: {
+          id?: string;
+          userId?: string;
+          portfolioUserId?: string;
+          email?: string;
+          username?: string | null;
+          name?: string | null;
+          avatarUrl?: string | null;
+          profileSnapshot?: Json;
+          skillsSnapshot?: Json;
+          lastSyncedAt?: string;
+          createdAt?: string;
+          updatedAt?: string;
+        };
+        Relationships: [];
+      };
       workspaces: {
         Row: {
           id: string;

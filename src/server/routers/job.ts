@@ -439,6 +439,24 @@ export const jobRouter = router({
       return data ?? [];
     }),
 
+  getApplicationById: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const supabase = ctx.supabase as SupabaseLike;
+      const { data, error } = await supabase
+        .from("job_applications")
+        .select("*, job_postings(id,title,status,projectId,publicSlug,department,location,employmentType,seniority), job_application_files(*)")
+        .eq("id", input.id)
+        .single();
+
+      if (error || !data) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      await getJobForAccess(supabase, data.jobId, ctx.user.id, "VIEWER");
+      return data;
+    }),
+
   updateApplicationStatus: protectedProcedure
     .input(
       z.object({

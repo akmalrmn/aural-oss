@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Search, UsersRound } from "lucide-react";
+import { Eye, Search, UsersRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { SkilioHero, SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -109,6 +110,7 @@ export default function ApplicantsPage() {
                   <TableHead>Match</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Submitted</TableHead>
+                  <TableHead className="text-right">Review</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -143,6 +145,20 @@ export default function ApplicantsPage() {
                     </TableCell>
                     <TableCell className="text-sm text-[#5f6b7a]">
                       {new Date(applicant.submittedAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end">
+                        {applicant.job_postings ? (
+                          <Button asChild variant="outline" size="sm" className="h-8 gap-2">
+                            <Link href={`/jobs/${applicant.job_postings.id}/applicants/${applicant.id}`}>
+                              <Eye className="h-4 w-4" />
+                              Review
+                            </Link>
+                          </Button>
+                        ) : (
+                          "-"
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

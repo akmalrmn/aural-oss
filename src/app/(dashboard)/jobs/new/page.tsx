@@ -3,6 +3,10 @@
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import {
+  ScreeningQuestionEditor,
+  type ScreeningQuestionDraft,
+} from "@/components/jobs/screening-question-editor";
 import { SkilioHero, SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { useProject } from "@/components/project-provider";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
-const steps = ["Role", "Skills", "Preview"] as const;
+const steps = ["Role", "Skills", "Pre-screening", "Preview"] as const;
 
 type SkillDraft = {
   name: string;
@@ -32,6 +36,19 @@ type SkillDraft = {
 const starterSkills: SkillDraft[] = [
   { name: "Communication", kind: "SOFT", priority: "MUST" },
   { name: "Problem solving", kind: "SOFT", priority: "MUST" },
+];
+
+const skillSignals = [
+  { name: "Data analysis", terms: ["data", "analytics", "metrics", "insight"] },
+  { name: "Project management", terms: ["project", "roadmap", "delivery", "stakeholder"] },
+  { name: "Product strategy", terms: ["product", "strategy", "market", "roadmap"] },
+  { name: "User research", terms: ["research", "interview", "customer", "user"] },
+  { name: "UX design", terms: ["ux", "experience design", "wireframe", "prototype"] },
+  { name: "Figma", terms: ["figma", "prototype", "design system"] },
+  { name: "React", terms: ["react", "frontend", "typescript", "javascript"] },
+  { name: "SQL", terms: ["sql", "database", "query", "warehouse"] },
+  { name: "Python", terms: ["python", "machine learning", "automation"] },
+  { name: "Leadership", terms: ["lead", "mentor", "manager", "leadership"] },
 ];
 
 const fieldClass =
@@ -52,6 +69,9 @@ export default function JobCreationWizardPage() {
   const [seniority, setSeniority] = useState("Mid-level");
   const [description, setDescription] = useState("");
   const [skills, setSkills] = useState<SkillDraft[]>(starterSkills);
+  const [screeningQuestions, setScreeningQuestions] = useState<
+    ScreeningQuestionDraft[]
+  >([]);
   const [skillName, setSkillName] = useState("");
   const [skillKind, setSkillKind] = useState<"HARD" | "SOFT">("HARD");
   const [skillPriority, setSkillPriority] = useState<"MUST" | "NICE">("MUST");
@@ -62,8 +82,26 @@ export default function JobCreationWizardPage() {
   const canContinue = useMemo(() => {
     if (step === 0) return title.trim().length >= 2 && !!currentProject && !projectLoading;
     if (step === 1) return skills.length > 0;
+    if (step === 2) {
+      return screeningQuestions.every(
+        (question) =>
+          question.prompt.trim().length >= 3 &&
+          (question.type !== "SELECT" || question.options.length >= 2),
+      );
+    }
     return true;
-  }, [currentProject, projectLoading, skills.length, step, title]);
+  }, [currentProject, projectLoading, screeningQuestions, skills.length, step, title]);
+
+  const suggestedSkills = useMemo(() => {
+    const source = `${title} ${department} ${description}`.toLowerCase();
+    return skillSignals
+      .filter(({ name, terms }) =>
+        terms.some((term) => source.includes(term)) &&
+        !skills.some((skill) => skill.name.toLowerCase() === name.toLowerCase()),
+      )
+      .map(({ name }) => name)
+      .slice(0, 6);
+  }, [department, description, skills, title]);
 
   function addSkill() {
     const normalized = skillName.trim();
@@ -88,6 +126,16 @@ export default function JobCreationWizardPage() {
       seniority,
       description: description.trim() || undefined,
       skills,
+      screeningQuestions: screeningQuestions
+        .filter((question) => question.prompt.trim().length >= 3)
+        .map((question) => ({
+          ...question,
+          prompt: question.prompt.trim(),
+          options:
+            question.type === "SELECT"
+              ? question.options.map((option) => option.trim()).filter(Boolean)
+              : [],
+        })),
     });
 
     if (publish) {
@@ -228,13 +276,13 @@ export default function JobCreationWizardPage() {
                   </Select>
                 </div>
                 <div className="md:col-span-2">
-                  <Label htmlFor="description">Description</Label>
+                  <Label htmlFor="description">Job description</Label>
                   <Textarea
                     id="description"
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
                     placeholder="Describe responsibilities, outcomes, and hiring expectations."
-                    className={`${fieldClass} min-h-44`}
+                    className={`${fieldClass} min-h-64 resize-y`}
                   />
                 </div>
               </div>
@@ -288,6 +336,40 @@ export default function JobCreationWizardPage() {
                   Add
                 </Button>
               </div>
+              {suggestedSkills.length > 0 && (
+                <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4">
+                  <div className="text-sm font-semibold text-[var(--skilio-ink)]">
+                    Suggested from the job description
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--skilio-ink-soft)]">
+                    Review each suggestion before adding it to the role.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {suggestedSkills.map((suggestion) => (
+                      <Button
+                        key={suggestion}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() =>
+                          setSkills([
+                            ...skills,
+                            {
+                              name: suggestion,
+                              kind: "HARD",
+                              priority: "MUST",
+                            },
+                          ])
+                        }
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        {suggestion}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="space-y-2">
                 {skills.map((skill, index) => (
                   <div
@@ -329,6 +411,24 @@ export default function JobCreationWizardPage() {
           {step === 2 && (
             <div className="space-y-5">
               <div>
+                <h1 className="text-2xl font-semibold text-[var(--skilio-ink)]">
+                  Pre-screening questions
+                </h1>
+                <p className="mt-1 text-sm text-[var(--skilio-ink-soft)]">
+                  Ask job-specific questions candidates must answer with their
+                  application.
+                </p>
+              </div>
+              <ScreeningQuestionEditor
+                questions={screeningQuestions}
+                onChange={setScreeningQuestions}
+              />
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-5">
+              <div>
                 <h1 className="text-2xl font-semibold text-[#14213d]">Preview and publish</h1>
                 <p className="mt-1 text-sm text-[#5f6b7a]">
                   Save as a draft for internal review or publish immediately.
@@ -352,6 +452,12 @@ export default function JobCreationWizardPage() {
                     </Badge>
                   ))}
                 </div>
+                {screeningQuestions.length > 0 && (
+                  <div className="mt-5 border-t border-[var(--skilio-border)] pt-4 text-sm text-[var(--skilio-ink-soft)]">
+                    {screeningQuestions.length} pre-screening{" "}
+                    {screeningQuestions.length === 1 ? "question" : "questions"} included
+                  </div>
+                )}
               </div>
             </div>
           )}

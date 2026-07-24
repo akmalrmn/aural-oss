@@ -7,11 +7,14 @@ import {
   Copy,
   ExternalLink,
   Eye,
+  FileText,
+  ListChecks,
   PauseCircle,
   PlayCircle,
   StopCircle,
   UsersRound,
 } from "lucide-react";
+import { JobEditDialog } from "@/components/jobs/job-edit-dialog";
 import { JobStatusBadge } from "@/components/jobs/job-status-badge";
 import { SkilioHero, SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +40,13 @@ type JobDetail = {
   employmentType?: string | null;
   seniority?: string | null;
   description?: string | null;
+  screeningQuestions?: {
+    id: string;
+    prompt: string;
+    type: "TEXT" | "YES_NO" | "SELECT";
+    required: boolean;
+    options: string[];
+  }[];
   status: string;
   publicApplicationUrl: string;
   job_skills: { id: string; name: string; kind: string; priority: string }[];
@@ -112,12 +122,10 @@ export default function JobDetailPage() {
         <>
           <SkilioHero
             title={job.title}
-            description={
-              job.description ||
-              "Track applicants, publish status changes, and keep the public application link close to the hiring team."
-            }
+            description="Track applicants, manage the job post, and keep the public application link close to the hiring team."
             action={
               <div className="flex flex-wrap gap-2">
+                <JobEditDialog job={job} />
                 <Button variant="outline" onClick={copyLink} className="gap-2">
                   <Copy className="h-4 w-4" />
                   Copy link
@@ -148,17 +156,29 @@ export default function JobDetailPage() {
             <Metric label="Applicants" value={job.summary.totalApplicants} />
             <Metric label="Accepted" value={job.summary.shortlisted} />
             <Metric
-              label="Average match"
+              label="Avg. skills match"
               value={job.summary.averageMatch === null ? "-" : `${job.summary.averageMatch}%`}
             />
             <Metric label="Must-have skills" value={job.job_skills.filter((s) => s.priority === "MUST").length} />
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
+          <SkilioPanel className="p-5">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-[var(--skilio-brand)]" />
+              <h2 className="font-semibold text-[var(--skilio-ink)]">
+                Job description
+              </h2>
+            </div>
+            <div className="mt-4 max-w-5xl whitespace-pre-wrap break-words text-sm leading-7 text-[var(--skilio-ink-soft)]">
+              {job.description || "No job description has been added."}
+            </div>
+          </SkilioPanel>
+
+          <div className="grid gap-4 lg:grid-cols-4">
             <SkilioPanel className="p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold text-[#14213d]">Opening status</h2>
+                  <h2 className="font-semibold text-[#14213d]">Job post status</h2>
                   <p className="text-sm text-[#5f6b7a]">Control whether candidates can apply.</p>
                 </div>
                 <JobStatusBadge status={job.status} />
@@ -240,6 +260,36 @@ export default function JobDetailPage() {
                 ))}
               </div>
             </SkilioPanel>
+
+            <SkilioPanel className="p-4">
+              <div className="flex items-center gap-2">
+                <ListChecks className="h-5 w-5 text-[var(--skilio-brand)]" />
+                <h2 className="font-semibold text-[var(--skilio-ink)]">
+                  Pre-screening
+                </h2>
+              </div>
+              <div className="mt-4">
+                {(job.screeningQuestions ?? []).length === 0 ? (
+                  <p className="text-sm text-[var(--skilio-ink-soft)]">
+                    No questions configured.
+                  </p>
+                ) : (
+                  <ol className="space-y-3">
+                    {(job.screeningQuestions ?? []).map((question, index) => (
+                      <li
+                        key={question.id}
+                        className="flex gap-3 text-sm text-[var(--skilio-ink-soft)]"
+                      >
+                        <span className="font-semibold tabular-nums text-[var(--skilio-brand)]">
+                          {index + 1}.
+                        </span>
+                        <span className="break-words">{question.prompt}</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            </SkilioPanel>
           </div>
 
           <SkilioPanel className="shadow-[0_28px_90px_rgba(14,33,72,0.09)]">
@@ -267,7 +317,7 @@ export default function JobDetailPage() {
                   <TableRow className="bg-[#f7faf5]">
                     <TableHead>Candidate</TableHead>
                     <TableHead>Source</TableHead>
-                    <TableHead>Match</TableHead>
+                    <TableHead>Skills match</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Submitted</TableHead>
                     <TableHead className="text-right">Review</TableHead>

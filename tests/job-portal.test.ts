@@ -51,4 +51,14 @@ describe("job portal utilities", () => {
 
     assert.equal(score, 50);
   });
+
+  it("deduplicates job skills before computing a skills match", () => {
+    const score = computeApplicationMatch({
+      requiredSkills: ["Communication", "communication"],
+      optionalSkills: ["Excel", "Communication"],
+      candidateSkills: ["COMMUNICATION"],
+    });
+
+    assert.equal(score, 80);
+  });
 });

@@ -33,6 +33,14 @@ const skillSchema = z.object({
   priority: z.enum(["MUST", "NICE"]).default("MUST"),
 });
 
+const screeningQuestionSchema = z.object({
+  id: z.string().min(1).max(80),
+  prompt: z.string().min(3).max(300),
+  type: z.enum(["TEXT", "YES_NO", "SELECT"]).default("TEXT"),
+  required: z.boolean().default(false),
+  options: z.array(z.string().min(1).max(120)).max(12).default([]),
+});
+
 function normalizeOptionalUrl(value: unknown) {
   if (typeof value !== "string") return value;
   const trimmed = value.trim();
@@ -253,6 +261,7 @@ export const jobRouter = router({
         seniority: z.string().max(80).optional(),
         description: z.string().max(6000).optional(),
         skills: z.array(skillSchema).min(1).max(24),
+        screeningQuestions: z.array(screeningQuestionSchema).max(12).default([]),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -271,6 +280,7 @@ export const jobRouter = router({
           employmentType: input.employmentType,
           seniority: input.seniority,
           description: input.description,
+          screeningQuestions: input.screeningQuestions,
           publicSlug,
         })
         .select()
@@ -317,6 +327,7 @@ export const jobRouter = router({
         seniority: z.string().max(80).optional(),
         description: z.string().max(6000).optional(),
         skills: z.array(skillSchema).min(1).max(24).optional(),
+        screeningQuestions: z.array(screeningQuestionSchema).max(12).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -445,7 +456,7 @@ export const jobRouter = router({
       const supabase = ctx.supabase as SupabaseLike;
       const { data, error } = await supabase
         .from("job_applications")
-        .select("*, job_postings(id,title,status,projectId,publicSlug,department,location,employmentType,seniority), job_application_files(*)")
+        .select("*, job_postings(id,title,status,projectId,publicSlug,department,location,employmentType,seniority,screeningQuestions,job_skills(*)), job_application_files(*)")
         .eq("id", input.id)
         .single();
 
@@ -530,6 +541,7 @@ export const jobRouter = router({
         coverLetter: z.string().max(4000).optional(),
         skills: z.array(z.string().min(1).max(80)).max(40).default([]),
         profileSnapshot: z.record(z.string(), z.unknown()).default({}),
+        screeningAnswers: z.record(z.string(), z.string().max(2000)).default({}),
         links: linksSchema,
       }),
     )
@@ -574,6 +586,7 @@ export const jobRouter = router({
           bio: input.bio,
           coverLetter: input.coverLetter,
           profileSnapshot: input.profileSnapshot,
+          screeningAnswers: input.screeningAnswers,
           skillsSnapshot: input.skills,
           links: input.links,
           matchScore,

@@ -18,7 +18,6 @@ import {
   ShieldCheck,
   Sparkles,
   UploadCloud,
-  UserPlus,
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -28,6 +27,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc/client";
@@ -43,24 +49,75 @@ type PublicJob = {
   seniority?: string | null;
   description?: string | null;
   job_skills: { id: string; name: string; kind: string; priority: string }[];
+  screeningQuestions?: {
+    id: string;
+    prompt: string;
+    type: "TEXT" | "YES_NO" | "SELECT";
+    required: boolean;
+    options: string[];
+  }[];
 };
 
-type AuthChoice = "skilio" | "new" | "guest";
+type AuthChoice = "skilio" | "guest";
 
-const steps = ["Access", "Profile", "Skill signal", "Evidence", "Review"] as const;
+const steps = [
+  "Access",
+  "Profile",
+  "Drawmetrics",
+  "Skills",
+  "Portfolio",
+  "Pre-screening",
+  "Review",
+] as const;
 
 const profileUrl = "https://portfolio.skilio.co/";
 
+const countries = [
+  "Australia",
+  "Canada",
+  "China",
+  "France",
+  "Germany",
+  "Hong Kong",
+  "India",
+  "Indonesia",
+  "Japan",
+  "Malaysia",
+  "Netherlands",
+  "New Zealand",
+  "Philippines",
+  "Singapore",
+  "South Korea",
+  "Spain",
+  "Thailand",
+  "United Arab Emirates",
+  "United Kingdom",
+  "United States",
+  "Vietnam",
+  "Other",
+] as const;
+
+const phoneCountryCodes = [
+  ["+1", "US / Canada"],
+  ["+33", "France"],
+  ["+44", "United Kingdom"],
+  ["+49", "Germany"],
+  ["+60", "Malaysia"],
+  ["+61", "Australia"],
+  ["+62", "Indonesia"],
+  ["+63", "Philippines"],
+  ["+65", "Singapore"],
+  ["+66", "Thailand"],
+  ["+81", "Japan"],
+  ["+82", "South Korea"],
+  ["+84", "Vietnam"],
+  ["+86", "China"],
+  ["+91", "India"],
+  ["+971", "UAE"],
+] as const;
+
 function normalizeSkill(skill: string) {
   return skill.trim().toLowerCase();
-}
-
-function makeEvidenceDefaults(skills: string[]) {
-  return Object.fromEntries(skills.map((skill) => [skill, ""]));
-}
-
-function makeConfidenceDefaults(skills: string[]) {
-  return Object.fromEntries(skills.map((skill) => [skill, 3]));
 }
 
 function cleanOptionalText(value: string) {
@@ -97,31 +154,6 @@ function firstNonEmpty(...values: unknown[]) {
     if (text) return text;
   }
   return "";
-}
-
-function buildPhone(profile: Record<string, unknown>) {
-  const phoneNumber = asString(profile.phoneNumber);
-  if (!phoneNumber) return "";
-  const countryCode = asString(profile.phoneCountryCode);
-  return [countryCode, phoneNumber].filter(Boolean).join(" ");
-}
-
-function buildProfileSummary(profile: Record<string, unknown>) {
-  const role = asString(profile.role);
-  const experiences = Array.isArray(profile.experiences)
-    ? (profile.experiences as Record<string, unknown>[])
-    : [];
-  const current = experiences.find((experience) => experience?.isCurrent) ?? experiences[0];
-  const company = asString(current?.company);
-  const title = firstNonEmpty(current?.jobTitle, role);
-  const description = asString(current?.description);
-  const summary = [
-    title && company ? `${title} at ${company}.` : title ? `${title}.` : "",
-    description,
-  ]
-    .filter(Boolean)
-    .join(" ");
-  return summary.slice(0, 600);
 }
 
 function getCvAttachment(profile: Record<string, unknown>) {
@@ -232,9 +264,14 @@ function JobSummaryCard({
         <div className="mt-3 text-sm text-white/68">
           {[job.location, job.employmentType, job.seniority].filter(Boolean).join(" / ")}
         </div>
-        <p className="mt-5 max-h-60 overflow-y-auto whitespace-pre-line pr-1 text-sm leading-6 text-white/76">
-          {job.description || "Share your Skilio profile and tell us why this role fits you."}
-        </p>
+        <details className="mt-5 border-t border-white/15 pt-4">
+          <summary className="cursor-pointer text-sm font-semibold text-white">
+            Job description
+          </summary>
+          <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-white/76">
+            {job.description || "Share your Skilio profile and tell us why this role fits you."}
+          </p>
+        </details>
         <div className="mt-5 flex flex-wrap gap-2">
           {job.job_skills.map((skill) => (
             <Badge
@@ -266,9 +303,9 @@ export default function CandidateApplicationPage() {
   const [authChoice, setAuthChoice] = useState<AuthChoice | null>(null);
   const [name, setName] = useState(profile?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? profile?.email ?? "");
+  const [phoneCountryCode, setPhoneCountryCode] = useState("+60");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
-  const [bio, setBio] = useState("");
   const [coverLetter, setCoverLetter] = useState("");
   const [portfolio, setPortfolio] = useState("");
   const [linkedin, setLinkedin] = useState("");
@@ -277,11 +314,11 @@ export default function CandidateApplicationPage() {
   const [customSkill, setCustomSkill] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [skillEvidence, setSkillEvidence] = useState<Record<string, string>>({});
-  const [skillConfidence, setSkillConfidence] = useState<Record<string, number>>({});
-  const [workSamplePrompt, setWorkSamplePrompt] = useState("");
+  const [screeningAnswers, setScreeningAnswers] = useState<
+    Record<string, string>
+  >({});
   const [resumeFileName, setResumeFileName] = useState("");
   const [resumeUrl, setResumeUrl] = useState("");
-  const [certificateFileNames, setCertificateFileNames] = useState<string[]>([]);
 
   const jobQuery = trpc.job.getPublicBySlug.useQuery(
     { slug: params.slug },
@@ -332,14 +369,16 @@ export default function CandidateApplicationPage() {
     const nextEmail = firstNonEmpty(user.email, skilioIdentity?.email, profile?.email);
     if (nextEmail && !email) setEmail(nextEmail);
 
-    const nextPhone = buildPhone(skilioProfileSnapshot);
+    const nextPhone = asString(skilioProfileSnapshot.phoneNumber);
     if (nextPhone && !phone) setPhone(nextPhone);
+
+    const nextPhoneCountryCode = asString(
+      skilioProfileSnapshot.phoneCountryCode,
+    );
+    if (nextPhoneCountryCode) setPhoneCountryCode(nextPhoneCountryCode);
 
     const nextLocation = firstNonEmpty(skilioProfileSnapshot.country);
     if (nextLocation && !location) setLocation(nextLocation);
-
-    const nextBio = buildProfileSummary(skilioProfileSnapshot);
-    if (nextBio && !bio) setBio(nextBio);
 
     const nextPortfolio = firstNonEmpty(skilioProfileSnapshot.publicUrl);
     if (nextPortfolio && !portfolio) setPortfolio(nextPortfolio);
@@ -348,7 +387,6 @@ export default function CandidateApplicationPage() {
     if (skilioCv?.url && !resumeUrl) setResumeUrl(skilioCv.url);
   }, [
     authChoice,
-    bio,
     email,
     location,
     name,
@@ -389,20 +427,8 @@ export default function CandidateApplicationPage() {
           }),
         ),
       }));
-      setSkillConfidence((current) => ({
-        ...makeConfidenceDefaults(seeded),
-        ...current,
-      }));
     }
   }, [expectedSkills, selectedSkills, skilioSkillEvidence, skilioSkills]);
-
-  useEffect(() => {
-    if (authLoading || selectedSkills.length > 0 || expectedSkills.length === 0 || skilioSkills.length > 0) return;
-    const seeded = expectedSkills.slice(0, 5);
-    setSelectedSkills(seeded);
-    setSkillEvidence(makeEvidenceDefaults(seeded));
-    setSkillConfidence(makeConfidenceDefaults(seeded));
-  }, [authLoading, expectedSkills, selectedSkills.length, skilioSkills.length]);
 
   const applyingWithSkilio = Boolean(user && (authChoice === "skilio" || authChoice === null));
   const applyingManually = authChoice === "guest";
@@ -412,26 +438,26 @@ export default function CandidateApplicationPage() {
     if (submitted) return false;
     if (currentStep === 0) return !authLoading && (applyingWithSkilio || applyingManually);
     if (currentStep === 1) return name.trim().length >= 2 && /\S+@\S+\.\S+/.test(email);
-    if (currentStep === 2) return selectedSkills.length > 0 && workSamplePrompt.trim().length >= 20;
-    if (currentStep === 3) return Boolean(portfolio || linkedin || github || website || resumeFileName || resumeUrl || certificateFileNames.length);
+    if (currentStep === 2) return true;
+    if (currentStep === 3) return selectedSkills.length > 0;
+    if (currentStep === 4) return true;
+    if (currentStep === 5) {
+      return (job?.screeningQuestions ?? [])
+        .filter((question) => question.required)
+        .every((question) => screeningAnswers[question.id]?.trim());
+    }
     return true;
   }, [
     applyingManually,
     applyingWithSkilio,
     authLoading,
-    certificateFileNames.length,
     email,
-    github,
-    linkedin,
+    job?.screeningQuestions,
     name,
-    portfolio,
-    resumeFileName,
-    resumeUrl,
+    screeningAnswers,
     selectedSkills.length,
     currentStep,
     submitted,
-    website,
-    workSamplePrompt,
   ]);
 
   function toggleSkill(skill: string) {
@@ -443,15 +469,9 @@ export default function CandidateApplicationPage() {
           delete copy[skill];
           return copy;
         });
-        setSkillConfidence((existing) => {
-          const copy = { ...existing };
-          delete copy[skill];
-          return copy;
-        });
         return next;
       }
       setSkillEvidence((existing) => ({ ...existing, [skill]: "" }));
-      setSkillConfidence((existing) => ({ ...existing, [skill]: 3 }));
       return [...current, skill];
     });
   }
@@ -462,7 +482,6 @@ export default function CandidateApplicationPage() {
     if (!selectedSkills.some((skill) => normalizeSkill(skill) === normalizeSkill(normalized))) {
       setSelectedSkills((current) => [...current, normalized]);
       setSkillEvidence((existing) => ({ ...existing, [normalized]: "" }));
-      setSkillConfidence((existing) => ({ ...existing, [normalized]: 3 }));
     }
     setCustomSkill("");
   }
@@ -490,9 +509,10 @@ export default function CandidateApplicationPage() {
       source: applyingWithSkilio ? "SKILIO" : "GUEST",
       name: name.trim(),
       email: email.trim(),
-      phone: cleanOptionalText(phone),
+      phone: cleanOptionalText(
+        [phoneCountryCode, phone.trim()].filter(Boolean).join(" "),
+      ),
       location: cleanOptionalText(location),
-      bio: cleanOptionalText(bio),
       coverLetter: cleanOptionalText(coverLetter),
       skills: selectedSkills.map((skill) => skill.trim()).filter(Boolean),
       links: {
@@ -502,6 +522,7 @@ export default function CandidateApplicationPage() {
         website: cleanOptionalUrl(website),
         resume: cleanOptionalUrl(resumeUrl),
       },
+      screeningAnswers,
       profileSnapshot: {
         portfolioUserId: skilioIdentity?.portfolioUserId,
         identityLinkId: skilioIdentity?.id,
@@ -512,20 +533,15 @@ export default function CandidateApplicationPage() {
         organization: profile?.organization,
         authChoice: applyingWithSkilio ? "signed_in" : authChoice,
         skillEvidence,
-        skillConfidence,
-        workSamplePrompt,
+        screeningAnswers,
         resumeFileName,
         resumeUrl,
-        certificateFileNames,
       },
     });
   }
 
   const applyNextPath = `/apply/${params.slug}`;
   const signInHref = `/auth/skilio/start?next=${encodeURIComponent(applyNextPath)}`;
-  const assessmentBaseUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
-  const signupRedirect = `${assessmentBaseUrl}${signInHref}`;
-  const signupHref = `${profileUrl}signup?redirect=${encodeURIComponent(signupRedirect)}`;
 
   return (
     <main className="skilio-interface min-h-screen overflow-x-hidden bg-[var(--skilio-canvas)] text-[var(--skilio-ink)]">
@@ -558,17 +574,11 @@ export default function CandidateApplicationPage() {
               Applying manually
             </Badge>
           ) : (
-            <div className="hidden items-center gap-2 sm:flex">
+            <div className="hidden items-center sm:flex">
               <Button asChild variant="outline" className="gap-2 rounded-[var(--skilio-radius-md)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] hover:bg-[var(--skilio-control)]">
                 <a href={signInHref}>
                   <LogIn className="h-4 w-4" />
                   Sign in
-                </a>
-              </Button>
-              <Button asChild className="gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
-                <a href={signupHref}>
-                  <UserPlus className="h-4 w-4" />
-                  Sign up
                 </a>
               </Button>
             </div>
@@ -632,7 +642,8 @@ export default function CandidateApplicationPage() {
                       </div>
                       <h2 className="mt-4 text-2xl font-semibold text-[var(--skilio-ink)]">Start with your Skilio profile or apply manually.</h2>
                       <p className="mt-2 text-sm leading-6 text-[var(--skilio-ink-soft)]">
-                        Candidates can sign in, create a Skilio account, or continue manually without an account.
+                        Sign in to reuse your verified profile, or continue
+                        manually without leaving this application.
                       </p>
                     </div>
 
@@ -672,20 +683,6 @@ export default function CandidateApplicationPage() {
                         </a>
                       )}
 
-                      <a
-                        href={signupHref}
-                        className="flex items-center justify-between rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-panel)] p-4 text-left transition hover:bg-[var(--skilio-control)]"
-                      >
-                        <span className="flex items-center gap-3">
-                          <UserPlus className="h-5 w-5 text-[var(--skilio-brand)]" />
-                          <span>
-                            <span className="block font-semibold">Create a Skilio account</span>
-                            <span className="text-sm text-[var(--skilio-ink-soft)]">Build a reusable candidate profile for this and future roles.</span>
-                          </span>
-                        </span>
-                        <ArrowRight className="h-4 w-4" />
-                      </a>
-
                       <button
                         type="button"
                         onClick={() => setAuthChoice("guest")}
@@ -700,7 +697,10 @@ export default function CandidateApplicationPage() {
                           <FileCheck2 className="h-5 w-5 text-[var(--skilio-brand)]" />
                           <span>
                             <span className="block font-semibold">Continue manually</span>
-                            <span className="text-sm text-[var(--skilio-ink-soft)]">Fill the application now without signing in.</span>
+                            <span className="text-sm text-[var(--skilio-ink-soft)]">
+                              Fill the application now. Your details can be
+                              linked to Skilio later.
+                            </span>
                           </span>
                         </span>
                         {authChoice === "guest" && <Check className="h-5 w-5 text-[var(--skilio-brand)]" />}
@@ -726,22 +726,45 @@ export default function CandidateApplicationPage() {
                       </div>
                       <div>
                         <Label htmlFor="phone">Phone</Label>
-                        <Input id="phone" value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-2" />
+                        <div className="mt-2 grid grid-cols-[150px_1fr] gap-2">
+                          <Select
+                            value={phoneCountryCode}
+                            onValueChange={setPhoneCountryCode}
+                          >
+                            <SelectTrigger aria-label="Phone country code">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {phoneCountryCodes.map(([code, country]) => (
+                                <SelectItem key={`${code}-${country}`} value={code}>
+                                  {code} {country}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            id="phone"
+                            type="tel"
+                            value={phone}
+                            onChange={(event) => setPhone(event.target.value)}
+                            placeholder="12 345 6789"
+                          />
+                        </div>
                       </div>
                       <div>
-                        <Label htmlFor="candidate-location">Location</Label>
-                        <Input id="candidate-location" value={location} onChange={(event) => setLocation(event.target.value)} className="mt-2" />
-                      </div>
-                      <div className="md:col-span-2">
-                        <Label htmlFor="bio">Profile summary</Label>
-                        <Textarea
-                          id="bio"
-                          value={bio}
-                          onChange={(event) => setBio(event.target.value.slice(0, 600))}
-                          className="mt-2 min-h-28"
-                          placeholder="Summarize your current role, strengths, and the kind of work you do best."
-                        />
-                        <div className="mt-1 text-right text-xs text-[var(--skilio-ink-muted)]">{bio.length} / 600</div>
+                        <Label>Country</Label>
+                        <Select value={location} onValueChange={setLocation}>
+                          <SelectTrigger className="mt-2" aria-label="Country">
+                            <SelectValue placeholder="Select country" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {countries.map((country) => (
+                              <SelectItem key={country} value={country}>
+                                {country}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>
@@ -750,16 +773,56 @@ export default function CandidateApplicationPage() {
                 {currentStep === 2 && (
                   <div className="space-y-5">
                     <div>
-                      <h2 className="text-2xl font-semibold text-[var(--skilio-ink)]">Interactive skill signal</h2>
+                      <h2 className="text-2xl font-semibold text-[var(--skilio-ink)]">
+                        Drawmetrics
+                      </h2>
                       <p className="mt-1 text-sm text-[var(--skilio-ink-soft)]">
-                        Select the skills you want reviewed, rate your confidence, and add short evidence.
+                        This assessment will add another signal to your
+                        application when it becomes available.
+                      </p>
+                    </div>
+                    <div className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control-strong)] text-[var(--skilio-brand)]">
+                          <ShieldCheck className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-[var(--skilio-ink)]">
+                            Coming soon
+                          </div>
+                          <p className="mt-1 max-w-xl text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                            No action is required in this application. Continue
+                            to submit your skills information.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {currentStep === 3 && (
+                  <div className="space-y-5">
+                    <div>
+                      <h2 className="text-2xl font-semibold text-[var(--skilio-ink)]">
+                        Submit skills information
+                      </h2>
+                      <p className="mt-1 text-sm text-[var(--skilio-ink-soft)]">
+                        Select the role skills you have and add any other skills
+                        that strengthen your application.
                       </p>
                     </div>
 
-                    <div>
-                      <div className="mb-2 text-sm font-semibold text-[var(--skilio-ink)]">Role skills</div>
-                      <div className="flex flex-wrap gap-2">
-                        {(expectedSkills.length ? expectedSkills : ["Communication", "Problem solving", "Project ownership"]).map((skill) => {
+                    <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4">
+                      <div className="text-sm font-semibold text-[var(--skilio-ink)]">
+                        Skills required for this role
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-[var(--skilio-ink-soft)]">
+                        Only select skills you can discuss with the hiring team.
+                        Nothing is selected automatically.
+                      </p>
+                      <div className="mt-3 grid gap-2">
+                        {(job?.job_skills ?? []).map((jobSkill) => {
+                          const skill = jobSkill.name;
                           const active = selectedSkills.some((item) => normalizeSkill(item) === normalizeSkill(skill));
                           return (
                             <button
@@ -767,21 +830,35 @@ export default function CandidateApplicationPage() {
                               type="button"
                               onClick={() => toggleSkill(skill)}
                               className={cn(
-                                "inline-flex h-9 items-center gap-2 rounded-[var(--skilio-radius-md)] border px-3 text-sm font-medium transition",
+                                "flex min-h-11 w-full items-center justify-between gap-3 rounded-[var(--skilio-radius-md)] border px-3 py-2 text-left text-sm font-medium transition",
                                 active
                                   ? "border-[var(--skilio-brand)] bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]"
-                                  : "border-[var(--skilio-border)] bg-[var(--skilio-panel)] text-[var(--skilio-ink-soft)] hover:bg-[var(--skilio-control)]",
+                                  : "border-[var(--skilio-border)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink-soft)] hover:border-[var(--skilio-border-strong)]",
                               )}
                             >
-                              {active ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-                              {skill}
+                              <span className="flex items-center gap-2">
+                                {active ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                                {skill}
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className="rounded-md bg-[var(--skilio-elevated)] text-[var(--skilio-ink-muted)]"
+                              >
+                                {jobSkill.priority === "MUST"
+                                  ? "Must-have"
+                                  : "Nice-to-have"}
+                              </Badge>
                             </button>
                           );
                         })}
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div>
+                      <div className="mb-2 text-sm font-semibold text-[var(--skilio-ink)]">
+                        Your other skills
+                      </div>
+                      <div className="flex gap-2">
                       <Input
                         value={customSkill}
                         onChange={(event) => setCustomSkill(event.target.value)}
@@ -797,64 +874,45 @@ export default function CandidateApplicationPage() {
                         <Plus className="h-4 w-4" />
                         Add
                       </Button>
+                      </div>
                     </div>
 
                     <div className="space-y-3">
                       {selectedSkills.map((skill) => (
                         <div key={skill} className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-panel)] p-4">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center justify-between gap-3">
                             <div className="font-semibold">{skill}</div>
-                            <div className="flex items-center gap-1">
-                              {[1, 2, 3, 4, 5].map((level) => (
-                                <button
-                                  key={level}
-                                  type="button"
-                                  aria-label={`${skill} confidence ${level}`}
-                                  onClick={() => setSkillConfidence((current) => ({ ...current, [skill]: level }))}
-                                  className={cn(
-                                    "h-7 w-7 rounded-[var(--skilio-radius-sm)] text-xs font-semibold",
-                                    (skillConfidence[skill] ?? 3) >= level
-                                      ? "bg-[var(--skilio-brand)] text-white"
-                                      : "bg-[var(--skilio-control)] text-[var(--skilio-ink-muted)]",
-                                  )}
-                                >
-                                  {level}
-                                </button>
-                              ))}
-                              <button type="button" onClick={() => toggleSkill(skill)} className="ml-2 rounded-[var(--skilio-radius-sm)] p-1 text-[var(--skilio-ink-muted)] hover:bg-[var(--skilio-control)]">
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              aria-label={`Remove ${skill}`}
+                              onClick={() => toggleSkill(skill)}
+                              className="flex h-10 w-10 items-center justify-center rounded-[var(--skilio-radius-sm)] text-[var(--skilio-ink-muted)] hover:bg-[var(--skilio-control)]"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
                           </div>
                           <Textarea
                             value={skillEvidence[skill] ?? ""}
                             onChange={(event) => setSkillEvidence((current) => ({ ...current, [skill]: event.target.value }))}
                             className="mt-3 min-h-20"
-                            placeholder={`Briefly show where you used ${skill}.`}
+                            placeholder={`Optional: share where you used ${skill} or link it to a portfolio example.`}
                           />
                         </div>
                       ))}
                     </div>
-
-                    <div>
-                      <Label htmlFor="work-sample">Mini work sample</Label>
-                      <Textarea
-                        id="work-sample"
-                        value={workSamplePrompt}
-                        onChange={(event) => setWorkSamplePrompt(event.target.value)}
-                        className="mt-2 min-h-32"
-                        placeholder="Describe a recent project, what you owned, and how you measured the result."
-                      />
-                      <p className="mt-2 text-xs text-[var(--skilio-ink-muted)]">Minimum 20 characters. This replaces an interview requirement for the initial application.</p>
-                    </div>
                   </div>
                 )}
 
-                {currentStep === 3 && (
+                {currentStep === 4 && (
                   <div className="space-y-5">
                     <div>
-                      <h2 className="text-2xl font-semibold text-[var(--skilio-ink)]">Evidence and profiles</h2>
-                      <p className="mt-1 text-sm text-[var(--skilio-ink-soft)]">Attach profile links or file names the employer can use during review.</p>
+                      <h2 className="text-2xl font-semibold text-[var(--skilio-ink)]">
+                        Additional portfolio information
+                      </h2>
+                      <p className="mt-1 text-sm text-[var(--skilio-ink-soft)]">
+                        Add optional links or a CV that help the employer review
+                        your work.
+                      </p>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
@@ -884,7 +942,7 @@ export default function CandidateApplicationPage() {
                       </div>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div>
                       <label className="flex cursor-pointer flex-col items-center justify-center rounded-[var(--skilio-radius-lg)] border border-dashed border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] p-5 text-center hover:bg-[var(--skilio-control-strong)]">
                         <UploadCloud className="h-7 w-7 text-[var(--skilio-brand)]" />
                         <span className="mt-2 text-sm font-semibold">Resume file</span>
@@ -905,36 +963,98 @@ export default function CandidateApplicationPage() {
                           }}
                         />
                       </label>
-                      <label className="flex cursor-pointer flex-col items-center justify-center rounded-[var(--skilio-radius-lg)] border border-dashed border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] p-5 text-center hover:bg-[var(--skilio-control-strong)]">
-                        <FileCheck2 className="h-7 w-7 text-[var(--skilio-brand)]" />
-                        <span className="mt-2 text-sm font-semibold">Certificates or proof</span>
-                        <span className="mt-1 text-xs text-[var(--skilio-ink-muted)]">
-                          {certificateFileNames.length ? certificateFileNames.join(", ") : "Select supporting files"}
-                        </span>
-                        <input
-                          type="file"
-                          multiple
-                          accept=".pdf,.png,.jpg,.jpeg"
-                          className="sr-only"
-                          onChange={(event) => setCertificateFileNames(Array.from(event.target.files ?? []).map((file) => file.name))}
-                        />
-                      </label>
                     </div>
 
                     <div>
-                      <Label htmlFor="cover">Cover note</Label>
+                      <Label htmlFor="cover">
+                        Tell us why you are applying for this role (optional)
+                      </Label>
                       <Textarea
                         id="cover"
                         value={coverLetter}
                         onChange={(event) => setCoverLetter(event.target.value)}
                         className="mt-2 min-h-36"
-                        placeholder="Tell the team why this role fits your next step."
+                        placeholder="Share what interests you about the role and what you hope to contribute."
                       />
                     </div>
                   </div>
                 )}
 
-                {currentStep === 4 && (
+                {currentStep === 5 && (
+                  <div className="space-y-5">
+                    <div>
+                      <h2 className="text-2xl font-semibold text-[var(--skilio-ink)]">
+                        Pre-screening questions
+                      </h2>
+                      <p className="mt-1 text-sm text-[var(--skilio-ink-soft)]">
+                        Answer the role-specific questions from the hiring team.
+                      </p>
+                    </div>
+                    {(job?.screeningQuestions ?? []).length === 0 ? (
+                      <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-5 text-sm text-[var(--skilio-ink-soft)]">
+                        This role has no pre-screening questions.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {(job?.screeningQuestions ?? []).map(
+                          (question, index) => (
+                            <div
+                              key={question.id}
+                              className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4"
+                            >
+                              <Label htmlFor={`screening-${question.id}`}>
+                                {index + 1}. {question.prompt}
+                                {question.required ? " *" : ""}
+                              </Label>
+                              {question.type === "TEXT" ? (
+                                <Textarea
+                                  id={`screening-${question.id}`}
+                                  value={screeningAnswers[question.id] ?? ""}
+                                  onChange={(event) =>
+                                    setScreeningAnswers((current) => ({
+                                      ...current,
+                                      [question.id]: event.target.value,
+                                    }))
+                                  }
+                                  className="mt-2 min-h-24"
+                                />
+                              ) : (
+                                <Select
+                                  value={screeningAnswers[question.id] ?? ""}
+                                  onValueChange={(value) =>
+                                    setScreeningAnswers((current) => ({
+                                      ...current,
+                                      [question.id]: value,
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger
+                                    id={`screening-${question.id}`}
+                                    className="mt-2"
+                                  >
+                                    <SelectValue placeholder="Select an answer" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {(question.type === "YES_NO"
+                                      ? ["Yes", "No"]
+                                      : question.options
+                                    ).map((option) => (
+                                      <SelectItem key={option} value={option}>
+                                        {option}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {currentStep === 6 && (
                   <div className="space-y-5">
                     <div>
                       <h2 className="text-2xl font-semibold text-[var(--skilio-ink)]">Review application</h2>
@@ -957,11 +1077,35 @@ export default function CandidateApplicationPage() {
                         </div>
                       </div>
                       <div className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4 md:col-span-2">
-                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--skilio-ink-muted)]">Evidence</div>
+                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--skilio-ink-muted)]">
+                          Portfolio
+                        </div>
                         <div className="mt-2 text-sm leading-6 text-[var(--skilio-ink-soft)]">
-                          {[portfolio, linkedin, github, website, resumeFileName, ...certificateFileNames].filter(Boolean).join(" / ") || "No evidence added"}
+                          {[portfolio, linkedin, github, website, resumeFileName]
+                            .filter(Boolean)
+                            .join(" / ") || "No additional portfolio information"}
                         </div>
                       </div>
+                      {(job?.screeningQuestions ?? []).length > 0 && (
+                        <div className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4 md:col-span-2">
+                          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--skilio-ink-muted)]">
+                            Pre-screening answers
+                          </div>
+                          <div className="mt-3 space-y-2 text-sm text-[var(--skilio-ink-soft)]">
+                            {(job?.screeningQuestions ?? []).map((question) => (
+                              <div key={question.id}>
+                                <span className="font-medium text-[var(--skilio-ink)]">
+                                  {question.prompt}
+                                </span>
+                                <span>
+                                  {" "}
+                                  {screeningAnswers[question.id] || "No answer"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -985,7 +1129,16 @@ export default function CandidateApplicationPage() {
                   </Button>
                   {currentStep < steps.length - 1 ? (
                     <Button type="button" onClick={goNext} disabled={!canContinue} className="gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
-                      {currentStep === 0 ? "Continue to profile" : currentStep === 1 ? "Continue to skills" : currentStep === 2 ? "Continue to evidence" : "Review application"}
+                      {
+                        [
+                          "Continue to profile",
+                          "Continue to Drawmetrics",
+                          "Continue to skills",
+                          "Continue to portfolio",
+                          "Continue to pre-screening",
+                          "Review application",
+                        ][currentStep]
+                      }
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   ) : (

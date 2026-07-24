@@ -127,7 +127,7 @@ export default function JobPostingsPage() {
               {[
                 ["Open", totals.active],
                 ["Applicants", totals.applicants],
-                ["Match", totals.averageMatch],
+                ["Skills match", totals.averageMatch],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--skilio-ink-muted)]">{label}</div>
@@ -142,7 +142,7 @@ export default function JobPostingsPage() {
       <div className="grid grid-flow-dense gap-3 md:grid-cols-3">
         <StatCard label="Active jobs" value={totals.active} icon={BriefcaseBusiness} />
         <StatCard label="Total applicants" value={totals.applicants} icon={UsersRound} />
-        <StatCard label="Average match" value={totals.averageMatch} icon={Search} />
+        <StatCard label="Avg. skills match" value={totals.averageMatch} icon={Search} />
       </div>
 
       <SkilioPanel className="shadow-[0_28px_90px_rgba(14,33,72,0.09)]">
@@ -201,7 +201,7 @@ export default function JobPostingsPage() {
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Applicants</TableHead>
-                  <TableHead>Match</TableHead>
+                  <TableHead>Skills match</TableHead>
                   <TableHead>Skills</TableHead>
                   <TableHead className="text-right">Link</TableHead>
                 </TableRow>

@@ -9,6 +9,7 @@ import {
   ExternalLink,
   FileText,
   Link2,
+  ListChecks,
   Mail,
   MapPin,
   Phone,
@@ -39,6 +40,7 @@ type ApplicantDetail = {
   bio?: string | null;
   coverLetter?: string | null;
   profileSnapshot?: JsonRecord;
+  screeningAnswers?: JsonRecord;
   skillsSnapshot?: unknown;
   links?: JsonRecord;
   matchScore: number | null;
@@ -51,6 +53,18 @@ type ApplicantDetail = {
     location?: string | null;
     employmentType?: string | null;
     seniority?: string | null;
+    screeningQuestions?: {
+      id: string;
+      prompt: string;
+      type: string;
+      required: boolean;
+      options: string[];
+    }[];
+    job_skills?: {
+      id: string;
+      name: string;
+      priority: string;
+    }[];
   };
   job_application_files?: {
     id: string;
@@ -96,23 +110,35 @@ function formatDate(value?: string) {
 function DecisionButton({
   active,
   children,
-  className,
   disabled,
   onClick,
+  tone,
 }: {
   active: boolean;
   children: React.ReactNode;
-  className?: string;
   disabled?: boolean;
   onClick: () => void;
+  tone: "reviewed" | "accepted" | "rejected";
 }) {
+  const activeTone = {
+    reviewed:
+      "border-[var(--skilio-ink)] bg-[var(--skilio-ink)] text-white hover:bg-[var(--skilio-ink)]",
+    accepted:
+      "border-[var(--skilio-brand)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]",
+    rejected:
+      "border-[var(--skilio-danger)] bg-[var(--skilio-danger)] text-white hover:bg-[var(--skilio-danger)]",
+  }[tone];
+
   return (
     <Button
       variant="outline"
       className={cn(
         "h-10 justify-start gap-2 rounded-[var(--skilio-radius-md)]",
-        active && "border-[#2f7d4f] bg-[#e6f6df] text-[#24533b] hover:bg-[#e6f6df]",
-        className,
+        active
+          ? activeTone
+          : tone === "rejected"
+            ? "border-red-200 text-[var(--skilio-danger)] hover:bg-[var(--skilio-danger-soft)]"
+            : "border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink-soft)] hover:bg-[var(--skilio-control)]",
       )}
       disabled={disabled}
       onClick={onClick}
@@ -202,14 +228,22 @@ export default function ApplicantReviewPage() {
   const profileSnapshot = asRecord(applicant?.profileSnapshot);
   const portfolioSnapshot = asRecord(profileSnapshot.portfolioSnapshot);
   const links = asRecord(applicant?.links);
+  const screeningAnswers = asRecord(applicant?.screeningAnswers);
   const skillEvidence = asRecord(profileSnapshot.skillEvidence);
-  const skillConfidence = asRecord(profileSnapshot.skillConfidence);
   const portfolioEvidence = asRecordArray(portfolioSnapshot.skillEvidence);
   const skills = asStringArray(applicant?.skillsSnapshot);
   const resumeName = firstText(profileSnapshot.resumeFileName);
   const resumeUrl = firstText(profileSnapshot.resumeUrl, links.resume);
   const certificateFileNames = asStringArray(profileSnapshot.certificateFileNames);
   const files = applicant?.job_application_files ?? [];
+  const jobSkills = applicant?.job_postings?.job_skills ?? [];
+  const requiredSkills = jobSkills.filter((skill) => skill.priority === "MUST");
+  const matchedRequiredSkills = requiredSkills.filter((requiredSkill) =>
+    skills.some(
+      (skill) =>
+        skill.trim().toLowerCase() === requiredSkill.name.trim().toLowerCase(),
+    ),
+  );
 
   function setStatus(status: "REVIEWED" | "SHORTLISTED" | "REJECTED") {
     if (!applicant) return;
@@ -239,9 +273,14 @@ export default function ApplicantReviewPage() {
             aside={
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#66765f]">Match</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#66765f]">
+                    Skills match
+                  </div>
                   <div className="mt-1 text-2xl font-semibold tabular-nums text-[#14213d]">
                     {applicant.matchScore === null ? "-" : `${applicant.matchScore}%`}
+                  </div>
+                  <div className="mt-1 text-xs text-[var(--skilio-ink-muted)]">
+                    {matchedRequiredSkills.length}/{requiredSkills.length} must-have skills
                   </div>
                 </div>
                 <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3">
@@ -263,6 +302,7 @@ export default function ApplicantReviewPage() {
               <div className="grid gap-2 sm:grid-cols-3">
                 <DecisionButton
                   active={applicant.status === "REVIEWED"}
+                  tone="reviewed"
                   disabled={updateStatus.isLoading}
                   onClick={() => setStatus("REVIEWED")}
                 >
@@ -271,6 +311,7 @@ export default function ApplicantReviewPage() {
                 </DecisionButton>
                 <DecisionButton
                   active={applicant.status === "SHORTLISTED"}
+                  tone="accepted"
                   disabled={updateStatus.isLoading}
                   onClick={() => setStatus("SHORTLISTED")}
                 >
@@ -279,8 +320,8 @@ export default function ApplicantReviewPage() {
                 </DecisionButton>
                 <DecisionButton
                   active={applicant.status === "REJECTED"}
+                  tone="rejected"
                   disabled={updateStatus.isLoading}
-                  className="border-[#e6b2ad] text-[#8a2d25]"
                   onClick={() => setStatus("REJECTED")}
                 >
                   <XCircle className="h-4 w-4" />
@@ -307,20 +348,50 @@ export default function ApplicantReviewPage() {
 
               <SkilioPanel className="p-4">
                 <div className="mb-4 flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-[#2f7d4f]" />
-                  <h2 className="font-semibold text-[#14213d]">Application answers</h2>
+                  <FileText className="h-5 w-5 text-[var(--skilio-brand)]" />
+                  <h2 className="font-semibold text-[var(--skilio-ink)]">
+                    Application statement
+                  </h2>
                 </div>
-                <div className="grid gap-3">
-                  <TextBlock label="Bio" value={applicant.bio} />
-                  <TextBlock label="Cover letter" value={applicant.coverLetter} />
-                  <TextBlock label="Work sample prompt" value={asString(profileSnapshot.workSamplePrompt)} />
+                <TextBlock
+                  label="Why this role"
+                  value={applicant.coverLetter}
+                />
+              </SkilioPanel>
+
+              <SkilioPanel className="p-4">
+                <div className="mb-4 flex items-center gap-2">
+                  <ListChecks className="h-5 w-5 text-[#2f7d4f]" />
+                  <h2 className="font-semibold text-[#14213d]">
+                    Pre-screening questions
+                  </h2>
                 </div>
+                {(applicant.job_postings?.screeningQuestions ?? []).length ===
+                0 ? (
+                  <p className="text-sm text-[var(--skilio-ink-soft)]">
+                    No pre-screening questions were included for this role.
+                  </p>
+                ) : (
+                  <div className="grid gap-3">
+                    {(applicant.job_postings?.screeningQuestions ?? []).map(
+                      (question) => (
+                        <TextBlock
+                          key={question.id}
+                          label={question.prompt}
+                          value={asString(screeningAnswers[question.id])}
+                        />
+                      ),
+                    )}
+                  </div>
+                )}
               </SkilioPanel>
 
               <SkilioPanel className="p-4">
                 <div className="mb-4 flex items-center gap-2">
                   <ShieldCheck className="h-5 w-5 text-[#2f7d4f]" />
-                  <h2 className="font-semibold text-[#14213d]">Skills and evidence</h2>
+                  <h2 className="font-semibold text-[#14213d]">
+                    Skills and portfolio
+                  </h2>
                 </div>
                 {skills.length === 0 ? (
                   <p className="text-sm text-[#5f6b7a]">No skills were submitted.</p>
@@ -337,11 +408,8 @@ export default function ApplicantReviewPage() {
                           key={skill}
                           className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4"
                         >
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="font-semibold text-[#14213d]">{skill}</div>
-                            <Badge variant="outline" className="rounded-md">
-                              confidence {String(skillConfidence[skill] ?? "-")}
-                            </Badge>
+                          <div className="font-semibold text-[#14213d]">
+                            {skill}
                           </div>
                           <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#4b596d]">
                             {asString(skillEvidence[skill]) || "No written evidence provided."}
@@ -371,6 +439,24 @@ export default function ApplicantReviewPage() {
                     })}
                   </div>
                 )}
+              </SkilioPanel>
+
+              <SkilioPanel className="p-4">
+                <div className="mb-4 flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-[var(--skilio-brand)]" />
+                  <h2 className="font-semibold text-[var(--skilio-ink)]">
+                    Drawmetrics results
+                  </h2>
+                </div>
+                <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-5">
+                  <div className="font-semibold text-[var(--skilio-ink)]">
+                    Coming soon
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                    Drawmetrics results will appear here when the assessment is
+                    connected to applications.
+                  </p>
+                </div>
               </SkilioPanel>
             </div>
 

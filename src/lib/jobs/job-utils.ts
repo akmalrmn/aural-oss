@@ -69,8 +69,13 @@ export function computeApplicationMatch(input: {
   candidateSkills: string[];
 }): number | null {
   const candidate = new Set(input.candidateSkills.map(normalizeSkill).filter(Boolean));
-  const required = input.requiredSkills.map(normalizeSkill).filter(Boolean);
-  const optional = input.optionalSkills.map(normalizeSkill).filter(Boolean);
+  const required = Array.from(
+    new Set(input.requiredSkills.map(normalizeSkill).filter(Boolean)),
+  );
+  const requiredSet = new Set(required);
+  const optional = Array.from(
+    new Set(input.optionalSkills.map(normalizeSkill).filter(Boolean)),
+  ).filter((skill) => !requiredSet.has(skill));
   const totalWeight = required.length * 40 + optional.length * 10;
 
   if (totalWeight === 0) return null;

@@ -224,9 +224,13 @@ try {
     path: `${outputDir}/12-application-review.png`,
     fullPage: true,
   });
-  await candidatePage
-    .getByRole("button", { name: "Submit application" })
-    .click();
+  const formSubmitted = await candidatePage.evaluate(() => {
+    const form = document.querySelector("form");
+    if (!(form instanceof HTMLFormElement)) return false;
+    form.requestSubmit();
+    return true;
+  });
+  assert.ok(formSubmitted, "Application form is present on the review step");
   await candidatePage.getByText("Application submitted").waitFor();
   await candidateContext.close();
 

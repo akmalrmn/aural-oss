@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -13,6 +14,7 @@ import {
   Mail,
   MapPin,
   Phone,
+  Shapes,
   ShieldCheck,
   UserRound,
   XCircle,
@@ -22,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { parseApplicationDrawingAssessment } from "@/lib/drawing-assessment";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -235,6 +238,23 @@ export default function ApplicantReviewPage() {
   const resumeName = firstText(profileSnapshot.resumeFileName);
   const resumeUrl = firstText(profileSnapshot.resumeUrl, links.resume);
   const certificateFileNames = asStringArray(profileSnapshot.certificateFileNames);
+  const drawingAssessment = parseApplicationDrawingAssessment(
+    profileSnapshot.drawingAssessment,
+  );
+  const drawingAssessmentReused =
+    profileSnapshot.drawingAssessmentReused === true;
+  const submittedProfileSnapshot = drawingAssessment
+    ? {
+        ...profileSnapshot,
+        drawingAssessment: {
+          ...drawingAssessment,
+          responses: drawingAssessment.responses.map((response) => ({
+            ...response,
+            imageDataUrl: "[PNG screenshot stored]",
+          })),
+        },
+      }
+    : profileSnapshot;
   const files = applicant?.job_application_files ?? [];
   const jobSkills = applicant?.job_postings?.job_skills ?? [];
   const requiredSkills = jobSkills.filter((skill) => skill.priority === "MUST");
@@ -442,21 +462,80 @@ export default function ApplicantReviewPage() {
               </SkilioPanel>
 
               <SkilioPanel className="p-4">
-                <div className="mb-4 flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-[var(--skilio-brand)]" />
-                  <h2 className="font-semibold text-[var(--skilio-ink)]">
-                    Drawmetrics results
-                  </h2>
-                </div>
-                <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-5">
-                  <div className="font-semibold text-[var(--skilio-ink)]">
-                    Coming soon
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    <Shapes className="h-5 w-5 text-[var(--skilio-brand)]" />
+                    <h2 className="font-semibold text-[var(--skilio-ink)]">
+                      Drawmetrics results
+                    </h2>
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">
-                    Drawmetrics results will appear here when the assessment is
-                    connected to applications.
-                  </p>
+                  {drawingAssessment && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {drawingAssessmentReused && (
+                        <Badge
+                          variant="outline"
+                          className="rounded-md border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-ink-soft)]"
+                        >
+                          Reused within 1 year
+                        </Badge>
+                      )}
+                      <Badge className="rounded-md bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)] hover:bg-[var(--skilio-control-strong)]">
+                        Score {drawingAssessment.score}/100
+                      </Badge>
+                    </div>
+                  )}
                 </div>
+                {!drawingAssessment ? (
+                  <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-5">
+                    <div className="font-semibold text-[var(--skilio-ink)]">
+                      No Drawmetrics set attached
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                      This application was submitted before Drawmetrics was
+                      required.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="mb-4 text-sm text-[var(--skilio-ink-soft)]">
+                      Ten candidate drawings completed{" "}
+                      {formatDate(drawingAssessment.completedAt)}. Scoring is
+                      provisional until the analysis API is connected.
+                    </p>
+                    <div
+                      data-testid="applicant-drawmetrics-gallery"
+                      className="grid gap-3 sm:grid-cols-2"
+                    >
+                      {drawingAssessment.responses.map((response, index) => (
+                        <article
+                          key={response.starterShape}
+                          className="grid grid-cols-[132px_minmax(0,1fr)] gap-3 rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3"
+                        >
+                          <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--skilio-radius-sm)] bg-white shadow-[inset_0_0_0_1px_rgba(16,38,28,0.08)]">
+                            <Image
+                              src={response.imageDataUrl}
+                              alt={`Drawing ${index + 1}: ${response.phrase}`}
+                              fill
+                              unoptimized
+                              className="object-contain"
+                            />
+                          </div>
+                          <div className="min-w-0 py-1">
+                            <div className="text-[11px] font-semibold uppercase text-[var(--skilio-ink-muted)]">
+                              Drawing {index + 1}
+                            </div>
+                            <div className="mt-2 break-words text-sm font-semibold text-[var(--skilio-ink)]">
+                              {response.phrase}
+                            </div>
+                            <div className="mt-1 text-xs capitalize text-[var(--skilio-ink-soft)]">
+                              {response.starterShape.toLowerCase()}
+                            </div>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                )}
               </SkilioPanel>
             </div>
 
@@ -508,7 +587,7 @@ export default function ApplicantReviewPage() {
                 <details className="mt-4 rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3">
                   <summary className="cursor-pointer text-sm font-medium text-[#14213d]">Full profile snapshot</summary>
                   <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-[#4b596d]">
-                    {JSON.stringify(profileSnapshot, null, 2)}
+                    {JSON.stringify(submittedProfileSnapshot, null, 2)}
                   </pre>
                 </details>
               </SkilioPanel>

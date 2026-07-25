@@ -269,7 +269,10 @@ function SessionDetail({
       summary.data &&
       summary.data.status === "COMPLETED" &&
       !summary.data.summary &&
-      summary.data.messages.length > 0
+      summary.data.messages.some(
+        (message: any) =>
+          message.contentType === "TEXT" || message.contentType === "AUDIO",
+      )
     ) {
       autoTriggered.current = true;
       handleGenerateSummary();
@@ -442,13 +445,27 @@ function SessionDetail({
     detail?: string;
   }[];
 
+  const hasAnalyzableMessages = Boolean(
+    summary.data?.messages.some(
+      (message: any) =>
+        message.contentType === "TEXT" || message.contentType === "AUDIO",
+    ),
+  );
+  const hasDrawingResponses = Boolean(
+    summary.data?.messages.some(
+      (message: any) =>
+        message.contentType === "WHITEBOARD" && message.whiteboardImageUrl,
+    ),
+  );
+
   const hasReport = !!(
     summary.data?.summary ||
     criteriaEvaluations.length > 0 ||
     questionEvaluations.length > 0 ||
     researchFindings.length > 0 ||
     keyInsights.length > 0 ||
-    (summary.data?.themes && summary.data.themes.length > 0)
+    (summary.data?.themes && summary.data.themes.length > 0) ||
+    hasDrawingResponses
   );
 
   const overallScore = getSessionOverallScore({
@@ -658,7 +675,7 @@ function SessionDetail({
             <Separator />
 
             {/* Generate report if no summary yet */}
-            {!summary.data?.summary && (
+            {!summary.data?.summary && hasAnalyzableMessages && (
               <Card className="border-dashed">
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   {generating ? (
@@ -1009,11 +1026,11 @@ function SessionDetail({
               );
               if (!whiteboardMsgs || whiteboardMsgs.length === 0) return null;
               return (
-                <Card>
+                <Card data-testid="drawing-responses">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <PenLine className="h-4 w-4" />
-                      Whiteboard
+                      Drawing responses
                       <Badge variant="secondary" className="ml-1 font-normal">
                         {whiteboardMsgs.length}{" "}
                         {whiteboardMsgs.length === 1 ? "drawing" : "drawings"}
@@ -1021,11 +1038,32 @@ function SessionDetail({
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
+                    {whiteboardMsgs.some(
+                      (msg: any) =>
+                        (
+                          msg.whiteboardData as Record<string, unknown> | null
+                        )?.scoreMode === "HARDCODED",
+                    ) && (
+                      <p className="mb-3 text-xs text-muted-foreground">
+                        Drawing scores are provisional while automated scoring
+                        is being developed.
+                      </p>
+                    )}
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                       {whiteboardMsgs.map((msg: any) => {
-                        const label = (
-                          msg.whiteboardData as Record<string, unknown> | null
-                        )?.label as string | undefined;
+                        const drawingData =
+                          msg.whiteboardData as Record<string, unknown> | null;
+                        const label = drawingData?.label as string | undefined;
+                        const isDrawingAssessment =
+                          drawingData?.assessmentMode === "DRAWING";
+                        const hardcodedScore =
+                          typeof drawingData?.hardcodedScore === "number"
+                            ? drawingData.hardcodedScore
+                            : null;
+                        const starterShape =
+                          typeof drawingData?.starterShape === "string"
+                            ? drawingData.starterShape.toLowerCase()
+                            : null;
                         const alt = label ?? "Whiteboard drawing";
                         return (
                           <button
@@ -1045,12 +1083,22 @@ function SessionDetail({
                               alt={alt}
                               className="h-44 w-full rounded object-contain"
                             />
-                            <div className="mt-1 flex items-center justify-between px-0.5">
-                              {label && (
-                                <p className="truncate text-[11px] font-medium text-muted-foreground">
-                                  {label}
+                            <div className="mt-2 flex items-start justify-between gap-2 px-1 pb-1">
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-semibold text-foreground">
+                                  {label ?? "Untitled drawing"}
                                 </p>
-                              )}
+                                {isDrawingAssessment && starterShape && (
+                                  <p className="mt-0.5 text-[10px] capitalize text-muted-foreground">
+                                    Starter mark: {starterShape}
+                                  </p>
+                                )}
+                              </div>
+                              {isDrawingAssessment && hardcodedScore !== null ? (
+                                <Badge className="shrink-0 bg-primary/10 text-primary hover:bg-primary/10">
+                                  {hardcodedScore} / 100
+                                </Badge>
+                              ) : (
                               <p className="ml-auto text-[10px] text-muted-foreground/60">
                                 {new Date(msg.timestamp).toLocaleTimeString(
                                   undefined,
@@ -1060,6 +1108,7 @@ function SessionDetail({
                                   },
                                 )}
                               </p>
+                              )}
                             </div>
                           </button>
                         );

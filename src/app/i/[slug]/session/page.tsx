@@ -142,6 +142,27 @@ export default function SlugSessionPage() {
       snapshotData: JSON.stringify(m.whiteboardData),
     }));
 
+  const resumeDrawingSubmissions = Object.fromEntries(
+    (resumeMessages ?? [])
+      .filter((m: any) => {
+        const data = m.whiteboardData as Record<string, unknown> | null;
+        return (
+          m.contentType === "WHITEBOARD" &&
+          m.questionId &&
+          data?.assessmentMode === "DRAWING"
+        );
+      })
+      .map((m: any) => [
+        m.questionId,
+        {
+          label:
+            ((m.whiteboardData as Record<string, unknown>)?.label as string) ??
+            "Drawing",
+          snapshotData: JSON.stringify(m.whiteboardData),
+        },
+      ]),
+  );
+
   const useVoice = interview.data.voiceEnabled;
 
   const showPreviewTour = isPreview && !previewTourDone && useVoice;
@@ -189,6 +210,10 @@ export default function SlugSessionPage() {
                   id: `preview-q-${i}`,
                   text: q.text,
                   type: q.type,
+                  options: interview.data.questions[i]?.options as {
+                    assessmentMode?: string;
+                    starterShape?: any;
+                  } | null,
                 })),
               }}
               durationMinutes={interview.data.timeLimitMinutes ?? undefined}
@@ -264,6 +289,9 @@ export default function SlugSessionPage() {
             timestamp: m.timestamp.toString(),
           }))}
         initialQuestionIndex={isResuming ? resumeQuestionIndex : undefined}
+        initialDrawingSubmissions={
+          isResuming ? resumeDrawingSubmissions : undefined
+        }
         onComplete={handleComplete}
       />
     </>

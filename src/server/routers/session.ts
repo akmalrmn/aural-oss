@@ -1,4 +1,5 @@
 import { createLogger } from "@/lib/logger";
+import { normalizeDrawingAssessmentSnapshot } from "@/lib/drawing-assessment";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { filterAccessibleProjectIds, hasProjectAccess, protectedProcedure, publicProcedure, router } from "../trpc";
@@ -305,6 +306,7 @@ export const sessionRouter = router({
         label: z.string().optional(),
         snapshotData: z.string(),
         imageDataUrl: z.string().optional(),
+        questionId: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -326,13 +328,21 @@ export const sessionRouter = router({
         .eq("content", input.drawingId)
         .single();
 
+      const parsedSnapshot = JSON.parse(input.snapshotData) as Record<
+        string,
+        unknown
+      >;
+      const normalizedSnapshot =
+        normalizeDrawingAssessmentSnapshot(parsedSnapshot);
+
       const msgData = {
         sessionId: input.sessionId,
         role: "USER" as const,
         content: input.drawingId,
         contentType: "WHITEBOARD" as const,
+        questionId: input.questionId ?? null,
         whiteboardData: {
-          ...JSON.parse(input.snapshotData),
+          ...normalizedSnapshot,
           label: input.label ?? "Drawing",
         },
         ...(input.imageDataUrl
@@ -357,6 +367,11 @@ export const sessionRouter = router({
           .single();
         message = data;
       }
+
+      await ctx.supabase
+        .from("sessions")
+        .update({ lastActivityAt: new Date().toISOString() })
+        .eq("id", input.sessionId);
 
       return { message };
     }),

@@ -27,6 +27,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CodeBlock } from "@/components/code-editor/code-block";
 import { CodeEditorCanvas } from "@/components/code-editor/code-editor-canvas";
+import {
+  DRAWING_STARTER_SHAPES,
+  type DrawingStarterShape,
+} from "@/lib/drawing-assessment";
 import { cn } from "@/lib/utils";
 import {
   Check,
@@ -40,6 +44,7 @@ import {
   Pencil,
   PenLine,
   Plus,
+  Shapes,
   Trash2,
   X,
 } from "lucide-react";
@@ -53,6 +58,7 @@ export const QUESTION_TYPES = [
   { value: "SINGLE_CHOICE", label: "Single Choice" },
   { value: "MULTIPLE_CHOICE", label: "Multiple Choice" },
   { value: "CODING", label: "Coding" },
+  { value: "DRAWING", label: "Drawing Completion" },
   { value: "WHITEBOARD", label: "Whiteboard" },
   { value: "RESEARCH", label: "Research" },
 ] as const;
@@ -103,6 +109,13 @@ export const QUESTION_TYPE_STYLES: Record<
       "border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300",
     optionClass: "",
   },
+  DRAWING: {
+    icon: Shapes,
+    label: "Drawing Completion",
+    badgeClass:
+      "border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300",
+    optionClass: "",
+  },
   RESEARCH: {
     icon: Microscope,
     label: "Research",
@@ -124,6 +137,13 @@ export interface QuestionCardData {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options?: { options: string[]; allowMultiple?: boolean } | any;
   starterCode?: { language: string; code: string } | null;
+}
+
+function isDrawingAssessment(data: QuestionCardData) {
+  return (
+    data.type === "WHITEBOARD" &&
+    data.options?.assessmentMode === "DRAWING"
+  );
 }
 
 interface QuestionCardProps {
@@ -186,8 +206,11 @@ export function QuestionCard({
   };
 
   const displayData = editing ? local : data;
+  const displayType = isDrawingAssessment(displayData)
+    ? "DRAWING"
+    : displayData.type;
   const style =
-    QUESTION_TYPE_STYLES[displayData.type] ?? QUESTION_TYPE_STYLES.OPEN_ENDED;
+    QUESTION_TYPE_STYLES[displayType] ?? QUESTION_TYPE_STYLES.OPEN_ENDED;
   const TypeIcon = style.icon;
 
   return (
@@ -230,9 +253,17 @@ export function QuestionCard({
                 <div className="space-y-1">
                   <Label className="text-xs">Type</Label>
                   <Select
-                    value={local.type}
+                    value={isDrawingAssessment(local) ? "DRAWING" : local.type}
                     onValueChange={(v) => {
-                      const updates: Partial<QuestionCardData> = { type: v };
+                      const updates: Partial<QuestionCardData> = {
+                        type: v === "DRAWING" ? "WHITEBOARD" : v,
+                      };
+                      if (v === "DRAWING") {
+                        updates.options = {
+                          assessmentMode: "DRAWING",
+                          starterShape: "LINE",
+                        };
+                      }
                       if (
                         (v === "SINGLE_CHOICE" || v === "MULTIPLE_CHOICE") &&
                         !local.options
@@ -351,6 +382,41 @@ export function QuestionCard({
                     <Plus className="mr-1 h-3 w-3" />
                     Add Option
                   </Button>
+                </div>
+              )}
+
+              {isDrawingAssessment(local) && (
+                <div className="space-y-2 rounded-lg border bg-muted/25 p-3">
+                  <div>
+                    <Label className="text-xs">Starter mark</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      The candidate will continue this fixed mark and name the
+                      finished drawing.
+                    </p>
+                  </div>
+                  <Select
+                    value={local.options?.starterShape ?? "LINE"}
+                    onValueChange={(value) =>
+                      update({
+                        options: {
+                          ...local.options,
+                          assessmentMode: "DRAWING",
+                          starterShape: value as DrawingStarterShape,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-full sm:w-56">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DRAWING_STARTER_SHAPES.map((shape) => (
+                        <SelectItem key={shape.value} value={shape.value}>
+                          {shape.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 
@@ -536,6 +602,15 @@ export function QuestionCard({
                   language={data.starterCode.language}
                   className="max-h-96"
                 />
+              </div>
+            )}
+            {isDrawingAssessment(data) && (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-md bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">
+                <Shapes className="h-3.5 w-3.5" />
+                Starter mark:{" "}
+                {DRAWING_STARTER_SHAPES.find(
+                  (shape) => shape.value === data.options?.starterShape,
+                )?.label ?? "Line"}
               </div>
             )}
             <div className="flex items-center gap-2 mt-2">

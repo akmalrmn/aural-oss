@@ -5,6 +5,10 @@ import {
     CodeEditorCanvas,
     type CodeEditorCanvasRef,
 } from "@/components/code-editor/code-editor-canvas";
+import {
+  DrawingAssessmentCanvas,
+  type DrawingAssessmentCanvasRef,
+} from "@/components/drawing/drawing-assessment-canvas";
 import { IntervieweeHelpPopover } from "@/components/session/interviewee-help-popover";
 import {
     AlertDialog,
@@ -17,6 +21,9 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ChatComposer } from "@/components/ui/chat-composer";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   SkilioCandidateShell,
   SkilioLogo,
@@ -31,14 +38,18 @@ import {
     useSessionToolChunkPrefetch,
 } from "@/hooks/use-chunk-load-recovery";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import type { DrawingStarterShape } from "@/lib/drawing-assessment";
 import { cn } from "@/lib/utils";
 import {
+    ArrowLeft,
+    ArrowRight,
     Check,
     Clock,
     Code2,
     FileText,
     Loader2,
     MessageCircle,
+    PencilLine,
     Plus,
     Save,
     X
@@ -63,6 +74,11 @@ interface Interview {
     text: string;
     type: string;
     description?: string | null;
+    options?: {
+      assessmentMode?: string;
+      starterShape?: DrawingStarterShape;
+      [key: string]: unknown;
+    } | null;
     starterCode?: { language: string; code: string } | null;
   }[];
 }
@@ -79,6 +95,7 @@ export function ChatInterface({
   interview,
   durationMinutes,
   initialMessages,
+  initialDrawingSubmissions,
   initialQuestionIndex,
   onComplete,
   preview = false,
@@ -87,6 +104,10 @@ export function ChatInterface({
   interview: Interview;
   durationMinutes?: number;
   initialMessages?: Message[];
+  initialDrawingSubmissions?: Record<
+    string,
+    { label: string; snapshotData: string }
+  >;
   initialQuestionIndex?: number;
   onComplete: (reason?: string) => void;
   /** Render in static preview mode — shows full layout without API calls */
@@ -123,6 +144,14 @@ export function ChatInterface({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const whiteboardRef = useRef<WhiteboardCanvasRef>(null);
   const codeEditorRef = useRef<CodeEditorCanvasRef>(null);
+  const drawingAssessmentRef = useRef<DrawingAssessmentCanvasRef>(null);
+  const [drawingTitle, setDrawingTitle] = useState("");
+  const [drawingHasContent, setDrawingHasContent] = useState(false);
+  const [drawingSubmitting, setDrawingSubmitting] = useState(false);
+  const [drawingError, setDrawingError] = useState("");
+  const [drawingSubmissions, setDrawingSubmissions] = useState(
+    initialDrawingSubmissions ?? {},
+  );
 
   // ── Countdown timer (starts after first user message) ───────────
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -132,11 +161,23 @@ export function ChatInterface({
 
   useEffect(() => {
     if (timerStartedRef.current || !durationMinutes) return;
-    if (messages.length > initialMessageCount.current) {
+    if (
+      messages.length > initialMessageCount.current ||
+      (interview.questions[currentQuestion]?.type === "WHITEBOARD" &&
+        interview.questions[currentQuestion]?.options?.assessmentMode ===
+          "DRAWING" &&
+        drawingHasContent)
+    ) {
       timerStartedRef.current = true;
       setRemainingSeconds(durationMinutes * 60);
     }
-  }, [messages.length, durationMinutes]);
+  }, [
+    messages.length,
+    durationMinutes,
+    drawingHasContent,
+    currentQuestion,
+    interview.questions,
+  ]);
 
   useEffect(() => {
     if (remainingSeconds === null || remainingSeconds <= 0) return;
@@ -242,7 +283,19 @@ export function ChatInterface({
   // ── Coding / Whiteboard question detection ─────────────────────
   const currentQ = interview.questions[currentQuestion];
   const isCodingQuestion = currentQ?.type === "CODING";
-  const isWhiteboardQuestion = currentQ?.type === "WHITEBOARD";
+  const isDrawingQuestion =
+    currentQ?.type === "WHITEBOARD" &&
+    currentQ.options?.assessmentMode === "DRAWING";
+  const isWhiteboardQuestion =
+    currentQ?.type === "WHITEBOARD" && !isDrawingQuestion;
+
+  useEffect(() => {
+    if (!isDrawingQuestion || !currentQ) return;
+    const saved = drawingSubmissions[currentQ.id];
+    setDrawingTitle(saved?.label ?? "");
+    setDrawingHasContent(Boolean(saved?.snapshotData));
+    setDrawingError("");
+  }, [currentQ, drawingSubmissions, isDrawingQuestion]);
 
   // ── Draggable split handlers ──────────────────────────────
   const handleSplitMouseDown = useCallback((e: React.PointerEvent) => {
@@ -430,7 +483,7 @@ export function ChatInterface({
 
   // Initialize: get AI greeting (skip when resuming with existing messages)
   useEffect(() => {
-    if (preview || initialMessages?.length) return;
+    if (preview || initialMessages?.length || isDrawingQuestion) return;
     if (greetingStartedRef.current || aiGreetingRequested.has(sessionId)) return;
     greetingStartedRef.current = true;
     aiGreetingRequested.add(sessionId);
@@ -1036,6 +1089,62 @@ export function ChatInterface({
     }
   }
 
+  async function handleDrawingSubmission() {
+    if (preview || drawingSubmitting || !currentQ) return;
+
+    const title = drawingTitle.trim();
+    const submission = drawingAssessmentRef.current?.getSubmission();
+    if (!title) {
+      setDrawingError("Name your drawing before continuing.");
+      return;
+    }
+    if (!submission) {
+      setDrawingError("Add your own lines to the starter mark before continuing.");
+      return;
+    }
+
+    setDrawingSubmitting(true);
+    setDrawingError("");
+    try {
+      const response = await fetch("/api/trpc/session.saveWhiteboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          json: {
+            sessionId,
+            drawingId: `drawing-assessment-${currentQ.id}`,
+            label: title,
+            questionId: currentQ.id,
+            snapshotData: submission.snapshotData,
+            imageDataUrl: submission.imageDataUrl,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Drawing submission failed");
+      }
+
+      setDrawingSubmissions((current) => ({
+        ...current,
+        [currentQ.id]: {
+          label: title,
+          snapshotData: submission.snapshotData,
+        },
+      }));
+
+      if (currentQuestion < interview.questions.length - 1) {
+        await handleQuestionTransition("next");
+      } else {
+        setFinishDialogOpen(true);
+      }
+    } catch {
+      setDrawingError("The drawing could not be saved. Try again.");
+    } finally {
+      setDrawingSubmitting(false);
+    }
+  }
+
   const progress =
     interview.questions.length > 0
       ? ((currentQuestion + 1) / interview.questions.length) * 100
@@ -1330,6 +1439,144 @@ export function ChatInterface({
       </div>
     </div>
   );
+
+  if (isDrawingQuestion && currentQ) {
+    const savedDrawing = drawingSubmissions[currentQ.id];
+    const starterShape = currentQ.options?.starterShape ?? "LINE";
+    const isLastQuestion = currentQuestion === interview.questions.length - 1;
+
+    return (
+      <SkilioCandidateShell className="flex min-h-screen flex-col bg-background lg:h-screen lg:min-h-0">
+        {renderSessionHeader(true)}
+        {renderFinishDialog()}
+
+        <main className="grid flex-1 lg:min-h-0 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="overflow-y-auto border-b border-border bg-card p-5 lg:border-b-0 lg:border-r lg:p-6">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase text-primary">
+              <PencilLine className="h-4 w-4" />
+              Drawing completion
+            </div>
+            <h2 className="mt-5 text-xl font-semibold leading-tight text-foreground">
+              {currentQ.text}
+            </h2>
+            {currentQ.description && (
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                {currentQ.description}
+              </p>
+            )}
+
+            <div className="mt-6 border-t border-border pt-5">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">
+                Your task
+              </p>
+              <ol className="mt-3 space-y-3 text-sm leading-5 text-foreground">
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
+                    1
+                  </span>
+                  Continue the grey starter mark into any drawing you imagine.
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
+                    2
+                  </span>
+                  Give your finished drawing a clear name.
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
+                    3
+                  </span>
+                  Submit when the drawing feels complete.
+                </li>
+              </ol>
+            </div>
+          </aside>
+
+          <section className="flex min-h-[640px] flex-col bg-muted/20 lg:min-h-0">
+            <div className="flex flex-col p-4 sm:p-5 lg:min-h-0 lg:flex-1 lg:p-6">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">
+                    Starter mark
+                  </p>
+                  <p className="mt-1 text-sm font-medium capitalize text-foreground">
+                    {starterShape.toLowerCase()}
+                  </p>
+                </div>
+                <div className="w-full sm:max-w-sm">
+                  <Label htmlFor="drawing-title">Name your drawing</Label>
+                  <Input
+                    id="drawing-title"
+                    value={drawingTitle}
+                    onChange={(event) => {
+                      setDrawingTitle(event.target.value);
+                      setDrawingError("");
+                    }}
+                    placeholder="For example, A kite in the wind"
+                    maxLength={80}
+                    className="mt-1.5 bg-background"
+                  />
+                </div>
+              </div>
+
+              <DrawingAssessmentCanvas
+                key={currentQ.id}
+                ref={drawingAssessmentRef}
+                starterShape={starterShape}
+                initialData={savedDrawing?.snapshotData}
+                onContentChange={setDrawingHasContent}
+                className="min-h-[430px] lg:min-h-0 lg:flex-1"
+              />
+            </div>
+
+            <footer className="flex min-h-[72px] shrink-0 items-center justify-between gap-3 border-t border-border bg-card px-4 py-3 sm:px-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleQuestionTransition("previous")}
+                disabled={
+                  currentQuestion === 0 ||
+                  drawingSubmitting ||
+                  sending ||
+                  aiTyping
+                }
+                className="gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <div className="flex flex-col items-end gap-1">
+                {drawingError && (
+                  <p role="alert" className="text-xs font-medium text-destructive">
+                    {drawingError}
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  onClick={() => void handleDrawingSubmission()}
+                  disabled={
+                    drawingSubmitting ||
+                    sending ||
+                    aiTyping ||
+                    !drawingHasContent ||
+                    !drawingTitle.trim()
+                  }
+                  className="min-w-40 gap-2"
+                >
+                  {drawingSubmitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4" />
+                  )}
+                  {isLastQuestion ? "Save and finish" : "Save and continue"}
+                </Button>
+              </div>
+            </footer>
+          </section>
+        </main>
+      </SkilioCandidateShell>
+    );
+  }
 
   // ── CODING / WHITEBOARD question: split layout with problem panel ──
   if (isCodingQuestion || isWhiteboardQuestion) {

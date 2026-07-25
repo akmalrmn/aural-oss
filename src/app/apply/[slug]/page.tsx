@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
+import { ApplicationDrawingAssessment } from "@/components/drawing/application-drawing-assessment";
 import { SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import {
+  DRAWING_STARTER_SHAPES,
+  type ApplicationDrawingResponse,
+} from "@/lib/drawing-assessment";
 import type { Json } from "@/lib/supabase/types";
 
 type PublicJob = {
@@ -196,36 +201,65 @@ function summarizePortfolioEvidence(skill: string, evidence: Record<string, unkn
 
 function StepRail({ current }: { current: number }) {
   return (
-    <div className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-panel)] p-3 shadow-[var(--skilio-shadow-1)]">
-      <div className="flex flex-wrap gap-2">
+    <nav
+      aria-label="Application progress"
+      className="overflow-x-auto rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-panel)] px-3 py-4 shadow-[var(--skilio-shadow-1)]"
+    >
+      <div className="grid min-w-[700px] grid-cols-7">
         {steps.map((step, index) => {
           const state = index < current ? "done" : index === current ? "active" : "idle";
           return (
             <div
               key={step}
-              className={cn(
-                "flex min-w-[128px] flex-1 items-center gap-2 rounded-[var(--skilio-radius-md)] px-3 py-2 text-sm",
-                state === "active" && "bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]",
-                state === "done" && "bg-[var(--skilio-control)] text-[var(--skilio-ink)]",
-                state === "idle" && "text-[var(--skilio-ink-muted)]",
-              )}
+              aria-current={state === "active" ? "step" : undefined}
+              className="relative flex min-w-0 flex-col items-center px-1 text-center"
             >
+              {index > 0 && (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "absolute right-1/2 top-[15px] h-px w-full",
+                    index <= current
+                      ? "bg-[var(--skilio-brand)]"
+                      : "bg-[var(--skilio-border-strong)]",
+                  )}
+                />
+              )}
               <span
+                data-testid="application-step-marker"
                 className={cn(
-                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--skilio-radius-sm)] text-xs font-semibold",
-                  state === "active" && "bg-[var(--skilio-brand)] text-white",
-                  state === "done" && "bg-[var(--skilio-signal)] text-[var(--skilio-ink)]",
-                  state === "idle" && "bg-[var(--skilio-control)]",
+                  "relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--skilio-radius-md)] border text-xs font-semibold tabular-nums",
+                  state === "active" &&
+                    "border-[var(--skilio-brand)] bg-[var(--skilio-brand)] text-white",
+                  state === "done" &&
+                    "border-[var(--skilio-brand)] bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]",
+                  state === "idle" &&
+                    "border-[var(--skilio-border-strong)] bg-[var(--skilio-panel)] text-[var(--skilio-ink-muted)]",
                 )}
               >
-                {state === "done" ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                {state === "done" ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  index + 1
+                )}
               </span>
-              {step}
+              <span
+                className={cn(
+                  "mt-2 min-h-8 text-xs font-medium leading-4",
+                  state === "active"
+                    ? "text-[var(--skilio-brand-strong)]"
+                    : state === "done"
+                      ? "text-[var(--skilio-ink)]"
+                      : "text-[var(--skilio-ink-muted)]",
+                )}
+              >
+                {step}
+              </span>
             </div>
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 }
 
@@ -319,6 +353,9 @@ export default function CandidateApplicationPage() {
   >({});
   const [resumeFileName, setResumeFileName] = useState("");
   const [resumeUrl, setResumeUrl] = useState("");
+  const [drawingResponses, setDrawingResponses] = useState<
+    ApplicationDrawingResponse[]
+  >([]);
 
   const jobQuery = trpc.job.getPublicBySlug.useQuery(
     { slug: params.slug },
@@ -433,12 +470,43 @@ export default function CandidateApplicationPage() {
   const applyingWithSkilio = Boolean(user && (authChoice === "skilio" || authChoice === null));
   const applyingManually = authChoice === "guest";
   const currentStep = step;
+  const hasCandidateEmail = /\S+@\S+\.\S+/.test(email);
+  const drawingStatusQuery = trpc.job.getDrawingAssessmentStatus.useQuery(
+    {
+      email: hasCandidateEmail ? email.trim() : undefined,
+      portfolioUserId: skilioIdentity?.portfolioUserId ?? undefined,
+      identityLinkId: skilioIdentity?.id ?? undefined,
+    },
+    {
+      enabled:
+        currentStep >= 2 &&
+        Boolean(
+          hasCandidateEmail ||
+            skilioIdentity?.portfolioUserId ||
+            skilioIdentity?.id,
+        ),
+      retry: false,
+      staleTime: 60_000,
+    },
+  );
+  const reusableDrawingStatus =
+    drawingStatusQuery.data?.reusable === true
+      ? drawingStatusQuery.data
+      : null;
+  const canReuseDrawingAssessment = Boolean(reusableDrawingStatus);
+  const hasCompleteDrawingAssessment =
+    drawingResponses.length === DRAWING_STARTER_SHAPES.length;
 
   const canContinue = useMemo(() => {
     if (submitted) return false;
     if (currentStep === 0) return !authLoading && (applyingWithSkilio || applyingManually);
     if (currentStep === 1) return name.trim().length >= 2 && /\S+@\S+\.\S+/.test(email);
-    if (currentStep === 2) return true;
+    if (currentStep === 2) {
+      return (
+        !drawingStatusQuery.isLoading &&
+        (canReuseDrawingAssessment || hasCompleteDrawingAssessment)
+      );
+    }
     if (currentStep === 3) return selectedSkills.length > 0;
     if (currentStep === 4) return true;
     if (currentStep === 5) {
@@ -451,7 +519,10 @@ export default function CandidateApplicationPage() {
     applyingManually,
     applyingWithSkilio,
     authLoading,
+    canReuseDrawingAssessment,
+    drawingStatusQuery.isLoading,
     email,
+    hasCompleteDrawingAssessment,
     job?.screeningQuestions,
     name,
     screeningAnswers,
@@ -523,6 +594,9 @@ export default function CandidateApplicationPage() {
         resume: cleanOptionalUrl(resumeUrl),
       },
       screeningAnswers,
+      drawingResponses: canReuseDrawingAssessment
+        ? undefined
+        : drawingResponses,
       profileSnapshot: {
         portfolioUserId: skilioIdentity?.portfolioUserId,
         identityLinkId: skilioIdentity?.id,
@@ -591,7 +665,7 @@ export default function CandidateApplicationPage() {
           <JobSummaryCard job={job} loading={jobQuery.isLoading} unavailable={jobUnavailable} />
         </aside>
 
-        <section className="space-y-4">
+        <section className="min-w-0 space-y-4">
           {!submitted && !jobUnavailable && <StepRail current={currentStep} />}
 
           <SkilioPanel className="p-5 shadow-[0_28px_90px_rgba(14,33,72,0.09)] sm:p-6">
@@ -777,26 +851,48 @@ export default function CandidateApplicationPage() {
                         Drawmetrics
                       </h2>
                       <p className="mt-1 text-sm text-[var(--skilio-ink-soft)]">
-                        This assessment will add another signal to your
-                        application when it becomes available.
+                        Complete ten drawings by continuing each fixed mark and
+                        naming the picture you create.
                       </p>
                     </div>
-                    <div className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-6">
-                      <div className="flex items-start gap-4">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control-strong)] text-[var(--skilio-brand)]">
-                          <ShieldCheck className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <div className="font-semibold text-[var(--skilio-ink)]">
-                            Coming soon
+                    {drawingStatusQuery.isLoading ? (
+                      <div className="space-y-3">
+                        <Skeleton className="h-12 w-64" />
+                        <Skeleton className="h-[430px] w-full" />
+                      </div>
+                    ) : reusableDrawingStatus ? (
+                      <div
+                        data-testid="drawmetrics-reused"
+                        className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-6"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]">
+                            <CheckCircle2 className="h-5 w-5" />
                           </div>
-                          <p className="mt-1 max-w-xl text-sm leading-6 text-[var(--skilio-ink-soft)]">
-                            No action is required in this application. Continue
-                            to submit your skills information.
-                          </p>
+                          <div>
+                            <div className="font-semibold text-[var(--skilio-ink)]">
+                              Your Drawmetrics set is current
+                            </div>
+                            <p className="mt-1 max-w-xl text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                              You completed all ten drawings on{" "}
+                              {new Date(
+                                reusableDrawingStatus.completedAt,
+                              ).toLocaleDateString()}
+                              . It can be reused until{" "}
+                              {new Date(
+                                reusableDrawingStatus.expiresAt,
+                              ).toLocaleDateString()}
+                              , so you do not need to repeat it for this
+                              application.
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      <ApplicationDrawingAssessment
+                        onChange={setDrawingResponses}
+                      />
+                    )}
                   </div>
                 )}
 
@@ -1074,6 +1170,17 @@ export default function CandidateApplicationPage() {
                               {skill}
                             </Badge>
                           ))}
+                        </div>
+                      </div>
+                      <div className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4 md:col-span-2">
+                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--skilio-ink-muted)]">
+                          Drawmetrics
+                        </div>
+                        <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-[var(--skilio-ink)]">
+                          <CheckCircle2 className="h-4 w-4 text-[var(--skilio-brand)]" />
+                          {canReuseDrawingAssessment
+                            ? "Previous ten-drawing set will be reused"
+                            : `${drawingResponses.length} drawings and ${drawingResponses.length} phrases attached`}
                         </div>
                       </div>
                       <div className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4 md:col-span-2">

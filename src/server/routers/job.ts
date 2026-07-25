@@ -1,6 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { nanoid } from "@/lib/id";
+import {
+  createApplicationDrawingAssessment,
+  DRAWING_STARTER_SHAPES,
+  isDrawingAssessmentReusable,
+  parseApplicationDrawingAssessment,
+  type ApplicationDrawingAssessment,
+} from "@/lib/drawing-assessment";
 import type { Context } from "@/server/context";
 import {
   computeApplicationMatch,
@@ -65,6 +72,44 @@ const linksSchema = z
   .partial()
   .default({});
 
+const drawingResponseSchema = z.object({
+  starterShape: z.enum([
+    "CIRCLE",
+    "DIAMOND",
+    "CROSS",
+    "SQUARE",
+    "TEE",
+    "TRIANGLE",
+    "DOT",
+    "HEXAGON",
+    "SLOPE",
+    "LINE",
+  ]),
+  phrase: z.string().trim().min(1).max(120),
+  imageDataUrl: z
+    .string()
+    .max(750_000)
+    .refine(
+      (value) => value.startsWith("data:image/png;base64,"),
+      "Drawing screenshots must be PNG images.",
+    ),
+});
+
+const drawingResponsesSchema = z
+  .array(drawingResponseSchema)
+  .length(DRAWING_STARTER_SHAPES.length)
+  .superRefine((responses, ctx) => {
+    DRAWING_STARTER_SHAPES.forEach((shape, index) => {
+      if (responses[index]?.starterShape !== shape.value) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, "starterShape"],
+          message: `Drawing ${index + 1} must use the ${shape.label} starter.`,
+        });
+      }
+    });
+  });
+
 type SupabaseLike = Context["supabase"];
 
 type JobSkill = {
@@ -96,6 +141,66 @@ type JobPostingRecord = {
   job_applications?: JobApplicationListItem[];
   [key: string]: unknown;
 };
+
+function drawingAssessmentFromSnapshot(
+  snapshot: unknown,
+): ApplicationDrawingAssessment | null {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+    return null;
+  }
+  return parseApplicationDrawingAssessment(
+    (snapshot as Record<string, unknown>).drawingAssessment,
+  );
+}
+
+async function findReusableDrawingAssessment(
+  supabase: SupabaseLike,
+  identity: {
+    identityLinkId?: string;
+    portfolioUserId?: string;
+    email?: string;
+  },
+) {
+  const lookups = [
+    identity.identityLinkId
+      ? { column: "identityLinkId", value: identity.identityLinkId, ilike: false }
+      : null,
+    identity.portfolioUserId
+      ? { column: "portfolioUserId", value: identity.portfolioUserId, ilike: false }
+      : null,
+    identity.email
+      ? { column: "email", value: identity.email.trim(), ilike: true }
+      : null,
+  ].filter(
+    (
+      lookup,
+    ): lookup is { column: string; value: string; ilike: boolean } =>
+      Boolean(lookup),
+  );
+
+  for (const lookup of lookups) {
+    let query = supabase
+      .from("job_applications")
+      .select("profileSnapshot, submittedAt")
+      .order("submittedAt", { ascending: false })
+      .limit(20);
+    query = lookup.ilike
+      ? query.ilike(lookup.column, lookup.value)
+      : query.eq(lookup.column, lookup.value);
+
+    const { data } = await query;
+    for (const application of data ?? []) {
+      const assessment = drawingAssessmentFromSnapshot(
+        application.profileSnapshot,
+      );
+      if (assessment && isDrawingAssessmentReusable(assessment)) {
+        return assessment;
+      }
+    }
+  }
+
+  return null;
+}
 
 async function getProjectForAccess(
   supabase: SupabaseLike,
@@ -524,6 +629,42 @@ export const jobRouter = router({
       return shapeJob({ ...(data as JobPostingRecord), job_applications: [] });
     }),
 
+  getDrawingAssessmentStatus: publicProcedure
+    .input(
+      z
+        .object({
+          portfolioUserId: z.string().min(1).max(160).optional(),
+          identityLinkId: z.string().uuid().optional(),
+          email: z.string().email().optional(),
+        })
+        .refine(
+          (input) =>
+            Boolean(
+              input.portfolioUserId || input.identityLinkId || input.email,
+            ),
+          "A candidate identity is required.",
+        ),
+    )
+    .query(async ({ ctx, input }) => {
+      const assessment = await findReusableDrawingAssessment(
+        ctx.supabase as SupabaseLike,
+        input,
+      );
+      return assessment
+        ? {
+            reusable: true as const,
+            completedAt: assessment.completedAt,
+            expiresAt: assessment.expiresAt,
+            responseCount: assessment.responses.length,
+          }
+        : {
+            reusable: false as const,
+            completedAt: null,
+            expiresAt: null,
+            responseCount: 0,
+          };
+    }),
+
   apply: publicProcedure
     .input(
       z.object({
@@ -542,6 +683,7 @@ export const jobRouter = router({
         skills: z.array(z.string().min(1).max(80)).max(40).default([]),
         profileSnapshot: z.record(z.string(), z.unknown()).default({}),
         screeningAnswers: z.record(z.string(), z.string().max(2000)).default({}),
+        drawingResponses: drawingResponsesSchema.optional(),
         links: linksSchema,
       }),
     )
@@ -572,6 +714,25 @@ export const jobRouter = router({
         candidateSkills: input.skills,
       });
 
+      const freshDrawingAssessment = input.drawingResponses
+        ? createApplicationDrawingAssessment(input.drawingResponses)
+        : null;
+      const drawingAssessment =
+        freshDrawingAssessment ??
+        (await findReusableDrawingAssessment(supabase, {
+          identityLinkId: input.identityLinkId,
+          portfolioUserId: input.portfolioUserId,
+          email: input.email,
+        }));
+
+      if (!drawingAssessment) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Complete all ten Drawmetrics drawings before submitting this application.",
+        });
+      }
+
       const { data, error: insertError } = await supabase
         .from("job_applications")
         .insert({
@@ -580,12 +741,16 @@ export const jobRouter = router({
           identityLinkId: input.identityLinkId,
           source: input.source,
           name: input.name,
-          email: input.email,
+          email: input.email.trim().toLowerCase(),
           phone: input.phone,
           location: input.location,
           bio: input.bio,
           coverLetter: input.coverLetter,
-          profileSnapshot: input.profileSnapshot,
+          profileSnapshot: {
+            ...input.profileSnapshot,
+            drawingAssessment,
+            drawingAssessmentReused: !freshDrawingAssessment,
+          },
           screeningAnswers: input.screeningAnswers,
           skillsSnapshot: input.skills,
           links: input.links,

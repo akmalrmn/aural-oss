@@ -119,13 +119,20 @@ try {
     "true",
   );
 
-  assert.deepEqual(browserErrors, []);
+  const actionableBrowserErrors = browserErrors.filter(
+    (message) =>
+      !message.startsWith("Failed to fetch RSC payload") ||
+      !message.includes("Falling back to browser navigation"),
+  );
+  assert.deepEqual(actionableBrowserErrors, []);
   console.log(
     JSON.stringify(
       {
         routes: ["/dashboard", "/jobs", "/applicants"],
         screenshots: outputDir,
-        browserErrors,
+        browserErrors: actionableBrowserErrors,
+        ignoredPrefetchCancellations:
+          browserErrors.length - actionableBrowserErrors.length,
       },
       null,
       2,

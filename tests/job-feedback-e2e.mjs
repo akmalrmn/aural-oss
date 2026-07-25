@@ -141,6 +141,9 @@ try {
   const candidatePage = await candidateContext.newPage();
   await candidatePage.goto(`${baseUrl}${applyPath}`);
   await candidatePage.waitForLoadState("networkidle");
+  await candidatePage
+    .getByRole("button", { name: "Start application" })
+    .click();
   await candidatePage.screenshot({
     path: `${outputDir}/07-application-access.png`,
     fullPage: true,

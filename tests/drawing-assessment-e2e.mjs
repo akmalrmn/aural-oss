@@ -268,6 +268,13 @@ try {
 
   await candidatePage.goto(`${baseUrl}/apply/${jobSlug}`);
   await candidatePage.waitForLoadState("networkidle");
+  await candidatePage.screenshot({
+    path: `${outputDir}/05-application-job-details.png`,
+    fullPage: true,
+  });
+  await candidatePage
+    .getByRole("button", { name: "Start application" })
+    .click();
   const markers = candidatePage.getByTestId("application-step-marker");
   assert.equal(await markers.count(), 7);
   const markerBoxes = await markers.evaluateAll((elements) =>
@@ -448,6 +455,9 @@ try {
 
   await candidatePage.goto(`${baseUrl}/apply/${jobSlug}`);
   await candidatePage.waitForLoadState("networkidle");
+  await candidatePage
+    .getByRole("button", { name: "Start application" })
+    .click();
   await candidatePage
     .getByRole("button", { name: /Continue manually/ })
     .click();

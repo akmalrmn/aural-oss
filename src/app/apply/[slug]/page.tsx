@@ -322,20 +322,26 @@ function JobSummaryCard({
     );
   }
 
+  if (compact) {
+    return (
+      <section className="border-b border-[var(--skilio-border)] pb-5">
+        <div className="text-xs font-medium text-[var(--skilio-ink-muted)]">
+          Applying for
+        </div>
+        <h1 className="mt-1 max-w-3xl text-xl font-semibold leading-tight text-[var(--skilio-ink)] sm:text-2xl">
+          {job.title}
+        </h1>
+      </section>
+    );
+  }
+
   return (
-    <section className={cn(compact ? "pb-5" : "pb-7")}>
+    <section className="pb-7">
       <div className="flex items-center gap-2 text-sm font-medium text-[var(--skilio-brand-strong)]">
         <BriefcaseBusiness className="h-4 w-4" />
         <span>{job.department || "Open role"}</span>
       </div>
-      <h1
-        className={cn(
-          "max-w-3xl font-semibold leading-[1.08] text-[var(--skilio-ink)]",
-          compact
-            ? "mt-2 text-2xl"
-            : "mt-3 text-[clamp(1.9rem,5vw,2.8rem)]",
-        )}
-      >
+      <h1 className="mt-3 max-w-3xl text-[clamp(1.9rem,5vw,2.8rem)] font-semibold leading-[1.08] text-[var(--skilio-ink)]">
         {job.title}
       </h1>
       <div className="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-sm text-[var(--skilio-ink-soft)]">
@@ -353,32 +359,36 @@ function JobSummaryCard({
           ))}
       </div>
 
-      <details className={cn("group", compact ? "mt-3" : "mt-5")}>
-        <summary className="inline-flex min-h-10 cursor-pointer list-none items-center gap-2 text-sm font-medium text-[var(--skilio-ink)] hover:text-[var(--skilio-brand-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--skilio-brand)] focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-          <ArrowRight className="h-4 w-4 transition-transform duration-150 group-open:rotate-90" />
-          View job details
-        </summary>
-        <p className="mt-2 max-w-3xl whitespace-pre-wrap break-words text-sm leading-6 text-[var(--skilio-ink-soft)]">
+      <div className="mt-8 border-t border-[var(--skilio-border)] pt-6">
+        <h2 className="text-lg font-semibold text-[var(--skilio-ink)]">
+          About the role
+        </h2>
+        <p className="mt-3 max-w-3xl whitespace-pre-wrap break-words text-sm leading-7 text-[var(--skilio-ink-soft)]">
           {job.description || "Share your Skilio profile and tell us why this role fits you."}
         </p>
-      </details>
+      </div>
 
-      {!compact && job.job_skills.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {job.job_skills.map((skill) => (
-            <Badge
-              key={skill.id}
-              variant="outline"
-              className={cn(
-                "rounded-md border-[var(--skilio-border)] px-2.5 py-1 text-xs font-medium",
-                skill.priority === "MUST"
-                  ? "bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]"
-                  : "bg-[var(--skilio-elevated)] text-[var(--skilio-ink-soft)]",
-              )}
-            >
-              {skill.name}
-            </Badge>
-          ))}
+      {job.job_skills.length > 0 && (
+        <div className="mt-7 border-t border-[var(--skilio-border)] pt-6">
+          <h2 className="text-lg font-semibold text-[var(--skilio-ink)]">
+            Skills for this role
+          </h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {job.job_skills.map((skill) => (
+              <Badge
+                key={skill.id}
+                variant="outline"
+                className={cn(
+                  "rounded-md border-[var(--skilio-border)] px-2.5 py-1 text-xs font-medium",
+                  skill.priority === "MUST"
+                    ? "bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]"
+                    : "bg-[var(--skilio-elevated)] text-[var(--skilio-ink-soft)]",
+                )}
+              >
+                {skill.name}
+              </Badge>
+            ))}
+          </div>
         </div>
       )}
     </section>
@@ -391,6 +401,7 @@ export default function CandidateApplicationPage() {
   const submittingRef = useRef(false);
   const appliedSkilioSkillsRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
+  const [hasStarted, setHasStarted] = useState(false);
   const [step, setStep] = useState(0);
   const [authChoice, setAuthChoice] = useState<AuthChoice | null>(null);
   const [name, setName] = useState(profile?.name ?? "");
@@ -622,7 +633,17 @@ export default function CandidateApplicationPage() {
   }
 
   function goBack() {
+    if (currentStep === 0) {
+      setHasStarted(false);
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      return;
+    }
     setStep((current) => Math.max(0, current - 1));
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }
+
+  function startApplication() {
+    setHasStarted(true);
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }
 
@@ -723,13 +744,34 @@ export default function CandidateApplicationPage() {
           job={job}
           loading={jobQuery.isLoading}
           unavailable={jobUnavailable}
-          compact={currentStep > 0}
+          compact={hasStarted || submitted}
         />
 
-        <section className="mt-6 min-w-0 space-y-6">
-          {!submitted && !jobUnavailable && <StepRail current={currentStep} />}
+        {!hasStarted && !submitted && !jobUnavailable ? (
+          <section className="border-t border-[var(--skilio-border)] pt-6">
+            {jobQuery.isLoading ? (
+              <Skeleton className="ml-auto h-11 w-full sm:w-52" />
+            ) : (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                  Review the role before starting the application.
+                </p>
+                <Button
+                  type="button"
+                  onClick={startApplication}
+                  className="h-11 gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] px-5 text-white hover:bg-[var(--skilio-brand-strong)]"
+                >
+                  Start application
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </section>
+        ) : (
+          <section className="mt-6 min-w-0 space-y-6">
+            {!submitted && !jobUnavailable && <StepRail current={currentStep} />}
 
-          <SkilioPanel className="border-[var(--skilio-border)] bg-[var(--skilio-elevated)] p-5 shadow-none sm:p-7">
+            <SkilioPanel className="border-[var(--skilio-border)] bg-[var(--skilio-elevated)] p-5 shadow-none sm:p-7">
             {jobQuery.isLoading || authLoading ? (
               <div className="space-y-4">
                 <Skeleton className="h-10 w-64" />
@@ -1315,11 +1357,11 @@ export default function CandidateApplicationPage() {
                     type="button"
                     variant="outline"
                     onClick={goBack}
-                    disabled={currentStep === 0 || apply.isLoading}
+                    disabled={apply.isLoading}
                     className="gap-2"
                   >
                     <ArrowLeft className="h-4 w-4" />
-                    Back
+                    {currentStep === 0 ? "Job details" : "Back"}
                   </Button>
                   {currentStep < steps.length - 1 ? (
                     <Button type="button" onClick={goNext} disabled={!canContinue} className="gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
@@ -1344,8 +1386,9 @@ export default function CandidateApplicationPage() {
                 </div>
               </form>
             )}
-          </SkilioPanel>
-        </section>
+            </SkilioPanel>
+          </section>
+        )}
       </SkilioMotionRoot>
     </main>
   );

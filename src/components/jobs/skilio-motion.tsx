@@ -68,13 +68,13 @@ export function SkilioPanel({
   children,
   className,
   scroll,
-}: {
-  children: React.ReactNode;
-  className?: string;
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & {
   scroll?: boolean;
 }) {
   return (
     <div
+      {...props}
       data-skillio-reveal
       data-skillio-scroll={scroll ? "" : undefined}
       className={cn(

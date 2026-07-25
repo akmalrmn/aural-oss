@@ -37,6 +37,11 @@ type ApplicantDetail = {
   jobId: string;
   portfolioUserId?: string | null;
   source: string | null;
+  applicationMethod?: string | null;
+  job_source_links?: {
+    name: string;
+    channel: string;
+  } | null;
   status: string;
   name: string;
   email: string;
@@ -374,7 +379,20 @@ export default function ApplicantReviewPage() {
                   <DetailLine icon={Mail} label="Email" value={applicant.email} />
                   <DetailLine icon={Phone} label="Phone" value={applicant.phone} />
                   <DetailLine icon={MapPin} label="Location" value={applicant.location} />
-                  <DetailLine icon={Briefcase} label="Source" value={(applicant.source ?? "direct").toLowerCase()} />
+                  <DetailLine
+                    icon={Briefcase}
+                    label="Source"
+                    value={applicant.job_source_links?.name ?? "Direct"}
+                  />
+                  <DetailLine
+                    icon={UserRound}
+                    label="Application method"
+                    value={
+                      applicant.applicationMethod === "SKILIO"
+                        ? "Skilio account"
+                        : "Manual application"
+                    }
+                  />
                 </div>
               </SkilioPanel>
 

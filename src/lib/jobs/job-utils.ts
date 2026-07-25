@@ -5,7 +5,22 @@ export type ApplicationStatus = "NEW" | "REVIEWED" | "SHORTLISTED" | "REJECTED";
 export type ApplicationSummaryInput = {
   status: ApplicationStatus;
   matchScore: number | null;
-  source: string | null;
+  applicationMethod?: string | null;
+  source?: string | null;
+  sourceLinkId?: string | null;
+};
+
+export type JobSourceLinkInput = {
+  id: string;
+  name: string;
+  channel: string;
+  trackingCode: string;
+  archivedAt?: string | null;
+};
+
+export type JobSourceVisitInput = {
+  sourceLinkId: string;
+  applicationStartedAt?: string | null;
 };
 
 export function createJobPublicSlug(title: string, suffix: string): string {
@@ -40,10 +55,13 @@ export function summarizeJobApplications(applications: ApplicationSummaryInput[]
     .map((application) => application.matchScore)
     .filter((score): score is number => typeof score === "number" && Number.isFinite(score));
 
-  const sourceCounts = new Map<string, number>();
+  const methodCounts = new Map<string, number>();
   for (const application of applications) {
-    const source = application.source?.trim() || "direct";
-    sourceCounts.set(source, (sourceCounts.get(source) ?? 0) + 1);
+    const method =
+      application.applicationMethod?.trim() ||
+      application.source?.trim() ||
+      "GUEST";
+    methodCounts.set(method, (methodCounts.get(method) ?? 0) + 1);
   }
 
   return {
@@ -53,9 +71,69 @@ export function summarizeJobApplications(applications: ApplicationSummaryInput[]
       scored.length === 0
         ? null
         : Math.round(scored.reduce((sum, score) => sum + score, 0) / scored.length),
-    sources: Array.from(sourceCounts.entries())
-      .map(([source, count]) => ({ source, count }))
-      .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source)),
+    applicationMethods: Array.from(methodCounts.entries())
+      .map(([method, count]) => ({ method, count }))
+      .sort((a, b) => b.count - a.count || a.method.localeCompare(b.method)),
+  };
+}
+
+export function summarizeJobAttribution(
+  links: JobSourceLinkInput[],
+  visits: JobSourceVisitInput[],
+  applications: ApplicationSummaryInput[],
+) {
+  const rows = links.map((link) => {
+    const linkVisits = visits.filter(
+      (visit) => visit.sourceLinkId === link.id,
+    );
+    const linkApplications = applications.filter(
+      (application) => application.sourceLinkId === link.id,
+    );
+    const submitted = linkApplications.length;
+    const visitCount = linkVisits.length;
+
+    return {
+      sourceLinkId: link.id,
+      name: link.name,
+      channel: link.channel,
+      trackingCode: link.trackingCode,
+      archivedAt: link.archivedAt ?? null,
+      visits: visitCount,
+      started: linkVisits.filter((visit) => visit.applicationStartedAt).length,
+      submitted,
+      accepted: linkApplications.filter(
+        (application) => application.status === "SHORTLISTED",
+      ).length,
+      conversionRate:
+        visitCount === 0 ? null : Math.round((submitted / visitCount) * 100),
+    };
+  });
+
+  const directApplications = applications.filter(
+    (application) => !application.sourceLinkId,
+  );
+
+  return {
+    totalVisits: visits.length,
+    totalStarted: visits.filter((visit) => visit.applicationStartedAt).length,
+    totalAttributedApplications: applications.length - directApplications.length,
+    sources: [
+      ...rows,
+      {
+        sourceLinkId: null,
+        name: "Direct",
+        channel: "DIRECT",
+        trackingCode: null,
+        archivedAt: null,
+        visits: 0,
+        started: 0,
+        submitted: directApplications.length,
+        accepted: directApplications.filter(
+          (application) => application.status === "SHORTLISTED",
+        ).length,
+        conversionRate: null,
+      },
+    ],
   };
 }
 

@@ -20,6 +20,7 @@ import {
 import { JobEditDialog } from "@/components/jobs/job-edit-dialog";
 import { JobStatusBadge } from "@/components/jobs/job-status-badge";
 import { SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
+import { SourceAttributionPanel } from "@/components/jobs/source-attribution-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,6 +59,12 @@ type JobDetail = {
     email: string;
     status: string;
     source: string | null;
+    applicationMethod?: string | null;
+    sourceLinkId?: string | null;
+    job_source_links?: {
+      name: string;
+      channel: string;
+    } | null;
     matchScore: number | null;
     submittedAt?: string;
   }[];
@@ -65,7 +72,32 @@ type JobDetail = {
     totalApplicants: number;
     shortlisted: number;
     averageMatch: number | null;
-    sources: { source: string; count: number }[];
+    applicationMethods: { method: string; count: number }[];
+  };
+  sourceLinks: {
+    id: string;
+    name: string;
+    channel: string;
+    trackingCode: string;
+    archivedAt: string | null;
+    publicApplicationUrl: string;
+  }[];
+  attribution: {
+    totalVisits: number;
+    totalStarted: number;
+    totalAttributedApplications: number;
+    sources: {
+      sourceLinkId: string | null;
+      name: string;
+      channel: string;
+      trackingCode: string | null;
+      archivedAt: string | null;
+      visits: number;
+      started: number;
+      submitted: number;
+      accepted: number;
+      conversionRate: number | null;
+    }[];
   };
 };
 
@@ -98,14 +130,10 @@ export default function JobDetailPage() {
   });
 
   const job = jobQuery.data as JobDetail | undefined;
-  const maxSource = Math.max(
-    ...(job?.summary.sources.map((source) => source.count) ?? [1]),
-  );
-
   async function copyLink() {
     if (!job) return;
     await navigator.clipboard.writeText(job.publicApplicationUrl);
-    toast({ title: "Application link copied" });
+    toast({ title: "Direct application link copied" });
   }
 
   return (
@@ -147,7 +175,7 @@ export default function JobDetailPage() {
                   className="border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] hover:bg-[var(--skilio-control)]"
                 >
                   <Copy className="h-4 w-4" />
-                  Copy link
+                  Copy direct link
                 </Button>
                 <Button
                   asChild
@@ -260,7 +288,7 @@ export default function JobDetailPage() {
                             </div>
                           </TableCell>
                           <TableCell className="capitalize text-[var(--skilio-ink-soft)]">
-                            {(applicant.source ?? "direct").toLowerCase()}
+                            {applicant.job_source_links?.name ?? "Direct"}
                           </TableCell>
                           <TableCell className="font-medium tabular-nums text-[var(--skilio-ink)]">
                             {applicant.matchScore === null
@@ -331,7 +359,7 @@ export default function JobDetailPage() {
                             Source
                           </dt>
                           <dd className="mt-1 truncate text-sm capitalize text-[var(--skilio-ink)]">
-                            {(applicant.source ?? "direct").toLowerCase()}
+                            {applicant.job_source_links?.name ?? "Direct"}
                           </dd>
                         </div>
                         <div>
@@ -361,6 +389,13 @@ export default function JobDetailPage() {
               </>
             )}
           </SkilioPanel>
+
+          <SourceAttributionPanel
+            jobId={job.id}
+            directApplicationUrl={job.publicApplicationUrl}
+            sourceLinks={job.sourceLinks}
+            attribution={job.attribution}
+          />
 
           <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
             <SkilioPanel>
@@ -484,47 +519,6 @@ export default function JobDetailPage() {
                 </div>
               </section>
 
-              <section className="border-t border-[var(--skilio-border)] p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-semibold text-[var(--skilio-ink)]">
-                    Applicant sources
-                  </h3>
-                  <span className="text-sm tabular-nums text-[var(--skilio-ink-muted)]">
-                    {job.summary.totalApplicants} total
-                  </span>
-                </div>
-                <div className="mt-4 space-y-4">
-                  {job.summary.sources.length === 0 ? (
-                    <p className="text-sm text-[var(--skilio-ink-soft)]">
-                      Source data appears after candidates apply.
-                    </p>
-                  ) : (
-                    job.summary.sources.map((source) => (
-                      <div key={source.source}>
-                        <div className="flex justify-between text-sm">
-                          <span className="capitalize text-[var(--skilio-ink-soft)]">
-                            {source.source.toLowerCase()}
-                          </span>
-                          <span className="font-medium tabular-nums text-[var(--skilio-ink)]">
-                            {source.count}
-                          </span>
-                        </div>
-                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--skilio-control-strong)]">
-                          <div
-                            className="h-full rounded-full bg-[var(--skilio-brand)]"
-                            style={{
-                              width: `${Math.max(
-                                8,
-                                (source.count / maxSource) * 100,
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
             </SkilioPanel>
           </div>
         </>

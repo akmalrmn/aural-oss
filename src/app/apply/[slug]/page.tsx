@@ -401,6 +401,8 @@ export default function CandidateApplicationPage() {
   const { user, profile, skilioIdentity, loading: authLoading } = useAuth();
   const submittingRef = useRef(false);
   const appliedSkilioSkillsRef = useRef(false);
+  const attributionEventsRef = useRef(new Set<string>());
+  const sourceTrackingCode = searchParams.get("src")?.trim() || null;
   const [submitted, setSubmitted] = useState(false);
   const [hasStarted, setHasStarted] = useState(
     searchParams.get("stage") === "access",
@@ -428,6 +430,7 @@ export default function CandidateApplicationPage() {
   const [drawingResponses, setDrawingResponses] = useState<
     ApplicationDrawingResponse[]
   >([]);
+  const [sourceVisitorId, setSourceVisitorId] = useState<string | null>(null);
 
   const jobQuery = trpc.job.getPublicBySlug.useQuery(
     { slug: params.slug },
@@ -443,6 +446,7 @@ export default function CandidateApplicationPage() {
       submittingRef.current = false;
     },
   });
+  const trackSourceVisit = trpc.job.trackSourceVisit.useMutation();
 
   const job = jobQuery.data as PublicJob | undefined;
   const jobUnavailable = jobQuery.isError || (!job && !jobQuery.isLoading);
@@ -466,6 +470,51 @@ export default function CandidateApplicationPage() {
     () => getSkillEvidence(skilioProfileSnapshot),
     [skilioProfileSnapshot],
   );
+
+  useEffect(() => {
+    const storageKey = `skilio-job-attribution:${params.slug}`;
+    let visitorId = window.localStorage.getItem(storageKey);
+
+    if (!visitorId && sourceTrackingCode) {
+      visitorId = window.crypto.randomUUID();
+      window.localStorage.setItem(storageKey, visitorId);
+    }
+    if (visitorId) setSourceVisitorId(visitorId);
+    if (!visitorId || !sourceTrackingCode) return;
+
+    const eventKey = `VISIT:${visitorId}:${sourceTrackingCode}`;
+    if (attributionEventsRef.current.has(eventKey)) return;
+    attributionEventsRef.current.add(eventKey);
+    trackSourceVisit.mutate({
+      slug: params.slug,
+      trackingCode: sourceTrackingCode,
+      visitorId,
+      event: "VISIT",
+      landingPath: `${window.location.pathname}${window.location.search}`,
+      referrer: document.referrer || undefined,
+    });
+  }, [params.slug, sourceTrackingCode, trackSourceVisit]);
+
+  useEffect(() => {
+    if (!hasStarted || !sourceTrackingCode || !sourceVisitorId) return;
+    const eventKey = `START:${sourceVisitorId}:${sourceTrackingCode}`;
+    if (attributionEventsRef.current.has(eventKey)) return;
+    attributionEventsRef.current.add(eventKey);
+    trackSourceVisit.mutate({
+      slug: params.slug,
+      trackingCode: sourceTrackingCode,
+      visitorId: sourceVisitorId,
+      event: "START",
+      landingPath: `${window.location.pathname}${window.location.search}`,
+      referrer: document.referrer || undefined,
+    });
+  }, [
+    hasStarted,
+    params.slug,
+    sourceTrackingCode,
+    sourceVisitorId,
+    trackSourceVisit,
+  ]);
 
   useEffect(() => {
     if (!user) return;
@@ -660,6 +709,7 @@ export default function CandidateApplicationPage() {
       portfolioUserId: skilioIdentity?.portfolioUserId,
       identityLinkId: skilioIdentity?.id,
       source: applyingWithSkilio ? "SKILIO" : "GUEST",
+      sourceVisitorId: sourceVisitorId ?? undefined,
       name: name.trim(),
       email: email.trim(),
       phone: cleanOptionalText(
@@ -696,7 +746,9 @@ export default function CandidateApplicationPage() {
     });
   }
 
-  const applyNextPath = `/apply/${params.slug}?stage=access`;
+  const applyNextSearch = new URLSearchParams({ stage: "access" });
+  if (sourceTrackingCode) applyNextSearch.set("src", sourceTrackingCode);
+  const applyNextPath = `/apply/${params.slug}?${applyNextSearch.toString()}`;
   const signInHref = `/auth/skilio/start?next=${encodeURIComponent(applyNextPath)}`;
 
   return (

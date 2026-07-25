@@ -13,6 +13,7 @@ import {
   computeApplicationMatch,
   createJobPublicSlug,
   getNextJobStatus,
+  summarizeJobAttribution,
   summarizeJobApplications,
   type ApplicationStatus,
   type JobStatus,
@@ -31,8 +32,25 @@ import {
 const JOB_SELECT = `
   *,
   job_skills(*),
-  job_applications(id,status,source,matchScore,submittedAt,name,email)
+  job_applications(
+    id,
+    status,
+    source,
+    applicationMethod,
+    sourceLinkId,
+    matchScore,
+    submittedAt,
+    name,
+    email,
+    job_source_links(name,channel)
+  )
 `;
+
+const DEFAULT_SOURCE_LINKS = [
+  { name: "LinkedIn", channel: "LINKEDIN", presetKey: "LINKEDIN", prefix: "li" },
+  { name: "JobStreet", channel: "JOBSTREET", presetKey: "JOBSTREET", prefix: "js" },
+  { name: "Indeed", channel: "INDEED", presetKey: "INDEED", prefix: "in" },
+] as const;
 
 const skillSchema = z.object({
   name: z.string().min(1).max(80),
@@ -125,6 +143,12 @@ type JobApplicationListItem = {
   id: string;
   status: ApplicationStatus;
   source: string | null;
+  applicationMethod?: "SKILIO" | "GUEST" | null;
+  sourceLinkId?: string | null;
+  job_source_links?: {
+    name: string;
+    channel: string;
+  } | null;
   matchScore: number | null;
   submittedAt?: string;
   name?: string;
@@ -140,6 +164,25 @@ type JobPostingRecord = {
   job_skills?: JobSkill[];
   job_applications?: JobApplicationListItem[];
   [key: string]: unknown;
+};
+
+type JobSourceLinkRecord = {
+  id: string;
+  jobId: string;
+  name: string;
+  channel: "LINKEDIN" | "JOBSTREET" | "INDEED" | "CUSTOM";
+  presetKey: "LINKEDIN" | "JOBSTREET" | "INDEED" | null;
+  trackingCode: string;
+  archivedAt: string | null;
+  createdAt: string;
+};
+
+type JobSourceVisitRecord = {
+  id: string;
+  jobId: string;
+  sourceLinkId: string;
+  visitorId: string;
+  applicationStartedAt: string | null;
 };
 
 function drawingAssessmentFromSnapshot(
@@ -278,6 +321,22 @@ function publicApplicationUrl(slug: string) {
   return `${appUrl.replace(/\/$/, "")}/apply/${slug}`;
 }
 
+function sourceApplicationUrl(slug: string, trackingCode: string) {
+  const url = new URL(publicApplicationUrl(slug));
+  url.searchParams.set("src", trackingCode);
+  return url.toString();
+}
+
+function defaultSourceLinkRows(jobId: string) {
+  return DEFAULT_SOURCE_LINKS.map((source) => ({
+    jobId,
+    name: source.name,
+    channel: source.channel,
+    presetKey: source.presetKey,
+    trackingCode: `${source.prefix}_${nanoid(12)}`,
+  }));
+}
+
 export const jobRouter = router({
   list: protectedProcedure
     .input(
@@ -338,20 +397,55 @@ export const jobRouter = router({
     .query(async ({ ctx, input }) => {
       const supabase = ctx.supabase as SupabaseLike;
       const accessJob = await getJobForAccess(supabase, input.id, ctx.user.id);
-      const { data, error } = await supabase
-        .from("job_postings")
-        .select(JOB_SELECT)
-        .eq("id", accessJob.id)
-        .single();
+      const [jobResult, sourceLinksResult, sourceVisitsResult] =
+        await Promise.all([
+          supabase
+            .from("job_postings")
+            .select(JOB_SELECT)
+            .eq("id", accessJob.id)
+            .single(),
+          supabase
+            .from("job_source_links")
+            .select("*")
+            .eq("jobId", accessJob.id)
+            .order("createdAt", { ascending: true }),
+          supabase
+            .from("job_source_visits")
+            .select("id,jobId,sourceLinkId,visitorId,applicationStartedAt")
+            .eq("jobId", accessJob.id),
+        ]);
 
-      if (error || !data) {
+      if (jobResult.error || !jobResult.data) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
+      if (sourceLinksResult.error || sourceVisitsResult.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            sourceLinksResult.error?.message ??
+            sourceVisitsResult.error?.message ??
+            "Failed to load source attribution.",
+        });
+      }
 
-      const shaped = shapeJob(data as JobPostingRecord);
+      const shaped = shapeJob(jobResult.data as JobPostingRecord);
+      const sourceLinks = (sourceLinksResult.data ?? []) as JobSourceLinkRecord[];
+      const sourceVisits = (sourceVisitsResult.data ?? []) as JobSourceVisitRecord[];
       return {
         ...shaped,
         publicApplicationUrl: publicApplicationUrl(shaped.publicSlug),
+        sourceLinks: sourceLinks.map((link) => ({
+          ...link,
+          publicApplicationUrl: sourceApplicationUrl(
+            shaped.publicSlug,
+            link.trackingCode,
+          ),
+        })),
+        attribution: summarizeJobAttribution(
+          sourceLinks,
+          sourceVisits,
+          shaped.job_applications,
+        ),
       };
     }),
 
@@ -412,6 +506,17 @@ export const jobRouter = router({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: skillsError.message,
+        });
+      }
+
+      const { error: sourceLinksError } = await supabase
+        .from("job_source_links")
+        .insert(defaultSourceLinkRows(job.id));
+      if (sourceLinksError) {
+        await supabase.from("job_postings").delete().eq("id", job.id);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: sourceLinksError.message,
         });
       }
 
@@ -544,7 +649,7 @@ export const jobRouter = router({
 
       const { data, error } = await supabase
         .from("job_applications")
-        .select("*, job_postings(id,title,status,projectId)")
+        .select("*, job_postings(id,title,status,projectId), job_source_links(name,channel)")
         .in("jobId", jobIds)
         .order("submittedAt", { ascending: false });
 
@@ -561,7 +666,7 @@ export const jobRouter = router({
       const supabase = ctx.supabase as SupabaseLike;
       const { data, error } = await supabase
         .from("job_applications")
-        .select("*, job_postings(id,title,status,projectId,publicSlug,department,location,employmentType,seniority,screeningQuestions,job_skills(*)), job_application_files(*)")
+        .select("*, job_postings(id,title,status,projectId,publicSlug,department,location,employmentType,seniority,screeningQuestions,job_skills(*)), job_application_files(*), job_source_links(name,channel)")
         .eq("id", input.id)
         .single();
 
@@ -629,6 +734,188 @@ export const jobRouter = router({
       return shapeJob({ ...(data as JobPostingRecord), job_applications: [] });
     }),
 
+  createSourceLink: protectedProcedure
+    .input(
+      z.object({
+        jobId: z.string().uuid(),
+        name: z.string().trim().min(1).max(80),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const supabase = ctx.supabase as SupabaseLike;
+      const job = await getJobForAccess(
+        supabase,
+        input.jobId,
+        ctx.user.id,
+        "MEMBER",
+      );
+      const { data, error } = await supabase
+        .from("job_source_links")
+        .insert({
+          jobId: job.id,
+          name: input.name,
+          channel: "CUSTOM",
+          presetKey: null,
+          trackingCode: `cu_${nanoid(12)}`,
+        })
+        .select()
+        .single();
+
+      if (error || !data) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error?.message ?? "Failed to create source link.",
+        });
+      }
+
+      return {
+        ...data,
+        publicApplicationUrl: sourceApplicationUrl(
+          job.publicSlug,
+          data.trackingCode,
+        ),
+      };
+    }),
+
+  setSourceLinkArchived: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        archived: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const supabase = ctx.supabase as SupabaseLike;
+      const { data: link, error: linkError } = await supabase
+        .from("job_source_links")
+        .select("id,jobId,channel")
+        .eq("id", input.id)
+        .single();
+
+      if (linkError || !link) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      await getJobForAccess(
+        supabase,
+        link.jobId,
+        ctx.user.id,
+        "MEMBER",
+      );
+      if (link.channel !== "CUSTOM") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Preset source links cannot be archived.",
+        });
+      }
+
+      const { data, error } = await supabase
+        .from("job_source_links")
+        .update({ archivedAt: input.archived ? new Date().toISOString() : null })
+        .eq("id", input.id)
+        .select()
+        .single();
+
+      if (error || !data) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error?.message ?? "Failed to update source link.",
+        });
+      }
+      return data;
+    }),
+
+  trackSourceVisit: publicProcedure
+    .input(
+      z.object({
+        slug: z.string().min(1).max(180),
+        trackingCode: z.string().min(8).max(40),
+        visitorId: z.string().min(8).max(100),
+        event: z.enum(["VISIT", "START"]).default("VISIT"),
+        landingPath: z.string().max(500).optional(),
+        referrer: z.string().max(500).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const supabase = ctx.supabase as SupabaseLike;
+      const { data: job } = await supabase
+        .from("job_postings")
+        .select("id")
+        .eq("publicSlug", input.slug)
+        .eq("status", "ACTIVE")
+        .single();
+      if (!job) return { attributed: false as const };
+
+      const { data: requestedLink } = await supabase
+        .from("job_source_links")
+        .select("id")
+        .eq("jobId", job.id)
+        .eq("trackingCode", input.trackingCode)
+        .is("archivedAt", null)
+        .single();
+      if (!requestedLink) return { attributed: false as const };
+
+      const now = new Date().toISOString();
+      const { data: existingVisit } = await supabase
+        .from("job_source_visits")
+        .select("id,sourceLinkId,applicationStartedAt")
+        .eq("jobId", job.id)
+        .eq("visitorId", input.visitorId)
+        .maybeSingle();
+
+      if (existingVisit) {
+        const patch: Record<string, string> = { lastVisitedAt: now };
+        if (
+          input.event === "START" &&
+          !existingVisit.applicationStartedAt
+        ) {
+          patch.applicationStartedAt = now;
+        }
+        await supabase
+          .from("job_source_visits")
+          .update(patch)
+          .eq("id", existingVisit.id);
+        return {
+          attributed: true as const,
+          visitId: existingVisit.id,
+          sourceLinkId: existingVisit.sourceLinkId,
+        };
+      }
+
+      const { data: createdVisit, error } = await supabase
+        .from("job_source_visits")
+        .insert({
+          jobId: job.id,
+          sourceLinkId: requestedLink.id,
+          visitorId: input.visitorId,
+          landingPath: input.landingPath,
+          referrer: input.referrer,
+          applicationStartedAt: input.event === "START" ? now : null,
+        })
+        .select("id,sourceLinkId")
+        .single();
+
+      if (error || !createdVisit) {
+        const { data: racedVisit } = await supabase
+          .from("job_source_visits")
+          .select("id,sourceLinkId")
+          .eq("jobId", job.id)
+          .eq("visitorId", input.visitorId)
+          .maybeSingle();
+        if (!racedVisit) return { attributed: false as const };
+        return {
+          attributed: true as const,
+          visitId: racedVisit.id,
+          sourceLinkId: racedVisit.sourceLinkId,
+        };
+      }
+
+      return {
+        attributed: true as const,
+        visitId: createdVisit.id,
+        sourceLinkId: createdVisit.sourceLinkId,
+      };
+    }),
+
   getDrawingAssessmentStatus: publicProcedure
     .input(
       z
@@ -674,6 +961,7 @@ export const jobRouter = router({
         source: z
           .enum(["SKILIO", "GUEST", "DIRECT", "LINKEDIN", "JOBSTREET", "INDEED", "OTHER"])
           .default("GUEST"),
+        sourceVisitorId: z.string().min(8).max(100).optional(),
         name: z.string().min(2).max(120),
         email: z.string().email(),
         phone: z.string().max(40).optional(),
@@ -733,6 +1021,15 @@ export const jobRouter = router({
         });
       }
 
+      const { data: sourceVisit } = input.sourceVisitorId
+        ? await supabase
+            .from("job_source_visits")
+            .select("id,sourceLinkId")
+            .eq("jobId", job.id)
+            .eq("visitorId", input.sourceVisitorId)
+            .maybeSingle()
+        : { data: null };
+
       const { data, error: insertError } = await supabase
         .from("job_applications")
         .insert({
@@ -740,6 +1037,9 @@ export const jobRouter = router({
           portfolioUserId: input.portfolioUserId,
           identityLinkId: input.identityLinkId,
           source: input.source,
+          applicationMethod: input.source === "SKILIO" ? "SKILIO" : "GUEST",
+          sourceLinkId: sourceVisit?.sourceLinkId ?? null,
+          sourceVisitId: sourceVisit?.id ?? null,
           name: input.name,
           email: input.email.trim().toLowerCase(),
           phone: input.phone,
@@ -764,6 +1064,16 @@ export const jobRouter = router({
           code: "INTERNAL_SERVER_ERROR",
           message: insertError?.message ?? "Failed to submit application.",
         });
+      }
+
+      if (sourceVisit) {
+        await supabase
+          .from("job_source_visits")
+          .update({
+            applicationId: data.id,
+            applicationSubmittedAt: new Date().toISOString(),
+          })
+          .eq("id", sourceVisit.id);
       }
 
       return data;

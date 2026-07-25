@@ -38,14 +38,18 @@ type ApplicationItem = {
   jobTitle: string;
   jobId: string;
   source: string | null;
+  applicationMethod?: string | null;
+  job_source_links?: {
+    name: string;
+    channel: string;
+  } | null;
   status: string;
   matchScore: number | null;
   submittedAt?: string;
 };
 
-function formatSource(source: string | null) {
-  if (!source) return "Direct";
-  return source.charAt(0).toUpperCase() + source.slice(1);
+function formatSource(sourceLink: ApplicationItem["job_source_links"]) {
+  return sourceLink?.name ?? "Direct";
 }
 
 export default function HiringOverviewPage() {
@@ -72,7 +76,7 @@ export default function HiringOverviewPage() {
       (application) => application.status === "SHORTLISTED",
     ).length;
     const sources = applications.reduce<Record<string, number>>((acc, application) => {
-      const source = formatSource(application.source);
+      const source = formatSource(application.job_source_links);
       acc[source] = (acc[source] ?? 0) + 1;
       return acc;
     }, {});
@@ -293,7 +297,7 @@ export default function HiringOverviewPage() {
                         {applicant.matchScore === null ? "-" : `${applicant.matchScore}%`}
                       </div>
                       <div className="text-xs text-[var(--skilio-ink-muted)]">
-                        {formatSource(applicant.source)}
+                        {formatSource(applicant.job_source_links)}
                       </div>
                     </div>
                   </Link>

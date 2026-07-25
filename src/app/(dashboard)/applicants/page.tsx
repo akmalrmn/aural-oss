@@ -31,6 +31,11 @@ type Applicant = {
   email: string;
   status: string;
   source: string | null;
+  applicationMethod?: string | null;
+  job_source_links?: {
+    name: string;
+    channel: string;
+  } | null;
   matchScore: number | null;
   submittedAt: string;
   job_postings?: {
@@ -40,8 +45,8 @@ type Applicant = {
   };
 };
 
-function formatSource(source: string | null) {
-  return (source ?? "direct").toLowerCase();
+function formatSource(sourceLink: Applicant["job_source_links"]) {
+  return sourceLink?.name ?? "Direct";
 }
 
 export default function ApplicantsPage() {
@@ -211,7 +216,7 @@ export default function ApplicantsPage() {
                         )}
                       </TableCell>
                       <TableCell className="capitalize text-[var(--skilio-ink-soft)]">
-                        {formatSource(applicant.source)}
+                        {formatSource(applicant.job_source_links)}
                       </TableCell>
                       <TableCell className="font-medium tabular-nums text-[var(--skilio-ink)]">
                         {applicant.matchScore === null
@@ -292,7 +297,7 @@ export default function ApplicantsPage() {
                     <div>
                       <dt className="text-xs text-[var(--skilio-ink-muted)]">Source</dt>
                       <dd className="mt-1 truncate text-sm capitalize text-[var(--skilio-ink)]">
-                        {formatSource(applicant.source)}
+                        {formatSource(applicant.job_source_links)}
                       </dd>
                     </div>
                     <div>

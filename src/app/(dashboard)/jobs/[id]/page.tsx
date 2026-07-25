@@ -440,7 +440,7 @@ export default function JobDetailPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="font-heading text-lg font-semibold text-[var(--skilio-ink)]">
-                      Opening controls
+                      Job post status
                     </h2>
                     <p className="mt-1 text-sm text-[var(--skilio-ink-muted)]">
                       Control whether candidates can apply.

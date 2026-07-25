@@ -15,6 +15,10 @@ import {
   ScreeningQuestionEditor,
   type ScreeningQuestionDraft,
 } from "@/components/jobs/screening-question-editor";
+import {
+  SkillCataloguePicker,
+  type CatalogueSkill,
+} from "@/components/jobs/skill-catalogue-picker";
 import { SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { useProject } from "@/components/project-provider";
 import { Badge } from "@/components/ui/badge";
@@ -39,25 +43,18 @@ type SkillDraft = {
   name: string;
   kind: "HARD" | "SOFT";
   priority: "MUST" | "NICE";
+  lightcastId?: string | null;
+  lightcastType?: string | null;
+  lightcastDescription?: string | null;
+  lightcastApiVersion?: string | null;
+  lightcastCategoryId?: string | null;
+  lightcastCategoryName?: string | null;
+  lightcastSubcategoryId?: string | null;
+  lightcastSubcategoryName?: string | null;
+  skillSource: "LIGHTCAST" | "CUSTOM";
 };
 
-const starterSkills: SkillDraft[] = [
-  { name: "Communication", kind: "SOFT", priority: "MUST" },
-  { name: "Problem solving", kind: "SOFT", priority: "MUST" },
-];
-
-const skillSignals = [
-  { name: "Data analysis", terms: ["data", "analytics", "metrics", "insight"] },
-  { name: "Project management", terms: ["project", "roadmap", "delivery", "stakeholder"] },
-  { name: "Product strategy", terms: ["product", "strategy", "market", "roadmap"] },
-  { name: "User research", terms: ["research", "interview", "customer", "user"] },
-  { name: "UX design", terms: ["ux", "experience design", "wireframe", "prototype"] },
-  { name: "Figma", terms: ["figma", "prototype", "design system"] },
-  { name: "React", terms: ["react", "frontend", "typescript", "javascript"] },
-  { name: "SQL", terms: ["sql", "database", "query", "warehouse"] },
-  { name: "Python", terms: ["python", "machine learning", "automation"] },
-  { name: "Leadership", terms: ["lead", "mentor", "manager", "leadership"] },
-];
+const starterSkills: SkillDraft[] = [];
 
 const fieldClass = "mt-2 shadow-none";
 const selectTriggerClass = "mt-2 shadow-none";
@@ -108,16 +105,18 @@ export default function JobCreationWizardPage() {
   const [seniority, setSeniority] = useState("Mid-level");
   const [description, setDescription] = useState("");
   const [skills, setSkills] = useState<SkillDraft[]>(starterSkills);
+  const [suggestedSkills, setSuggestedSkills] = useState<CatalogueSkill[]>([]);
+  const [lastSuggestedDescription, setLastSuggestedDescription] = useState("");
   const [screeningQuestions, setScreeningQuestions] = useState<
     ScreeningQuestionDraft[]
   >([]);
-  const [skillName, setSkillName] = useState("");
   const [skillKind, setSkillKind] = useState<"HARD" | "SOFT">("HARD");
   const [skillPriority, setSkillPriority] = useState<"MUST" | "NICE">("MUST");
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const createJob = trpc.job.create.useMutation();
   const transition = trpc.job.transition.useMutation();
+  const suggestSkills = trpc.job.suggestSkills.useMutation();
 
   const canContinue = useMemo(() => {
     if (step === 0) return title.trim().length >= 2 && !!currentProject && !projectLoading;
@@ -132,34 +131,79 @@ export default function JobCreationWizardPage() {
     return true;
   }, [currentProject, projectLoading, screeningQuestions, skills.length, step, title]);
 
-  const suggestedSkills = useMemo(() => {
-    const source = `${title} ${department} ${description}`.toLowerCase();
-    return skillSignals
-      .filter(({ name, terms }) =>
-        terms.some((term) => source.includes(term)) &&
-        !skills.some((skill) => skill.name.toLowerCase() === name.toLowerCase()),
-      )
-      .map(({ name }) => name)
-      .slice(0, 6);
-  }, [department, description, skills, title]);
+  const availableSuggestions = useMemo(
+    () =>
+      suggestedSkills.filter(
+        (suggestion) =>
+          !skills.some(
+            (skill) =>
+              skill.lightcastId === suggestion.id ||
+              skill.name.toLowerCase() === suggestion.name.toLowerCase(),
+          ),
+      ),
+    [skills, suggestedSkills],
+  );
 
-  function addSkill() {
-    const normalized = skillName.trim();
+  function addSkill(skill: SkillDraft) {
+    const normalized = skill.name.trim();
     if (!normalized) return;
     if (skills.some((skill) => skill.name.toLowerCase() === normalized.toLowerCase())) {
       toast({ title: "Skill already added" });
       return;
     }
-    setSkills([...skills, { name: normalized, kind: skillKind, priority: skillPriority }]);
-    setSkillName("");
+    setSkills([...skills, { ...skill, name: normalized }]);
   }
 
-  function advance() {
+  function addCatalogueSkill(skill: CatalogueSkill) {
+    addSkill({
+      name: skill.name,
+      kind: skill.type === "Common Skill" ? "SOFT" : skillKind,
+      priority: skillPriority,
+      lightcastId: skill.id,
+      lightcastType: skill.type,
+      lightcastDescription: skill.description,
+      lightcastApiVersion: skill.apiVersion,
+      lightcastCategoryId: skill.categoryId,
+      lightcastCategoryName: skill.categoryName,
+      lightcastSubcategoryId: skill.subcategoryId,
+      lightcastSubcategoryName: skill.subcategoryName,
+      skillSource: "LIGHTCAST",
+    });
+  }
+
+  function addCustomSkill(name: string) {
+    addSkill({
+      name,
+      kind: skillKind,
+      priority: skillPriority,
+      skillSource: "CUSTOM",
+    });
+  }
+
+  async function advance() {
     const nextStep = Math.min(steps.length - 1, step + 1);
     setStep(nextStep);
     setFurthestStep((current) => Math.max(current, nextStep));
     setSubmitError(null);
     resetStepScroll();
+
+    const normalizedDescription = description.trim();
+    if (
+      step === 0 &&
+      normalizedDescription.length >= 80 &&
+      normalizedDescription !== lastSuggestedDescription
+    ) {
+      setLastSuggestedDescription(normalizedDescription);
+      try {
+        const suggestions = await suggestSkills.mutateAsync({
+          description: normalizedDescription,
+          limit: 12,
+        });
+        setSuggestedSkills(suggestions);
+      } catch {
+        setSuggestedSkills([]);
+      }
+    }
   }
 
   function goBack() {
@@ -436,21 +480,13 @@ export default function JobCreationWizardPage() {
 
           {step === 1 && (
             <div className="space-y-6">
-              <div className="grid gap-4 border-b border-[var(--skilio-border)] pb-6 md:grid-cols-[minmax(0,1fr)_148px_160px_auto] md:items-end">
+              <div className="grid gap-4 border-b border-[var(--skilio-border)] pb-6 md:grid-cols-[minmax(0,1fr)_148px_160px] md:items-end">
                 <div>
-                  <Label htmlFor="skill-name">Skill</Label>
-                  <Input
-                    id="skill-name"
-                    value={skillName}
-                    onChange={(event) => setSkillName(event.target.value)}
-                    placeholder="For example, Figma"
-                    className="mt-2 shadow-none"
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        addSkill();
-                      }
-                    }}
+                  <Label>Skill</Label>
+                  <SkillCataloguePicker
+                    excludedNames={skills.map((skill) => skill.name)}
+                    onSelect={addCatalogueSkill}
+                    onAddCustom={addCustomSkill}
                   />
                 </div>
                 <div>
@@ -487,50 +523,80 @@ export default function JobCreationWizardPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button
-                  type="button"
-                  onClick={addSkill}
-                  className="w-full gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)] md:w-auto"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add skill
-                </Button>
               </div>
 
-              {suggestedSkills.length > 0 && (
+              {(description.trim().length >= 80 || suggestSkills.isLoading) && (
                 <section aria-labelledby="suggested-skills-title">
-                  <div className="text-sm font-semibold text-[var(--skilio-ink)]">
-                    <span id="suggested-skills-title">
-                      Suggested from the role description
-                    </span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-[var(--skilio-ink)]">
+                      <span id="suggested-skills-title">
+                        Suggested from the job description
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={
+                        suggestSkills.isLoading || description.trim().length < 80
+                      }
+                      onClick={async () => {
+                        const normalizedDescription = description.trim();
+                        setLastSuggestedDescription(normalizedDescription);
+                        try {
+                          setSuggestedSkills(
+                            await suggestSkills.mutateAsync({
+                              description: normalizedDescription,
+                              limit: 12,
+                            }),
+                          );
+                        } catch {
+                          setSuggestedSkills([]);
+                        }
+                      }}
+                      className="text-[var(--skilio-brand-strong)] hover:bg-[var(--skilio-control)]"
+                    >
+                      {suggestSkills.isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : null}
+                      Refresh suggestions
+                    </Button>
                   </div>
                   <p className="mt-1 text-xs text-[var(--skilio-ink-soft)]">
-                    Review each suggestion before adding it to the role.
+                    Lightcast identified these capabilities. Add only the ones
+                    the role genuinely requires.
                   </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {suggestedSkills.map((suggestion) => (
-                      <Button
-                        key={suggestion}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="gap-2 rounded-[var(--skilio-radius-sm)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] hover:bg-[var(--skilio-control)]"
-                        onClick={() =>
-                          setSkills([
-                            ...skills,
-                            {
-                              name: suggestion,
-                              kind: "HARD",
-                              priority: "MUST",
-                            },
-                          ])
-                        }
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        {suggestion}
-                      </Button>
-                    ))}
-                  </div>
+                  {suggestSkills.isLoading ? (
+                    <div className="mt-3 flex min-h-16 items-center gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control)] px-4 text-sm text-[var(--skilio-ink-soft)]">
+                      <Loader2 className="h-4 w-4 animate-spin text-[var(--skilio-brand)]" />
+                      Reading the job description
+                    </div>
+                  ) : suggestSkills.isError ? (
+                    <div className="mt-3 rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] px-4 py-3 text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                      Suggestions are unavailable right now. Search the catalogue
+                      or add a custom skill above.
+                    </div>
+                  ) : availableSuggestions.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {availableSuggestions.map((suggestion) => (
+                        <Button
+                          key={suggestion.id}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-2 rounded-[var(--skilio-radius-sm)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] hover:bg-[var(--skilio-control)]"
+                          onClick={() => addCatalogueSkill(suggestion)}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          {suggestion.name}
+                        </Button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-[var(--skilio-ink-muted)]">
+                      No additional catalogue suggestions.
+                    </p>
+                  )}
                 </section>
               )}
 
@@ -562,6 +628,14 @@ export default function JobCreationWizardPage() {
                         >
                           {skill.kind === "HARD" ? "Hard skill" : "Soft skill"}
                         </Badge>
+                        {skill.skillSource === "LIGHTCAST" && (
+                          <Badge
+                            variant="outline"
+                            className="rounded-[var(--skilio-radius-sm)] border-[var(--skilio-border)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink-muted)]"
+                          >
+                            Lightcast
+                          </Badge>
+                        )}
                         <Badge
                           variant="outline"
                           className={cn(

@@ -20,6 +20,12 @@ import {
   type JobStatusAction,
 } from "@/lib/jobs/job-utils";
 import {
+  extractPortfolioSkills,
+  provisionPortfolioAccount,
+  searchPortfolioSkills,
+  type PortfolioProvisioningSkill,
+} from "@/lib/skilio-service-client";
+import {
   assertMinRole,
   getEffectiveProjectRole,
   getOrgMembership,
@@ -56,6 +62,15 @@ const skillSchema = z.object({
   name: z.string().min(1).max(80),
   kind: z.enum(["HARD", "SOFT"]).default("HARD"),
   priority: z.enum(["MUST", "NICE"]).default("MUST"),
+  lightcastId: z.string().max(80).nullish(),
+  lightcastType: z.string().max(80).nullish(),
+  lightcastDescription: z.string().max(2000).nullish(),
+  lightcastApiVersion: z.string().max(40).nullish(),
+  lightcastCategoryId: z.string().max(80).nullish(),
+  lightcastCategoryName: z.string().max(160).nullish(),
+  lightcastSubcategoryId: z.string().max(80).nullish(),
+  lightcastSubcategoryName: z.string().max(160).nullish(),
+  skillSource: z.enum(["LIGHTCAST", "CUSTOM"]).default("CUSTOM"),
 });
 
 const screeningQuestionSchema = z.object({
@@ -137,6 +152,15 @@ type JobSkill = {
   kind: "HARD" | "SOFT";
   priority: "MUST" | "NICE";
   displayOrder: number;
+  lightcastId?: string | null;
+  lightcastType?: string | null;
+  lightcastDescription?: string | null;
+  lightcastApiVersion?: string | null;
+  lightcastCategoryId?: string | null;
+  lightcastCategoryName?: string | null;
+  lightcastSubcategoryId?: string | null;
+  lightcastSubcategoryName?: string | null;
+  skillSource?: "LIGHTCAST" | "CUSTOM";
 };
 
 type JobApplicationListItem = {
@@ -184,6 +208,142 @@ type JobSourceVisitRecord = {
   visitorId: string;
   applicationStartedAt: string | null;
 };
+
+type PortfolioProvisioningView = {
+  status: "CREATED" | "EXISTING_ACCOUNT" | "FAILED";
+  nextUrl?: string | null;
+  activationEmailSent?: boolean | null;
+  message?: string;
+};
+
+function portfolioSkillType(
+  value?: string | null,
+): PortfolioProvisioningSkill["lightcastType"] {
+  if (value === "Specialized Skill" || value === "SPECIALIZED") {
+    return "SPECIALIZED";
+  }
+  if (value === "Common Skill" || value === "COMMON") return "COMMON";
+  if (value === "Certification" || value === "CERTIFICATION") {
+    return "CERTIFICATION";
+  }
+  return null;
+}
+
+function provisioningSkills(
+  selectedSkills: string[],
+  jobSkills: JobSkill[],
+): PortfolioProvisioningSkill[] {
+  return selectedSkills.map((name) => {
+    const jobSkill = jobSkills.find(
+      (skill) => skill.name.trim().toLowerCase() === name.trim().toLowerCase(),
+    );
+    if (!jobSkill) return { name };
+
+    return {
+      name,
+      lightcastId: jobSkill.lightcastId,
+      lightcastType: portfolioSkillType(jobSkill.lightcastType),
+      lightcastDescription: jobSkill.lightcastDescription,
+      lightcastApiVersion: jobSkill.lightcastApiVersion,
+      categoryId: jobSkill.lightcastCategoryId,
+      categoryName: jobSkill.lightcastCategoryName,
+      subcategoryId: jobSkill.lightcastSubcategoryId,
+      subcategoryName: jobSkill.lightcastSubcategoryName,
+    };
+  });
+}
+
+async function runPortfolioProvisioning(
+  supabase: SupabaseLike,
+  input: {
+    applicationId: string;
+    name: string;
+    email: string;
+    country?: string | null;
+    phone?: string | null;
+    selectedSkills: string[];
+    jobSkills: JobSkill[];
+  },
+): Promise<PortfolioProvisioningView> {
+  const { data: current } = await supabase
+    .from("job_application_provisioning")
+    .select("id,attempts,status")
+    .eq("applicationId", input.applicationId)
+    .maybeSingle();
+  const attempts = Math.min((current?.attempts ?? 0) + 1, 5);
+  const pending = {
+    status: "PENDING",
+    attempts,
+    lastAttemptAt: new Date().toISOString(),
+    lastError: null,
+  };
+
+  if (current) {
+    await supabase
+      .from("job_application_provisioning")
+      .update(pending)
+      .eq("id", current.id);
+  } else {
+    const { error } = await supabase
+      .from("job_application_provisioning")
+      .insert({
+        applicationId: input.applicationId,
+        ...pending,
+      });
+    if (error) {
+      return {
+        status: "FAILED",
+        message: "Your application was submitted, but Skilio account setup could not start.",
+      };
+    }
+  }
+
+  try {
+    const result = await provisionPortfolioAccount({
+      applicationId: input.applicationId,
+      name: input.name,
+      email: input.email,
+      country: input.country,
+      phone: input.phone,
+      skills: provisioningSkills(input.selectedSkills, input.jobSkills),
+    });
+    const status =
+      result.status === "CREATED" ? "COMPLETED" : "EXISTING_ACCOUNT";
+    await supabase
+      .from("job_application_provisioning")
+      .update({
+        status,
+        portfolioUserId: result.portfolioUserId,
+        username: result.username,
+        nextUrl: result.nextUrl,
+        activationEmailSent: result.activationEmailSent ?? null,
+        completedAt: new Date().toISOString(),
+        lastError: null,
+      })
+      .eq("applicationId", input.applicationId);
+
+    return {
+      status: result.status,
+      nextUrl: result.nextUrl,
+      activationEmailSent: result.activationEmailSent,
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Skilio account setup failed.";
+    await supabase
+      .from("job_application_provisioning")
+      .update({
+        status: "FAILED",
+        lastError: message,
+      })
+      .eq("applicationId", input.applicationId);
+    return {
+      status: "FAILED",
+      message:
+        "Your application was submitted, but Skilio account setup needs another attempt.",
+    };
+  }
+}
 
 function drawingAssessmentFromSnapshot(
   snapshot: unknown,
@@ -338,6 +498,48 @@ function defaultSourceLinkRows(jobId: string) {
 }
 
 export const jobRouter = router({
+  searchSkills: protectedProcedure
+    .input(
+      z.object({
+        query: z.string().trim().min(2).max(80),
+        limit: z.number().int().min(1).max(20).default(10),
+      }),
+    )
+    .query(async ({ input }) => {
+      try {
+        return await searchPortfolioSkills(input.query, input.limit);
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "The skill catalogue is temporarily unavailable.",
+        });
+      }
+    }),
+
+  suggestSkills: protectedProcedure
+    .input(
+      z.object({
+        description: z.string().trim().min(80).max(6000),
+        limit: z.number().int().min(1).max(20).default(12),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await extractPortfolioSkills(input.description, input.limit);
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Skills could not be suggested from this description.",
+        });
+      }
+    }),
+
   list: protectedProcedure
     .input(
       z.object({
@@ -497,6 +699,15 @@ export const jobRouter = router({
         name: skill.name.trim(),
         kind: skill.kind,
         priority: skill.priority,
+        lightcastId: skill.lightcastId ?? null,
+        lightcastType: skill.lightcastType ?? null,
+        lightcastDescription: skill.lightcastDescription ?? null,
+        lightcastApiVersion: skill.lightcastApiVersion ?? null,
+        lightcastCategoryId: skill.lightcastCategoryId ?? null,
+        lightcastCategoryName: skill.lightcastCategoryName ?? null,
+        lightcastSubcategoryId: skill.lightcastSubcategoryId ?? null,
+        lightcastSubcategoryName: skill.lightcastSubcategoryName ?? null,
+        skillSource: skill.lightcastId ? "LIGHTCAST" : "CUSTOM",
         displayOrder: index,
       }));
 
@@ -567,6 +778,15 @@ export const jobRouter = router({
             name: skill.name.trim(),
             kind: skill.kind,
             priority: skill.priority,
+            lightcastId: skill.lightcastId ?? null,
+            lightcastType: skill.lightcastType ?? null,
+            lightcastDescription: skill.lightcastDescription ?? null,
+            lightcastApiVersion: skill.lightcastApiVersion ?? null,
+            lightcastCategoryId: skill.lightcastCategoryId ?? null,
+            lightcastCategoryName: skill.lightcastCategoryName ?? null,
+            lightcastSubcategoryId: skill.lightcastSubcategoryId ?? null,
+            lightcastSubcategoryName: skill.lightcastSubcategoryName ?? null,
+            skillSource: skill.lightcastId ? "LIGHTCAST" : "CUSTOM",
             displayOrder: index,
           })),
         );
@@ -969,6 +1189,7 @@ export const jobRouter = router({
         bio: z.string().max(1500).optional(),
         coverLetter: z.string().max(4000).optional(),
         skills: z.array(z.string().min(1).max(80)).max(40).default([]),
+        createSkilioAccount: z.boolean().default(false),
         profileSnapshot: z.record(z.string(), z.unknown()).default({}),
         screeningAnswers: z.record(z.string(), z.string().max(2000)).default({}),
         drawingResponses: drawingResponsesSchema.optional(),
@@ -1076,6 +1297,82 @@ export const jobRouter = router({
           .eq("id", sourceVisit.id);
       }
 
-      return data;
+      const portfolioProvisioning =
+        input.createSkilioAccount && input.source !== "SKILIO"
+          ? await runPortfolioProvisioning(supabase, {
+              applicationId: data.id,
+              name: input.name,
+              email: input.email.trim().toLowerCase(),
+              country: input.location,
+              phone: input.phone,
+              selectedSkills: input.skills,
+              jobSkills: (job.job_skills ?? []) as JobSkill[],
+            })
+          : null;
+
+      return {
+        ...data,
+        portfolioProvisioning,
+      };
+    }),
+
+  retryPortfolioProvisioning: publicProcedure
+    .input(
+      z.object({
+        applicationId: z.string().uuid(),
+        email: z.string().email(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const supabase = ctx.supabase as SupabaseLike;
+      const { data: application, error } = await supabase
+        .from("job_applications")
+        .select(
+          "id,name,email,phone,location,applicationMethod,skillsSnapshot,job_postings(job_skills(*)),job_application_provisioning(status,attempts)",
+        )
+        .eq("id", input.applicationId)
+        .ilike("email", input.email.trim())
+        .single();
+
+      if (error || !application || application.applicationMethod === "SKILIO") {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      const provisioning = Array.isArray(application.job_application_provisioning)
+        ? application.job_application_provisioning[0]
+        : application.job_application_provisioning;
+      if (
+        provisioning?.status === "COMPLETED" ||
+        provisioning?.status === "EXISTING_ACCOUNT"
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This Skilio account is already ready.",
+        });
+      }
+      if ((provisioning?.attempts ?? 0) >= 3) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message:
+            "Account setup has reached its retry limit. Use the Skilio registration page with this email.",
+        });
+      }
+
+      const posting = Array.isArray(application.job_postings)
+        ? application.job_postings[0]
+        : application.job_postings;
+      return runPortfolioProvisioning(supabase, {
+        applicationId: application.id,
+        name: application.name,
+        email: application.email,
+        country: application.location,
+        phone: application.phone,
+        selectedSkills: Array.isArray(application.skillsSnapshot)
+          ? application.skillsSnapshot.filter(
+              (skill: unknown): skill is string => typeof skill === "string",
+            )
+          : [],
+        jobSkills: ((posting?.job_skills ?? []) as JobSkill[]),
+      });
     }),
 });

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   BriefcaseBusiness,
@@ -13,6 +14,7 @@ import {
   Github,
   Link2,
   Linkedin,
+  Loader2,
   LogIn,
   Plus,
   ShieldCheck,
@@ -25,6 +27,7 @@ import { ApplicationDrawingAssessment } from "@/components/drawing/application-d
 import { SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -63,6 +66,13 @@ type PublicJob = {
 };
 
 type AuthChoice = "skilio" | "guest";
+
+type PortfolioProvisioningView = {
+  status: "CREATED" | "EXISTING_ACCOUNT" | "FAILED";
+  nextUrl?: string | null;
+  activationEmailSent?: boolean | null;
+  message?: string;
+};
 
 const steps = [
   "Access",
@@ -404,11 +414,15 @@ export default function CandidateApplicationPage() {
   const attributionEventsRef = useRef(new Set<string>());
   const sourceTrackingCode = searchParams.get("src")?.trim() || null;
   const [submitted, setSubmitted] = useState(false);
+  const [submittedApplicationId, setSubmittedApplicationId] = useState("");
+  const [portfolioProvisioning, setPortfolioProvisioning] =
+    useState<PortfolioProvisioningView | null>(null);
   const [hasStarted, setHasStarted] = useState(
     searchParams.get("stage") === "access",
   );
   const [step, setStep] = useState(0);
   const [authChoice, setAuthChoice] = useState<AuthChoice | null>(null);
+  const [createSkilioAccount, setCreateSkilioAccount] = useState(false);
   const [name, setName] = useState(profile?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? profile?.email ?? "");
   const [phoneCountryCode, setPhoneCountryCode] = useState("+60");
@@ -437,13 +451,22 @@ export default function CandidateApplicationPage() {
     { retry: false },
   );
   const apply = trpc.job.apply.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setSubmittedApplicationId(data.id);
+      setPortfolioProvisioning(
+        (data.portfolioProvisioning as PortfolioProvisioningView | null) ?? null,
+      );
       setSubmitted(true);
       setStep(steps.length - 1);
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     },
     onSettled: () => {
       submittingRef.current = false;
+    },
+  });
+  const retryProvisioning = trpc.job.retryPortfolioProvisioning.useMutation({
+    onSuccess: (data) => {
+      setPortfolioProvisioning(data as PortfolioProvisioningView);
     },
   });
   const trackSourceVisit = trpc.job.trackSourceVisit.useMutation();
@@ -718,6 +741,7 @@ export default function CandidateApplicationPage() {
       location: cleanOptionalText(location),
       coverLetter: cleanOptionalText(coverLetter),
       skills: selectedSkills.map((skill) => skill.trim()).filter(Boolean),
+      createSkilioAccount: applyingManually && createSkilioAccount,
       links: {
         portfolio: cleanOptionalUrl(portfolio),
         linkedin: cleanOptionalUrl(linkedin),
@@ -859,8 +883,89 @@ export default function CandidateApplicationPage() {
                     <div className="flex gap-3"><ShieldCheck className="h-4 w-4 text-[var(--skilio-brand)]" />You will be contacted if accepted to the next stage</div>
                   </div>
                 </div>
-                <Button asChild className="mt-6 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
-                  <a href={profileUrl}>Open Skilio portfolio</a>
+                {portfolioProvisioning?.status === "CREATED" && (
+                  <div className="mt-5 w-full rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] p-4 text-left">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[var(--skilio-brand)]" />
+                      <div>
+                        <div className="font-semibold text-[var(--skilio-ink)]">
+                          Your Skilio profile is ready to activate
+                        </div>
+                        <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                          {portfolioProvisioning.activationEmailSent
+                            ? "Use the verification code sent to your email to choose a password."
+                            : "Open Skilio to request a verification code and choose a password."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {portfolioProvisioning?.status === "EXISTING_ACCOUNT" && (
+                  <div className="mt-5 w-full rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] p-4 text-left">
+                    <div className="font-semibold text-[var(--skilio-ink)]">
+                      You already have a Skilio account
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                      Sign in with the same email to continue building your
+                      portfolio.
+                    </p>
+                  </div>
+                )}
+                {portfolioProvisioning?.status === "FAILED" && (
+                  <div
+                    role="alert"
+                    className="mt-5 w-full rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] p-4 text-left"
+                  >
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--skilio-danger)]" />
+                      <div>
+                        <div className="font-semibold text-[var(--skilio-ink)]">
+                          Account setup needs another attempt
+                        </div>
+                        <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                          Your application is safely submitted. Retry only the
+                          optional Skilio account setup.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            retryProvisioning.isLoading ||
+                            !submittedApplicationId
+                          }
+                          onClick={() =>
+                            retryProvisioning.mutate({
+                              applicationId: submittedApplicationId,
+                              email,
+                            })
+                          }
+                          className="mt-3 gap-2 border-[var(--skilio-border-strong)]"
+                        >
+                          {retryProvisioning.isLoading && (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          )}
+                          Retry account setup
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <Button
+                  asChild
+                  className="mt-6 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]"
+                >
+                  <a
+                    href={portfolioProvisioning?.nextUrl || profileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {portfolioProvisioning?.status === "CREATED"
+                      ? "Activate Skilio account"
+                      : portfolioProvisioning?.status === "EXISTING_ACCOUNT"
+                        ? "Sign in to Skilio"
+                        : "Open Skilio portfolio"}
+                  </a>
                 </Button>
               </div>
             ) : (
@@ -1024,6 +1129,33 @@ export default function CandidateApplicationPage() {
                           </SelectContent>
                         </Select>
                       </div>
+                      {applyingManually && (
+                        <div className="md:col-span-2">
+                          <label
+                            htmlFor="create-skilio-account"
+                            className="flex cursor-pointer items-start gap-3 rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4"
+                          >
+                            <Checkbox
+                              id="create-skilio-account"
+                              checked={createSkilioAccount}
+                              onCheckedChange={(checked) =>
+                                setCreateSkilioAccount(checked === true)
+                              }
+                              className="mt-0.5 border-[var(--skilio-border-strong)] data-[state=checked]:border-[var(--skilio-brand)] data-[state=checked]:bg-[var(--skilio-brand)]"
+                            />
+                            <span>
+                              <span className="block text-sm font-semibold text-[var(--skilio-ink)]">
+                                Create my Skilio profile from this application
+                              </span>
+                              <span className="mt-1 block text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                                We will create a passwordless profile with your
+                                contact details and selected skills. You will
+                                receive a code to activate it.
+                              </span>
+                            </span>
+                          </label>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1097,8 +1229,9 @@ export default function CandidateApplicationPage() {
                         Skills required for this role
                       </div>
                       <p className="mt-1 text-xs leading-5 text-[var(--skilio-ink-soft)]">
-                        Only select skills you can discuss with the hiring team.
-                        Nothing is selected automatically.
+                        {applyingWithSkilio
+                          ? "Skills imported from your Skilio profile are selected. Review them before continuing."
+                          : "Select only the role skills you can demonstrate to the hiring team."}
                       </p>
                       <div className="mt-3 grid gap-2">
                         {(job?.job_skills ?? []).map((jobSkill) => {

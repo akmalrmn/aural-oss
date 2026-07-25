@@ -1,11 +1,15 @@
 "use client";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   ScreeningQuestionEditor,
   type ScreeningQuestionDraft,
 } from "@/components/jobs/screening-question-editor";
+import {
+  SkillCataloguePicker,
+  type CatalogueSkill,
+} from "@/components/jobs/skill-catalogue-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,6 +38,15 @@ type SkillDraft = {
   name: string;
   kind: "HARD" | "SOFT";
   priority: "MUST" | "NICE";
+  lightcastId?: string | null;
+  lightcastType?: string | null;
+  lightcastDescription?: string | null;
+  lightcastApiVersion?: string | null;
+  lightcastCategoryId?: string | null;
+  lightcastCategoryName?: string | null;
+  lightcastSubcategoryId?: string | null;
+  lightcastSubcategoryName?: string | null;
+  skillSource: "LIGHTCAST" | "CUSTOM";
 };
 
 type EditableJob = {
@@ -49,6 +62,15 @@ type EditableJob = {
     name: string;
     kind: string;
     priority: string;
+    lightcastId?: string | null;
+    lightcastType?: string | null;
+    lightcastDescription?: string | null;
+    lightcastApiVersion?: string | null;
+    lightcastCategoryId?: string | null;
+    lightcastCategoryName?: string | null;
+    lightcastSubcategoryId?: string | null;
+    lightcastSubcategoryName?: string | null;
+    skillSource?: string | null;
   }[];
 };
 
@@ -66,7 +88,6 @@ export function JobEditDialog({ job }: { job: EditableJob }) {
   const [screeningQuestions, setScreeningQuestions] = useState<
     ScreeningQuestionDraft[]
   >([]);
-  const [skillName, setSkillName] = useState("");
   const { toast } = useToast();
   const utils = trpc.useUtils();
   const updateJob = trpc.job.update.useMutation({
@@ -91,22 +112,67 @@ export function JobEditDialog({ job }: { job: EditableJob }) {
         name: skill.name,
         kind: skill.kind === "SOFT" ? "SOFT" : "HARD",
         priority: skill.priority === "NICE" ? "NICE" : "MUST",
+        lightcastId: skill.lightcastId,
+        lightcastType: skill.lightcastType,
+        lightcastDescription: skill.lightcastDescription,
+        lightcastApiVersion: skill.lightcastApiVersion,
+        lightcastCategoryId: skill.lightcastCategoryId,
+        lightcastCategoryName: skill.lightcastCategoryName,
+        lightcastSubcategoryId: skill.lightcastSubcategoryId,
+        lightcastSubcategoryName: skill.lightcastSubcategoryName,
+        skillSource:
+          skill.skillSource === "LIGHTCAST" ? "LIGHTCAST" : "CUSTOM",
       })),
     );
     setScreeningQuestions(job.screeningQuestions ?? []);
-    setSkillName("");
   }, [job, open]);
 
-  function addSkill() {
-    const name = skillName.trim();
+  function addCustomSkill(value: string) {
+    const name = value.trim();
     if (
       !name ||
       skills.some((skill) => skill.name.toLowerCase() === name.toLowerCase())
     ) {
       return;
     }
-    setSkills([...skills, { name, kind: "HARD", priority: "MUST" }]);
-    setSkillName("");
+    setSkills([
+      ...skills,
+      {
+        name,
+        kind: "HARD",
+        priority: "MUST",
+        skillSource: "CUSTOM",
+      },
+    ]);
+  }
+
+  function addCatalogueSkill(skill: CatalogueSkill) {
+    if (
+      skills.some(
+        (item) =>
+          item.lightcastId === skill.id ||
+          item.name.toLowerCase() === skill.name.toLowerCase(),
+      )
+    ) {
+      return;
+    }
+    setSkills([
+      ...skills,
+      {
+        name: skill.name,
+        kind: skill.type === "Common Skill" ? "SOFT" : "HARD",
+        priority: "MUST",
+        lightcastId: skill.id,
+        lightcastType: skill.type,
+        lightcastDescription: skill.description,
+        lightcastApiVersion: skill.apiVersion,
+        lightcastCategoryId: skill.categoryId,
+        lightcastCategoryName: skill.categoryName,
+        lightcastSubcategoryId: skill.subcategoryId,
+        lightcastSubcategoryName: skill.subcategoryName,
+        skillSource: "LIGHTCAST",
+      },
+    ]);
   }
 
   function save() {
@@ -241,22 +307,13 @@ export function JobEditDialog({ job }: { job: EditableJob }) {
           </TabsContent>
 
           <TabsContent value="skills" className="space-y-4 py-4">
-            <div className="flex gap-2">
-              <Input
-                value={skillName}
-                onChange={(event) => setSkillName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    addSkill();
-                  }
-                }}
-                placeholder="Add a skill"
+            <div>
+              <Label>Add a skill</Label>
+              <SkillCataloguePicker
+                excludedNames={skills.map((skill) => skill.name)}
+                onSelect={addCatalogueSkill}
+                onAddCustom={addCustomSkill}
               />
-              <Button type="button" variant="outline" onClick={addSkill}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add
-              </Button>
             </div>
             <div className="space-y-2">
               {skills.map((skill, index) => (
@@ -264,8 +321,15 @@ export function JobEditDialog({ job }: { job: EditableJob }) {
                   key={`${skill.name}-${index}`}
                   className="grid gap-3 rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3 sm:grid-cols-[1fr_130px_150px_auto]"
                 >
-                  <div className="self-center font-medium text-[var(--skilio-ink)]">
-                    {skill.name}
+                  <div className="self-center">
+                    <div className="font-medium text-[var(--skilio-ink)]">
+                      {skill.name}
+                    </div>
+                    {skill.skillSource === "LIGHTCAST" && (
+                      <div className="mt-1 text-xs text-[var(--skilio-ink-muted)]">
+                        Lightcast catalogue
+                      </div>
+                    )}
                   </div>
                   <Select
                     value={skill.kind}

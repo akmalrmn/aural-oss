@@ -19,7 +19,9 @@ import {
   UserRound,
   XCircle,
 } from "lucide-react";
-import { SkilioHero, SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
+import { ApplicantStatusBadge } from "@/components/jobs/applicant-status-badge";
+import { EmployerPageHeader } from "@/components/jobs/employer-page";
+import { SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -101,10 +103,6 @@ function firstText(...values: unknown[]) {
   return values.map(asString).find(Boolean) ?? "";
 }
 
-function formatStatus(status: string) {
-  return status === "SHORTLISTED" ? "accepted" : status.toLowerCase();
-}
-
 function formatDate(value?: string) {
   if (!value) return "-";
   return new Date(value).toLocaleString();
@@ -161,11 +159,13 @@ function DetailLine({
   value?: string | null;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3">
-      <Icon className="mt-0.5 h-4 w-4 text-[#2f7d4f]" />
+    <div className="flex min-w-0 items-start gap-3 border-b border-[var(--skilio-border)] py-3 last:border-b-0">
+      <Icon className="mt-0.5 h-4 w-4 text-[var(--skilio-brand)]" />
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#66765f]">{label}</div>
-        <div className="mt-1 break-words text-sm font-medium text-[#14213d]">{value || "-"}</div>
+        <div className="text-xs text-[var(--skilio-ink-muted)]">{label}</div>
+        <div className="mt-1 break-words text-sm font-medium text-[var(--skilio-ink)]">
+          {value || "-"}
+        </div>
       </div>
     </div>
   );
@@ -178,7 +178,7 @@ function ExternalLinkRow({ label, value }: { label: string; value?: string }) {
       href={value}
       target="_blank"
       rel="noreferrer"
-      className="flex items-center justify-between gap-3 rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] px-3 py-2 text-sm font-medium text-[#14213d] transition hover:border-[#b9dcb0] hover:text-[#2f7d4f]"
+      className="flex min-h-10 items-center justify-between gap-3 rounded-[var(--skilio-radius-sm)] border border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] px-3 py-2 text-sm font-medium text-[var(--skilio-ink)] transition-colors hover:bg-[var(--skilio-control)] hover:text-[var(--skilio-brand)]"
     >
       <span>{label}</span>
       <ExternalLink className="h-4 w-4 shrink-0" />
@@ -188,9 +188,9 @@ function ExternalLinkRow({ label, value }: { label: string; value?: string }) {
 
 function TextBlock({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#66765f]">{label}</div>
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#14213d]">
+    <div className="border-b border-[var(--skilio-border)] py-4 first:pt-0 last:border-b-0 last:pb-0">
+      <div className="text-xs font-medium text-[var(--skilio-ink-muted)]">{label}</div>
+      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--skilio-ink)]">
         {value || "No response provided."}
       </p>
     </div>
@@ -202,11 +202,11 @@ function EvidenceLink({ item }: { item: JsonRecord }) {
   const url = firstText(item.url, item.fileUrl);
   if (!label) return null;
   if (!url) {
-    return <li className="text-sm text-[#4b596d]">{label}</li>;
+    return <li className="text-sm text-[var(--skilio-ink-soft)]">{label}</li>;
   }
   return (
     <li>
-      <a href={url} target="_blank" rel="noreferrer" className="text-sm font-medium text-[#24533b] hover:underline">
+      <a href={url} target="_blank" rel="noreferrer" className="text-sm font-medium text-[var(--skilio-brand)] hover:underline">
         {label}
       </a>
     </li>
@@ -224,6 +224,13 @@ export default function ApplicantReviewPage() {
       await utils.job.getById.invalidate({ id: params.id });
       await utils.job.applications.invalidate();
       toast({ title: "Applicant status updated" });
+    },
+    onError: (error) => {
+      toast({
+        title: "Applicant status was not updated",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -274,7 +281,7 @@ export default function ApplicantReviewPage() {
     <SkilioMotionRoot className="mx-auto flex max-w-7xl flex-col gap-6">
       <Link
         href={`/jobs/${params.id}`}
-        className="inline-flex w-fit items-center gap-2 text-sm font-medium text-[#466255] hover:text-[#2f7d4f]"
+        className="inline-flex min-h-10 w-fit items-center gap-2 text-sm font-medium text-[var(--skilio-ink-soft)] hover:text-[var(--skilio-brand)]"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to job
@@ -287,37 +294,40 @@ export default function ApplicantReviewPage() {
         </div>
       ) : (
         <>
-          <SkilioHero
+          <EmployerPageHeader
             title={applicant.name}
-            description={`Review ${applicant.job_postings?.title ?? "this role"} application, submitted ${formatDate(applicant.submittedAt)}.`}
-            aside={
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#66765f]">
-                    Skills match
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold tabular-nums text-[#14213d]">
-                    {applicant.matchScore === null ? "-" : `${applicant.matchScore}%`}
-                  </div>
-                  <div className="mt-1 text-xs text-[var(--skilio-ink-muted)]">
-                    {matchedRequiredSkills.length}/{requiredSkills.length} must-have skills
-                  </div>
-                </div>
-                <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#66765f]">Status</div>
-                  <Badge variant="outline" className="mt-2 rounded-md capitalize">
-                    {formatStatus(applicant.status)}
-                  </Badge>
-                </div>
-              </div>
+            description={
+              <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <ApplicantStatusBadge status={applicant.status} />
+                <span>{applicant.job_postings?.title ?? "Application"}</span>
+                <span aria-hidden="true">/</span>
+                <span>Submitted {formatDate(applicant.submittedAt)}</span>
+              </span>
             }
           />
 
-          <SkilioPanel className="p-4">
-            <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
-              <div>
-                <h2 className="font-semibold text-[#14213d]">Hiring decision</h2>
-                <p className="text-sm text-[#5f6b7a]">Move the applicant after reviewing their full dossier below.</p>
+          <SkilioPanel className="p-5">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div className="flex items-center gap-6">
+                <div>
+                  <div className="text-xs font-medium text-[var(--skilio-ink-muted)]">
+                    Evidence match
+                  </div>
+                  <div className="mt-1 font-heading text-3xl font-semibold tabular-nums text-[var(--skilio-ink)]">
+                    {applicant.matchScore === null
+                      ? "-"
+                      : `${applicant.matchScore}%`}
+                  </div>
+                </div>
+                <div className="border-l border-[var(--skilio-border)] pl-6">
+                  <h2 className="font-heading text-lg font-semibold text-[var(--skilio-ink)]">
+                    Hiring decision
+                  </h2>
+                  <p className="mt-1 text-sm text-[var(--skilio-ink-muted)]">
+                    {matchedRequiredSkills.length}/{requiredSkills.length} must-have
+                    skills matched
+                  </p>
+                </div>
               </div>
               <div className="grid gap-2 sm:grid-cols-3">
                 <DecisionButton
@@ -351,14 +361,16 @@ export default function ApplicantReviewPage() {
             </div>
           </SkilioPanel>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
             <div className="space-y-4">
-              <SkilioPanel className="p-4">
+              <SkilioPanel className="p-5">
                 <div className="mb-4 flex items-center gap-2">
-                  <UserRound className="h-5 w-5 text-[#2f7d4f]" />
-                  <h2 className="font-semibold text-[#14213d]">Candidate profile</h2>
+                  <UserRound className="h-5 w-5 text-[var(--skilio-brand)]" />
+                  <h2 className="font-heading text-lg font-semibold text-[var(--skilio-ink)]">
+                    Candidate profile
+                  </h2>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-x-6 sm:grid-cols-2">
                   <DetailLine icon={Mail} label="Email" value={applicant.email} />
                   <DetailLine icon={Phone} label="Phone" value={applicant.phone} />
                   <DetailLine icon={MapPin} label="Location" value={applicant.location} />
@@ -366,10 +378,10 @@ export default function ApplicantReviewPage() {
                 </div>
               </SkilioPanel>
 
-              <SkilioPanel className="p-4">
+              <SkilioPanel className="p-5">
                 <div className="mb-4 flex items-center gap-2">
                   <FileText className="h-5 w-5 text-[var(--skilio-brand)]" />
-                  <h2 className="font-semibold text-[var(--skilio-ink)]">
+                  <h2 className="font-heading text-lg font-semibold text-[var(--skilio-ink)]">
                     Application statement
                   </h2>
                 </div>
@@ -379,10 +391,10 @@ export default function ApplicantReviewPage() {
                 />
               </SkilioPanel>
 
-              <SkilioPanel className="p-4">
+              <SkilioPanel className="p-5">
                 <div className="mb-4 flex items-center gap-2">
-                  <ListChecks className="h-5 w-5 text-[#2f7d4f]" />
-                  <h2 className="font-semibold text-[#14213d]">
+                  <ListChecks className="h-5 w-5 text-[var(--skilio-brand)]" />
+                  <h2 className="font-heading text-lg font-semibold text-[var(--skilio-ink)]">
                     Pre-screening questions
                   </h2>
                 </div>
@@ -392,7 +404,7 @@ export default function ApplicantReviewPage() {
                     No pre-screening questions were included for this role.
                   </p>
                 ) : (
-                  <div className="grid gap-3">
+                  <div>
                     {(applicant.job_postings?.screeningQuestions ?? []).map(
                       (question) => (
                         <TextBlock
@@ -406,17 +418,19 @@ export default function ApplicantReviewPage() {
                 )}
               </SkilioPanel>
 
-              <SkilioPanel className="p-4">
+              <SkilioPanel className="p-5">
                 <div className="mb-4 flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-[#2f7d4f]" />
-                  <h2 className="font-semibold text-[#14213d]">
+                  <ShieldCheck className="h-5 w-5 text-[var(--skilio-brand)]" />
+                  <h2 className="font-heading text-lg font-semibold text-[var(--skilio-ink)]">
                     Skills and portfolio
                   </h2>
                 </div>
                 {skills.length === 0 ? (
-                  <p className="text-sm text-[#5f6b7a]">No skills were submitted.</p>
+                  <p className="text-sm text-[var(--skilio-ink-soft)]">
+                    No skills were submitted.
+                  </p>
                 ) : (
-                  <div className="grid gap-3">
+                  <div className="divide-y divide-[var(--skilio-border)]">
                     {skills.map((skill) => {
                       const portfolioItem = portfolioEvidence.find(
                         (item) => firstText(item.name).toLowerCase() === skill.toLowerCase(),
@@ -426,19 +440,21 @@ export default function ApplicantReviewPage() {
                       return (
                         <div
                           key={skill}
-                          className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4"
+                          className="py-4 first:pt-0 last:pb-0"
                         >
-                          <div className="font-semibold text-[#14213d]">
+                          <div className="font-semibold text-[var(--skilio-ink)]">
                             {skill}
                           </div>
-                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#4b596d]">
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--skilio-ink-soft)]">
                             {asString(skillEvidence[skill]) || "No written evidence provided."}
                           </p>
                           {(proofs.length > 0 || videos.length > 0) && (
                             <div className="mt-3 grid gap-3 sm:grid-cols-2">
                               {proofs.length > 0 && (
                                 <div>
-                                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[#66765f]">Portfolio proofs</div>
+                                  <div className="text-xs font-medium text-[var(--skilio-ink-muted)]">
+                                    Portfolio proofs
+                                  </div>
                                   <ul className="mt-2 list-disc space-y-1 pl-4">
                                     {proofs.map((proof, index) => <EvidenceLink key={index} item={proof} />)}
                                   </ul>
@@ -446,7 +462,9 @@ export default function ApplicantReviewPage() {
                               )}
                               {videos.length > 0 && (
                                 <div>
-                                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[#66765f]">Portfolio videos</div>
+                                  <div className="text-xs font-medium text-[var(--skilio-ink-muted)]">
+                                    Portfolio videos
+                                  </div>
                                   <ul className="mt-2 list-disc space-y-1 pl-4">
                                     {videos.map((video, index) => <EvidenceLink key={index} item={video} />)}
                                   </ul>
@@ -461,11 +479,11 @@ export default function ApplicantReviewPage() {
                 )}
               </SkilioPanel>
 
-              <SkilioPanel className="p-4">
+              <SkilioPanel className="p-5">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2">
                     <Shapes className="h-5 w-5 text-[var(--skilio-brand)]" />
-                    <h2 className="font-semibold text-[var(--skilio-ink)]">
+                    <h2 className="font-heading text-lg font-semibold text-[var(--skilio-ink)]">
                       Drawmetrics results
                     </h2>
                   </div>
@@ -486,7 +504,7 @@ export default function ApplicantReviewPage() {
                   )}
                 </div>
                 {!drawingAssessment ? (
-                  <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-5">
+                  <div className="border-t border-[var(--skilio-border)] pt-4">
                     <div className="font-semibold text-[var(--skilio-ink)]">
                       No Drawmetrics set attached
                     </div>
@@ -539,57 +557,96 @@ export default function ApplicantReviewPage() {
               </SkilioPanel>
             </div>
 
-            <aside className="space-y-4">
-              <SkilioPanel className="p-4">
-                <div className="mb-4 flex items-center gap-2">
-                  <Link2 className="h-5 w-5 text-[#2f7d4f]" />
-                  <h2 className="font-semibold text-[#14213d]">CV and profile links</h2>
-                </div>
-                <div className="grid gap-2">
-                  <ExternalLinkRow label="Skilio portfolio" value={asString(links.portfolio)} />
-                  <ExternalLinkRow label="LinkedIn" value={asString(links.linkedin)} />
-                  <ExternalLinkRow label="GitHub" value={asString(links.github)} />
-                  <ExternalLinkRow label="Website" value={asString(links.website)} />
-                  <ExternalLinkRow label={resumeName || "Resume"} value={resumeUrl} />
-                  {!asString(links.portfolio) && !asString(links.linkedin) && !asString(links.github) && !asString(links.website) && !resumeUrl && (
-                    <p className="text-sm text-[#5f6b7a]">No links were attached.</p>
-                  )}
-                </div>
-              </SkilioPanel>
+            <aside className="lg:sticky lg:top-20">
+              <SkilioPanel>
+                <section className="p-5">
+                  <div className="mb-4 flex items-center gap-2">
+                    <Link2 className="h-5 w-5 text-[var(--skilio-brand)]" />
+                    <h2 className="font-heading text-lg font-semibold text-[var(--skilio-ink)]">
+                      Candidate files
+                    </h2>
+                  </div>
+                  <div className="grid gap-2">
+                    <ExternalLinkRow
+                      label="Skilio portfolio"
+                      value={asString(links.portfolio)}
+                    />
+                    <ExternalLinkRow
+                      label="LinkedIn"
+                      value={asString(links.linkedin)}
+                    />
+                    <ExternalLinkRow label="GitHub" value={asString(links.github)} />
+                    <ExternalLinkRow
+                      label="Website"
+                      value={asString(links.website)}
+                    />
+                    <ExternalLinkRow
+                      label={resumeName || "Resume"}
+                      value={resumeUrl}
+                    />
+                    {!asString(links.portfolio) &&
+                      !asString(links.linkedin) &&
+                      !asString(links.github) &&
+                      !asString(links.website) &&
+                      !resumeUrl && (
+                        <p className="text-sm text-[var(--skilio-ink-soft)]">
+                          No profile links were attached.
+                        </p>
+                      )}
+                  </div>
+                </section>
 
-              <SkilioPanel className="p-4">
-                <h2 className="font-semibold text-[#14213d]">Attachments</h2>
-                <div className="mt-4 space-y-2">
-                  {resumeName && (
-                    <div className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3 text-sm font-medium text-[#14213d]">
-                      {resumeName}
-                    </div>
-                  )}
-                  {certificateFileNames.map((fileName) => (
-                    <div key={fileName} className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3 text-sm font-medium text-[#14213d]">
-                      {fileName}
-                    </div>
-                  ))}
-                  {files.map((file) => (
-                    <div key={file.id} className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3">
-                      <div className="text-sm font-medium text-[#14213d]">{file.fileName}</div>
-                      <div className="mt-1 text-xs text-[#5f6b7a]">{file.kind}</div>
-                    </div>
-                  ))}
-                  {!resumeName && certificateFileNames.length === 0 && files.length === 0 && (
-                    <p className="text-sm text-[#5f6b7a]">No file names were attached.</p>
-                  )}
-                </div>
-              </SkilioPanel>
+                <section className="border-t border-[var(--skilio-border)] p-5">
+                  <h3 className="font-semibold text-[var(--skilio-ink)]">
+                    Attachments
+                  </h3>
+                  <div className="mt-3 divide-y divide-[var(--skilio-border)]">
+                    {resumeName && (
+                      <div className="py-3 text-sm font-medium text-[var(--skilio-ink)] first:pt-0">
+                        {resumeName}
+                      </div>
+                    )}
+                    {certificateFileNames.map((fileName) => (
+                      <div
+                        key={fileName}
+                        className="py-3 text-sm font-medium text-[var(--skilio-ink)] first:pt-0"
+                      >
+                        {fileName}
+                      </div>
+                    ))}
+                    {files.map((file) => (
+                      <div key={file.id} className="py-3 first:pt-0">
+                        <div className="text-sm font-medium text-[var(--skilio-ink)]">
+                          {file.fileName}
+                        </div>
+                        <div className="mt-1 text-xs capitalize text-[var(--skilio-ink-muted)]">
+                          {file.kind}
+                        </div>
+                      </div>
+                    ))}
+                    {!resumeName &&
+                      certificateFileNames.length === 0 &&
+                      files.length === 0 && (
+                        <p className="text-sm text-[var(--skilio-ink-soft)]">
+                          No file names were attached.
+                        </p>
+                      )}
+                  </div>
+                </section>
 
-              <SkilioPanel className="p-4">
-                <h2 className="font-semibold text-[#14213d]">Submitted data</h2>
-                <details className="mt-4 rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3">
-                  <summary className="cursor-pointer text-sm font-medium text-[#14213d]">Full profile snapshot</summary>
-                  <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-[#4b596d]">
-                    {JSON.stringify(submittedProfileSnapshot, null, 2)}
-                  </pre>
-                </details>
+                <section className="border-t border-[var(--skilio-border)] p-5">
+                  <h3 className="font-semibold text-[var(--skilio-ink)]">
+                    Application record
+                  </h3>
+                  <details className="mt-3 rounded-[var(--skilio-radius-sm)] border border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] p-3">
+                    <summary className="cursor-pointer text-sm font-medium text-[var(--skilio-ink)]">
+                      Full profile snapshot
+                    </summary>
+                    <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-[var(--skilio-ink-soft)]">
+                      {JSON.stringify(submittedProfileSnapshot, null, 2)}
+                    </pre>
+                  </details>
+                </section>
               </SkilioPanel>
             </aside>
           </div>

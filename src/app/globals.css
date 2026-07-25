@@ -33,6 +33,24 @@
     --ring: 14 52% 49%;
 
     --radius: 0.5rem;
+
+    /* Portal-safe Skilio tokens for Radix menus rendered outside the app shell. */
+    --skilio-canvas: #f4f9f2;
+    --skilio-panel: #fbfdf9;
+    --skilio-elevated: #ffffff;
+    --skilio-control: #f0f6ed;
+    --skilio-control-strong: #e6f0e1;
+    --skilio-ink: #10233f;
+    --skilio-ink-soft: #43526a;
+    --skilio-ink-muted: #6d7a8d;
+    --skilio-brand: #2f7d4f;
+    --skilio-brand-strong: #276640;
+    --skilio-border: rgba(16, 35, 63, 0.1);
+    --skilio-border-strong: rgba(16, 35, 63, 0.16);
+    --skilio-radius-sm: 8px;
+    --skilio-radius-md: 12px;
+    --skilio-shadow-1: 0 0 0 1px rgba(16, 35, 63, 0.05), 0 8px 24px rgba(16, 35, 63, 0.05);
+    --skilio-shadow-2: 0 0 0 1px rgba(16, 35, 63, 0.06), 0 18px 44px rgba(16, 35, 63, 0.08);
   }
 
   .dark {

@@ -251,12 +251,6 @@ export function SkilioEmployerShell({ children }: { children: React.ReactNode })
                 {currentProject?.name ?? "Hiring workspace"}
               </div>
             </div>
-            <Link href="/jobs/new" onClick={resetDocumentScroll}>
-              <Button className="hidden h-10 gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white shadow-[var(--skilio-shadow-1)] hover:bg-[var(--skilio-brand-strong)] active:scale-[0.98] sm:inline-flex">
-                <Plus className="h-4 w-4" />
-                New job
-              </Button>
-            </Link>
             <Button variant="ghost" size="icon" className="text-[var(--skilio-ink-soft)] hover:bg-[var(--skilio-control)]">
               <Bell className="h-5 w-5" />
             </Button>

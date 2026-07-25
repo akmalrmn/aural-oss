@@ -7,8 +7,8 @@ import {
   EmployerMetricStrip,
   EmployerPageHeader,
 } from "@/components/jobs/employer-page";
+import { ApplicantStatusBadge } from "@/components/jobs/applicant-status-badge";
 import { SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,13 +25,6 @@ import { cn } from "@/lib/utils";
 
 const statuses = ["ALL", "NEW", "REVIEWED", "SHORTLISTED", "REJECTED"] as const;
 
-const applicantStatusStyles: Record<string, string> = {
-  NEW: "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-ink-soft)]",
-  REVIEWED: "border-[#c7d4e6] bg-[#f2f6fb] text-[#355275]",
-  SHORTLISTED: "border-[#b6dfaa] bg-[#e6f6df] text-[#24533b]",
-  REJECTED: "border-[#e6b2ad] bg-[#fff0ee] text-[#8a2d25]",
-};
-
 type Applicant = {
   id: string;
   name: string;
@@ -46,20 +39,6 @@ type Applicant = {
     status: string;
   };
 };
-
-function ApplicantStatusBadge({ status }: { status: string }) {
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "rounded-md px-2 py-1 text-[11px] font-semibold capitalize",
-        applicantStatusStyles[status] ?? applicantStatusStyles.NEW,
-      )}
-    >
-      {status.toLowerCase()}
-    </Badge>
-  );
-}
 
 function formatSource(source: string | null) {
   return (source ?? "direct").toLowerCase();

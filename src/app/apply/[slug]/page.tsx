@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
@@ -397,11 +397,14 @@ function JobSummaryCard({
 
 export default function CandidateApplicationPage() {
   const params = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
   const { user, profile, skilioIdentity, loading: authLoading } = useAuth();
   const submittingRef = useRef(false);
   const appliedSkilioSkillsRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
-  const [hasStarted, setHasStarted] = useState(false);
+  const [hasStarted, setHasStarted] = useState(
+    searchParams.get("stage") === "access",
+  );
   const [step, setStep] = useState(0);
   const [authChoice, setAuthChoice] = useState<AuthChoice | null>(null);
   const [name, setName] = useState(profile?.name ?? "");
@@ -693,7 +696,7 @@ export default function CandidateApplicationPage() {
     });
   }
 
-  const applyNextPath = `/apply/${params.slug}`;
+  const applyNextPath = `/apply/${params.slug}?stage=access`;
   const signInHref = `/auth/skilio/start?next=${encodeURIComponent(applyNextPath)}`;
 
   return (

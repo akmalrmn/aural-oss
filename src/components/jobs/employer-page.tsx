@@ -14,7 +14,7 @@ export function EmployerPageHeader({
   actions,
 }: {
   title: string;
-  description: string;
+  description: React.ReactNode;
   actions?: React.ReactNode;
 }) {
   return (
@@ -26,9 +26,9 @@ export function EmployerPageHeader({
         <h1 className="font-heading text-3xl font-semibold leading-tight text-[var(--skilio-ink)] sm:text-4xl">
           {title}
         </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--skilio-ink-soft)] sm:text-[15px]">
+        <div className="mt-2 max-w-2xl text-sm leading-6 text-[var(--skilio-ink-soft)] sm:text-[15px]">
           {description}
-        </p>
+        </div>
       </div>
       {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
     </header>

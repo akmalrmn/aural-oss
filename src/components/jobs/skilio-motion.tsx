@@ -54,7 +54,11 @@ export function SkilioMotionRoot({
   );
 
   return (
-    <div ref={root} className={cn("w-full max-w-full overflow-x-hidden", className)}>
+    <div
+      ref={root}
+      data-skillio-motion-root
+      className={cn("w-full min-w-0 max-w-full overflow-x-clip", className)}
+    >
       {children}
     </div>
   );

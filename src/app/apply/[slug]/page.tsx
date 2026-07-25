@@ -16,7 +16,6 @@ import {
   LogIn,
   Plus,
   ShieldCheck,
-  Sparkles,
   UploadCloud,
   X,
 } from "lucide-react";
@@ -200,65 +199,94 @@ function summarizePortfolioEvidence(skill: string, evidence: Record<string, unkn
 }
 
 function StepRail({ current }: { current: number }) {
+  const nextStep = steps[current + 1];
+
   return (
     <nav
       aria-label="Application progress"
-      className="overflow-x-auto rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-panel)] px-3 py-4 shadow-[var(--skilio-shadow-1)]"
+      className="border-y border-[var(--skilio-border)] py-5"
     >
-      <div className="grid min-w-[700px] grid-cols-7">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <div className="text-xs font-medium text-[var(--skilio-ink-muted)]">
+            Application progress
+          </div>
+          <div className="mt-1 text-lg font-semibold text-[var(--skilio-ink)]">
+            {steps[current]}
+          </div>
+        </div>
+        <div className="shrink-0 text-sm font-medium tabular-nums text-[var(--skilio-ink-soft)]">
+          Step {current + 1} of {steps.length}
+        </div>
+      </div>
+
+      <div
+        role="progressbar"
+        aria-label={`Step ${current + 1} of ${steps.length}: ${steps[current]}`}
+        aria-valuemin={1}
+        aria-valuemax={steps.length}
+        aria-valuenow={current + 1}
+        className="mt-4 grid grid-cols-7 gap-1.5"
+      >
         {steps.map((step, index) => {
           const state = index < current ? "done" : index === current ? "active" : "idle";
           return (
-            <div
+            <span
+              key={step}
+              aria-hidden="true"
+              className={cn(
+                "h-1 rounded-full",
+                state === "idle"
+                  ? "bg-[var(--skilio-border-strong)]"
+                  : "bg-[var(--skilio-brand)]",
+              )}
+            />
+          );
+        })}
+      </div>
+
+      <ol className="mt-3 hidden grid-cols-7 gap-2 sm:grid">
+        {steps.map((step, index) => {
+          const state = index < current ? "done" : index === current ? "active" : "idle";
+          return (
+            <li
               key={step}
               aria-current={state === "active" ? "step" : undefined}
-              className="relative flex min-w-0 flex-col items-center px-1 text-center"
+              className="flex min-w-0 items-center gap-1.5"
             >
-              {index > 0 && (
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "absolute right-1/2 top-[15px] h-px w-full",
-                    index <= current
-                      ? "bg-[var(--skilio-brand)]"
-                      : "bg-[var(--skilio-border-strong)]",
-                  )}
-                />
-              )}
               <span
                 data-testid="application-step-marker"
                 className={cn(
-                  "relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--skilio-radius-md)] border text-xs font-semibold tabular-nums",
-                  state === "active" &&
-                    "border-[var(--skilio-brand)] bg-[var(--skilio-brand)] text-white",
-                  state === "done" &&
-                    "border-[var(--skilio-brand)] bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]",
-                  state === "idle" &&
-                    "border-[var(--skilio-border-strong)] bg-[var(--skilio-panel)] text-[var(--skilio-ink-muted)]",
-                )}
-              >
-                {state === "done" ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  index + 1
-                )}
-              </span>
-              <span
-                className={cn(
-                  "mt-2 min-h-8 text-xs font-medium leading-4",
+                  "flex h-4 w-4 shrink-0 items-center justify-center text-[10px] font-semibold tabular-nums",
                   state === "active"
                     ? "text-[var(--skilio-brand-strong)]"
                     : state === "done"
-                      ? "text-[var(--skilio-ink)]"
+                      ? "text-[var(--skilio-brand)]"
                       : "text-[var(--skilio-ink-muted)]",
+                )}
+              >
+                {state === "done" ? <Check className="h-3.5 w-3.5" /> : index + 1}
+              </span>
+              <span
+                className={cn(
+                  "truncate text-[11px] font-medium",
+                  state === "active"
+                    ? "text-[var(--skilio-ink)]"
+                    : "text-[var(--skilio-ink-muted)]",
                 )}
               >
                 {step}
               </span>
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ol>
+
+      {nextStep && (
+        <div className="mt-3 text-xs text-[var(--skilio-ink-muted)] sm:hidden">
+          Next: {nextStep}
+        </div>
+      )}
     </nav>
   );
 }
@@ -267,63 +295,93 @@ function JobSummaryCard({
   job,
   loading,
   unavailable,
+  compact,
 }: {
   job?: PublicJob;
   loading: boolean;
   unavailable: boolean;
+  compact: boolean;
 }) {
-  if (loading) return <Skeleton className="h-80 w-full" />;
+  if (loading) {
+    return (
+      <div className="pb-7">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="mt-4 h-10 w-3/4" />
+        <Skeleton className="mt-3 h-5 w-1/2" />
+      </div>
+    );
+  }
   if (unavailable || !job) {
     return (
-      <SkilioPanel className="p-6">
-        <h1 className="text-xl font-semibold">Job not available</h1>
+      <section className="pb-7">
+        <h1 className="text-2xl font-semibold">Job not available</h1>
         <p className="mt-2 text-sm text-[var(--skilio-ink-soft)]">
           This application link may be closed or unpublished.
         </p>
-      </SkilioPanel>
+      </section>
     );
   }
 
   return (
-    <SkilioPanel className="relative overflow-hidden bg-[var(--skilio-ink)] p-6 text-white">
-      <div className="absolute inset-y-0 left-0 w-1 bg-[var(--skilio-signal)]" />
-      <div className="relative">
-        <div className="flex h-11 w-11 items-center justify-center rounded-[var(--skilio-radius-md)] bg-[var(--skilio-signal)] text-[var(--skilio-ink)]">
-          <BriefcaseBusiness className="h-5 w-5" />
-        </div>
-        <div className="mt-5 text-sm font-medium text-[var(--skilio-signal)]">
-          {job.department || "Open role"}
-        </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-normal">{job.title}</h1>
-        <div className="mt-3 text-sm text-white/68">
-          {[job.location, job.employmentType, job.seniority].filter(Boolean).join(" / ")}
-        </div>
-        <details className="mt-5 border-t border-white/15 pt-4">
-          <summary className="cursor-pointer text-sm font-semibold text-white">
-            Job description
-          </summary>
-          <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-white/76">
-            {job.description || "Share your Skilio profile and tell us why this role fits you."}
-          </p>
-        </details>
-        <div className="mt-5 flex flex-wrap gap-2">
+    <section className={cn(compact ? "pb-5" : "pb-7")}>
+      <div className="flex items-center gap-2 text-sm font-medium text-[var(--skilio-brand-strong)]">
+        <BriefcaseBusiness className="h-4 w-4" />
+        <span>{job.department || "Open role"}</span>
+      </div>
+      <h1
+        className={cn(
+          "max-w-3xl font-semibold leading-[1.08] text-[var(--skilio-ink)]",
+          compact
+            ? "mt-2 text-2xl"
+            : "mt-3 text-[clamp(1.9rem,5vw,2.8rem)]",
+        )}
+      >
+        {job.title}
+      </h1>
+      <div className="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-sm text-[var(--skilio-ink-soft)]">
+        {[job.location, job.employmentType, job.seniority]
+          .filter(Boolean)
+          .map((item, index) => (
+            <span key={item}>
+              {index > 0 && (
+                <span aria-hidden="true" className="mr-2 text-[var(--skilio-ink-muted)]">
+                  /
+                </span>
+              )}
+              {item}
+            </span>
+          ))}
+      </div>
+
+      <details className={cn("group", compact ? "mt-3" : "mt-5")}>
+        <summary className="inline-flex min-h-10 cursor-pointer list-none items-center gap-2 text-sm font-medium text-[var(--skilio-ink)] hover:text-[var(--skilio-brand-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--skilio-brand)] focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+          <ArrowRight className="h-4 w-4 transition-transform duration-150 group-open:rotate-90" />
+          View job details
+        </summary>
+        <p className="mt-2 max-w-3xl whitespace-pre-wrap break-words text-sm leading-6 text-[var(--skilio-ink-soft)]">
+          {job.description || "Share your Skilio profile and tell us why this role fits you."}
+        </p>
+      </details>
+
+      {!compact && job.job_skills.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2">
           {job.job_skills.map((skill) => (
             <Badge
               key={skill.id}
               variant="outline"
               className={cn(
-                "rounded-md border-white/16",
+                "rounded-md border-[var(--skilio-border)] px-2.5 py-1 text-xs font-medium",
                 skill.priority === "MUST"
                   ? "bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]"
-                  : "text-white/78",
+                  : "bg-[var(--skilio-elevated)] text-[var(--skilio-ink-soft)]",
               )}
             >
               {skill.name}
             </Badge>
           ))}
         </div>
-      </div>
-    </SkilioPanel>
+      )}
+    </section>
   );
 }
 
@@ -618,9 +676,9 @@ export default function CandidateApplicationPage() {
   const signInHref = `/auth/skilio/start?next=${encodeURIComponent(applyNextPath)}`;
 
   return (
-    <main className="skilio-interface min-h-screen overflow-x-hidden bg-[var(--skilio-canvas)] text-[var(--skilio-ink)]">
-      <header className="sticky top-0 z-20 border-b border-[var(--skilio-border)] bg-[rgba(244,249,242,0.92)] backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+    <main className="skilio-interface min-h-screen overflow-x-hidden bg-[var(--skilio-panel)] text-[var(--skilio-ink)]">
+      <header className="sticky top-0 z-20 border-b border-[var(--skilio-border)] bg-[var(--skilio-elevated)]">
+        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-3">
             <Image
               src="/logos/skilio-leaf-square.png"
@@ -660,15 +718,18 @@ export default function CandidateApplicationPage() {
         </div>
       </header>
 
-      <SkilioMotionRoot className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[390px_1fr]">
-        <aside className="space-y-4">
-          <JobSummaryCard job={job} loading={jobQuery.isLoading} unavailable={jobUnavailable} />
-        </aside>
+      <SkilioMotionRoot className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
+        <JobSummaryCard
+          job={job}
+          loading={jobQuery.isLoading}
+          unavailable={jobUnavailable}
+          compact={currentStep > 0}
+        />
 
-        <section className="min-w-0 space-y-4">
+        <section className="mt-6 min-w-0 space-y-6">
           {!submitted && !jobUnavailable && <StepRail current={currentStep} />}
 
-          <SkilioPanel className="p-5 shadow-[0_28px_90px_rgba(14,33,72,0.09)] sm:p-6">
+          <SkilioPanel className="border-[var(--skilio-border)] bg-[var(--skilio-elevated)] p-5 shadow-none sm:p-7">
             {jobQuery.isLoading || authLoading ? (
               <div className="space-y-4">
                 <Skeleton className="h-10 w-64" />
@@ -710,50 +771,66 @@ export default function CandidateApplicationPage() {
                 {currentStep === 0 && (
                   <div className="space-y-5">
                     <div>
-                      <div className="inline-flex items-center gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control-strong)] px-3 py-1 text-sm font-medium text-[var(--skilio-brand-strong)]">
-                        <Sparkles className="h-4 w-4" />
-                        Choose how to apply
+                      <div className="text-xs font-medium text-[var(--skilio-ink-muted)]">
+                        Application access
                       </div>
-                      <h2 className="mt-4 text-2xl font-semibold text-[var(--skilio-ink)]">Start with your Skilio profile or apply manually.</h2>
-                      <p className="mt-2 text-sm leading-6 text-[var(--skilio-ink-soft)]">
-                        Sign in to reuse your verified profile, or continue
-                        manually without leaving this application.
+                      <h2 className="mt-2 text-2xl font-semibold text-[var(--skilio-ink)]">
+                        Choose how to apply
+                      </h2>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                        Use your Skilio profile to bring in verified details, or
+                        enter the application manually.
                       </p>
                     </div>
 
-                    <div className="grid gap-3">
+                    <div className="overflow-hidden rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)]">
                       {applyingWithSkilio ? (
                         <button
                           type="button"
                           onClick={() => setAuthChoice("skilio")}
-                          className="flex items-center justify-between rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-brand)] bg-[var(--skilio-control-strong)] p-4 text-left transition hover:bg-[var(--skilio-control-strong)]"
+                          className="flex min-h-[76px] w-full items-center justify-between gap-4 bg-[var(--skilio-elevated)] px-4 py-3 text-left transition-colors hover:bg-[var(--skilio-control)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--skilio-brand)]"
                         >
                           <span className="flex items-center gap-3">
-                            <Check className="h-5 w-5 text-[var(--skilio-brand)]" />
+                            <span
+                              className={cn(
+                                "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                                authChoice === "skilio"
+                                  ? "border-[var(--skilio-brand)] bg-[var(--skilio-brand)] text-white"
+                                  : "border-[var(--skilio-border-strong)] text-transparent",
+                              )}
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </span>
                             <span>
-                              <span className="block font-semibold">Already signed in with Skilio</span>
-                              <span className="text-sm text-[var(--skilio-ink-soft)]">
+                              <span className="block text-sm font-semibold text-[var(--skilio-ink)]">
+                                Use your Skilio profile
+                              </span>
+                              <span className="mt-0.5 block text-sm text-[var(--skilio-ink-soft)]">
                                 We will reuse your verified profile, CV, skills, and evidence.
                               </span>
                             </span>
                           </span>
-                          <Badge className="rounded-md bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand)]">
-                            Active
-                          </Badge>
+                          <span className="hidden shrink-0 text-xs font-medium text-[var(--skilio-brand-strong)] sm:block">
+                            Signed in
+                          </span>
                         </button>
                       ) : (
                         <a
                           href={signInHref}
-                          className="flex items-center justify-between rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-panel)] p-4 text-left transition hover:bg-[var(--skilio-control)]"
+                          className="flex min-h-[76px] items-center justify-between gap-4 bg-[var(--skilio-elevated)] px-4 py-3 text-left transition-colors hover:bg-[var(--skilio-control)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--skilio-brand)]"
                         >
                           <span className="flex items-center gap-3">
-                            <LogIn className="h-5 w-5 text-[var(--skilio-brand)]" />
+                            <LogIn className="h-5 w-5 shrink-0 text-[var(--skilio-brand)]" />
                             <span>
-                              <span className="block font-semibold">Sign in with Skilio</span>
-                              <span className="text-sm text-[var(--skilio-ink-soft)]">Reuse your verified profile and contact information.</span>
+                              <span className="block text-sm font-semibold text-[var(--skilio-ink)]">
+                                Sign in with Skilio
+                              </span>
+                              <span className="mt-0.5 block text-sm text-[var(--skilio-ink-soft)]">
+                                Reuse your verified profile and contact information.
+                              </span>
                             </span>
                           </span>
-                          <ArrowRight className="h-4 w-4" />
+                          <ArrowRight className="h-4 w-4 shrink-0 text-[var(--skilio-ink-muted)]" />
                         </a>
                       )}
 
@@ -761,23 +838,33 @@ export default function CandidateApplicationPage() {
                         type="button"
                         onClick={() => setAuthChoice("guest")}
                         className={cn(
-                          "flex items-center justify-between rounded-[var(--skilio-radius-lg)] border p-4 text-left transition",
+                          "flex min-h-[76px] w-full items-center justify-between gap-4 border-t border-[var(--skilio-border)] px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--skilio-brand)]",
                           authChoice === "guest"
-                            ? "border-[var(--skilio-brand)] bg-[var(--skilio-control-strong)]"
-                            : "border-[var(--skilio-border)] bg-[var(--skilio-panel)] hover:bg-[var(--skilio-control)]",
+                            ? "bg-[var(--skilio-control)]"
+                            : "bg-[var(--skilio-elevated)] hover:bg-[var(--skilio-control)]",
                         )}
                       >
                         <span className="flex items-center gap-3">
-                          <FileCheck2 className="h-5 w-5 text-[var(--skilio-brand)]" />
+                          <span
+                            className={cn(
+                              "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                              authChoice === "guest"
+                                ? "border-[var(--skilio-brand)] bg-[var(--skilio-brand)] text-white"
+                                : "border-[var(--skilio-border-strong)] text-transparent",
+                            )}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </span>
                           <span>
-                            <span className="block font-semibold">Continue manually</span>
-                            <span className="text-sm text-[var(--skilio-ink-soft)]">
+                            <span className="block text-sm font-semibold text-[var(--skilio-ink)]">
+                              Continue manually
+                            </span>
+                            <span className="mt-0.5 block text-sm text-[var(--skilio-ink-soft)]">
                               Fill the application now. Your details can be
                               linked to Skilio later.
                             </span>
                           </span>
                         </span>
-                        {authChoice === "guest" && <Check className="h-5 w-5 text-[var(--skilio-brand)]" />}
                       </button>
                     </div>
                   </div>

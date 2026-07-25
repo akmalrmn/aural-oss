@@ -1,0 +1,424 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-25T07:22:34Z",
+  "title": "Design System: Skilio Hiring",
+  "extensions": {
+    "colorMeta": {
+      "evidence-green": {
+        "role": "primary",
+        "displayName": "Evidence Green",
+        "canonical": "#2f7d4f",
+        "tonalRamp": [
+          "#0b2b18",
+          "#174429",
+          "#215c38",
+          "#2f7d4f",
+          "#4f976c",
+          "#79b18c",
+          "#acd0b8",
+          "#e5f2e8"
+        ]
+      },
+      "evidence-green-strong": {
+        "role": "primary",
+        "displayName": "Evidence Green Strong",
+        "canonical": "#276640",
+        "tonalRamp": [
+          "#092415",
+          "#123822",
+          "#1c4d30",
+          "#276640",
+          "#47825d",
+          "#71a17e",
+          "#aac7b3",
+          "#e4efe7"
+        ]
+      },
+      "signal-leaf": {
+        "role": "secondary",
+        "displayName": "Signal Leaf",
+        "canonical": "#7bc957",
+        "tonalRamp": [
+          "#18340f",
+          "#2e571c",
+          "#457f29",
+          "#5fae3e",
+          "#7bc957",
+          "#9bdc82",
+          "#c5e8af",
+          "#eef8e8"
+        ]
+      },
+      "hiring-canvas": {
+        "role": "neutral",
+        "displayName": "Hiring Canvas",
+        "canonical": "#f4f9f2",
+        "tonalRamp": [
+          "#182019",
+          "#313c32",
+          "#4d594e",
+          "#6d7b6e",
+          "#929f92",
+          "#bbc5ba",
+          "#dde5db",
+          "#f4f9f2"
+        ]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Panel",
+        "canonical": "#fbfdf9",
+        "tonalRamp": [
+          "#19211a",
+          "#333d34",
+          "#505a51",
+          "#717c72",
+          "#98a399",
+          "#c1cac0",
+          "#e4eae2",
+          "#fbfdf9"
+        ]
+      },
+      "evidence-white": {
+        "role": "neutral",
+        "displayName": "Evidence White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#444444",
+          "#626262",
+          "#828282",
+          "#a6a6a6",
+          "#c9c9c9",
+          "#e8e8e8",
+          "#ffffff"
+        ]
+      },
+      "control": {
+        "role": "neutral",
+        "displayName": "Control",
+        "canonical": "#f0f6ed",
+        "tonalRamp": [
+          "#172018",
+          "#303a31",
+          "#4b564c",
+          "#6a766b",
+          "#8e9a8e",
+          "#b6c1b5",
+          "#d9e2d7",
+          "#f0f6ed"
+        ]
+      },
+      "control-strong": {
+        "role": "neutral",
+        "displayName": "Control Strong",
+        "canonical": "#e6f0e1",
+        "tonalRamp": [
+          "#162017",
+          "#2d392f",
+          "#465249",
+          "#637066",
+          "#859388",
+          "#aab8aa",
+          "#cedbc9",
+          "#e6f0e1"
+        ]
+      },
+      "decision-ink": {
+        "role": "neutral",
+        "displayName": "Decision Ink",
+        "canonical": "#10233f",
+        "tonalRamp": [
+          "#07111f",
+          "#10233f",
+          "#1b3558",
+          "#2e496a",
+          "#526a84",
+          "#7d8fa2",
+          "#b5c0cb",
+          "#eef2f5"
+        ]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Ink Soft",
+        "canonical": "#43526a",
+        "tonalRamp": [
+          "#101822",
+          "#253040",
+          "#43526a",
+          "#5f6e84",
+          "#7f8ba0",
+          "#a3adbc",
+          "#cbd1d9",
+          "#f1f3f5"
+        ]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Ink Muted",
+        "canonical": "#6d7a8d",
+        "tonalRamp": [
+          "#151b24",
+          "#303946",
+          "#4e5a69",
+          "#6d7a8d",
+          "#8995a6",
+          "#aab3bf",
+          "#ced4dc",
+          "#f2f4f6"
+        ]
+      },
+      "quiet-border": {
+        "role": "neutral",
+        "displayName": "Quiet Border",
+        "canonical": "rgba(16, 35, 63, 0.1)",
+        "tonalRamp": [
+          "rgba(16, 35, 63, 0.88)",
+          "rgba(16, 35, 63, 0.7)",
+          "rgba(16, 35, 63, 0.52)",
+          "rgba(16, 35, 63, 0.36)",
+          "rgba(16, 35, 63, 0.24)",
+          "rgba(16, 35, 63, 0.16)",
+          "rgba(16, 35, 63, 0.1)",
+          "rgba(16, 35, 63, 0.04)"
+        ]
+      },
+      "strong-border": {
+        "role": "neutral",
+        "displayName": "Strong Border",
+        "canonical": "rgba(16, 35, 63, 0.16)",
+        "tonalRamp": [
+          "rgba(16, 35, 63, 0.92)",
+          "rgba(16, 35, 63, 0.76)",
+          "rgba(16, 35, 63, 0.6)",
+          "rgba(16, 35, 63, 0.44)",
+          "rgba(16, 35, 63, 0.3)",
+          "rgba(16, 35, 63, 0.22)",
+          "rgba(16, 35, 63, 0.16)",
+          "rgba(16, 35, 63, 0.06)"
+        ]
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "Decision Red",
+        "canonical": "#c91f1f",
+        "tonalRamp": [
+          "#350707",
+          "#5b0c0c",
+          "#821313",
+          "#a91919",
+          "#c91f1f",
+          "#e05757",
+          "#f09a9a",
+          "#fde6e6"
+        ]
+      },
+      "danger-soft": {
+        "role": "semantic",
+        "displayName": "Decision Red Soft",
+        "canonical": "#fff6f5",
+        "tonalRamp": [
+          "#2c1715",
+          "#53312e",
+          "#7b4c47",
+          "#a76c65",
+          "#ce928b",
+          "#e8bbb6",
+          "#f7dedb",
+          "#fff6f5"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "One focal role, applicant, page, or completion title."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Major application steps and applicant review sections."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Panel headings and prominent subsection titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Operational reading across forms, tables, descriptions, and evidence."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Compact metadata and metric context, used sparingly."
+      }
+    },
+    "shadows": [
+      {
+        "name": "evidence-lift",
+        "value": "0 0 0 1px rgba(16, 35, 63, 0.05), 0 8px 24px rgba(16, 35, 63, 0.05)",
+        "purpose": "Standard panels, active navigation, compact menus, and persistent controls."
+      },
+      {
+        "name": "decision-lift",
+        "value": "0 0 0 1px rgba(16, 35, 63, 0.06), 0 18px 44px rgba(16, 35, 63, 0.08)",
+        "purpose": "Dialogs, completion markers, and temporary emphasis."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-state",
+        "value": "150ms ease-out",
+        "purpose": "Color and shadow changes on buttons, navigation, and fields."
+      },
+      {
+        "name": "panel-reveal",
+        "value": "280ms power2.out",
+        "purpose": "Low-amplitude 10px reveal for newly mounted panels."
+      },
+      {
+        "name": "panel-stagger",
+        "value": "35ms",
+        "purpose": "Short sequencing between related panels on initial load."
+      },
+      {
+        "name": "control-press",
+        "value": "scale(0.98)",
+        "purpose": "Tactile active feedback without moving surrounding layout."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      },
+      {
+        "name": "2xl",
+        "value": "1536px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The decisive action for a form, workflow, or page.",
+      "html": "<button class=\"ds-button-primary\" type=\"button\">Save changes</button>",
+      "css": ".ds-button-primary { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; border-radius: 12px; background: #2f7d4f; color: #ffffff; padding: 10px 16px; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-weight: 500; line-height: 20px; cursor: pointer; transition: background-color 150ms ease-out, box-shadow 150ms ease-out, transform 120ms ease-out; } .ds-button-primary:hover { background: #276640; } .ds-button-primary:focus-visible { outline: 2px solid #2f7d4f; outline-offset: 2px; } .ds-button-primary:active { transform: scale(0.98); } .ds-button-primary:disabled { cursor: not-allowed; opacity: 0.5; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "A supporting command that stays visible without competing with the primary action.",
+      "html": "<button class=\"ds-button-outline\" type=\"button\">Copy link</button>",
+      "css": ".ds-button-outline { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px; border: 1px solid rgba(16, 35, 63, 0.16); border-radius: 12px; background: #ffffff; color: #10233f; padding: 10px 16px; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-weight: 500; line-height: 20px; cursor: pointer; transition: background-color 150ms ease-out, border-color 150ms ease-out, transform 120ms ease-out; } .ds-button-outline:hover { background: #f0f6ed; } .ds-button-outline:focus-visible { outline: 2px solid #2f7d4f; outline-offset: 2px; } .ds-button-outline:active { transform: scale(0.98); }"
+    },
+    {
+      "name": "Application Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "An inset field for candidate and employer data entry.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Email address</span><input class=\"ds-input\" type=\"email\" value=\"candidate@example.com\" /></label>",
+      "css": ".ds-field { display: grid; gap: 8px; color: #10233f; font-family: Inter, system-ui, sans-serif; } .ds-field-label { font-size: 14px; font-weight: 500; line-height: 20px; } .ds-input { box-sizing: border-box; width: 100%; height: 40px; border: 1px solid rgba(16, 35, 63, 0.16); border-radius: 6px; background: #f0f6ed; color: #10233f; padding: 8px 12px; font: 400 14px/20px Inter, system-ui, sans-serif; transition: background-color 150ms ease-out, border-color 150ms ease-out, box-shadow 150ms ease-out; } .ds-input:hover { background: #e6f0e1; } .ds-input:focus { border-color: #2f7d4f; box-shadow: 0 0 0 3px rgba(47, 125, 79, 0.16); outline: none; } .ds-input:disabled { cursor: not-allowed; opacity: 0.5; }"
+    },
+    {
+      "name": "Evidence Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "The standard container for one real object, record, or grouped tool.",
+      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-label\">Applicants</div><div class=\"ds-panel-value\">24</div><p class=\"ds-panel-copy\">Profiles ready for review.</p></section>",
+      "css": ".ds-panel { width: 280px; border: 1px solid rgba(16, 35, 63, 0.1); border-radius: 16px; background: #ffffff; color: #10233f; padding: 16px; box-shadow: 0 0 0 1px rgba(16, 35, 63, 0.05), 0 8px 24px rgba(16, 35, 63, 0.05); font-family: Inter, system-ui, sans-serif; } .ds-panel-label { color: #6d7a8d; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; line-height: 1.2; text-transform: uppercase; } .ds-panel-value { margin-top: 8px; color: #10233f; font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 30px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; } .ds-panel-copy { margin: 8px 0 0; color: #43526a; font-size: 14px; line-height: 21px; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "status-chip",
+      "description": "A compact state or verified-signal label.",
+      "html": "<span class=\"ds-status-chip\">Active</span>",
+      "css": ".ds-status-chip { display: inline-flex; align-items: center; min-height: 24px; border: 1px solid rgba(16, 35, 63, 0.1); border-radius: 6px; background: #e6f0e1; color: #276640; padding: 4px 8px; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; line-height: 1.2; text-transform: uppercase; }"
+    },
+    {
+      "name": "Navigation Item",
+      "kind": "nav",
+      "refersTo": "navigation-item",
+      "description": "A quiet employer navigation row with hover, focus, and active treatment.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item\" href=\"#\">Overview</a><a class=\"ds-nav-item ds-nav-item-active\" href=\"#\">Jobs</a><a class=\"ds-nav-item\" href=\"#\">Applicants</a></nav>",
+      "css": ".ds-nav { display: grid; width: 220px; gap: 4px; border-right: 1px solid rgba(16, 35, 63, 0.1); background: #f4f9f2; padding: 16px 10px; font-family: Inter, system-ui, sans-serif; } .ds-nav-item { display: flex; height: 40px; align-items: center; border-radius: 12px; color: #43526a; padding: 0 12px; font-size: 14px; font-weight: 500; line-height: 20px; text-decoration: none; transition: background-color 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out; } .ds-nav-item:hover { background: #f0f6ed; color: #10233f; } .ds-nav-item:focus-visible { outline: 2px solid #2f7d4f; outline-offset: 2px; } .ds-nav-item-active { background: #ffffff; color: #10233f; box-shadow: 0 0 0 1px rgba(16, 35, 63, 0.05), 0 8px 24px rgba(16, 35, 63, 0.05); }"
+    },
+    {
+      "name": "Evidence Context Header",
+      "kind": "custom",
+      "refersTo": "panel",
+      "description": "The unframed role, applicant, or decision context that leads into one work surface.",
+      "html": "<section class=\"ds-context\"><span class=\"ds-context-category\">Product Design</span><h2 class=\"ds-context-title\">Senior Product Designer</h2><p class=\"ds-context-meta\">Kuala Lumpur / Hybrid / Full-time</p><button class=\"ds-context-detail\" type=\"button\">View job details</button></section>",
+      "css": ".ds-context { max-width: 760px; color: #10233f; font-family: Inter, system-ui, sans-serif; } .ds-context-category { color: #276640; font-size: 14px; font-weight: 500; line-height: 20px; } .ds-context-title { max-width: 680px; margin: 12px 0 0; color: #10233f; font: 600 clamp(30px, 5vw, 45px)/1.08 'Space Grotesk', system-ui, sans-serif; letter-spacing: -0.01em; } .ds-context-meta { margin: 12px 0 0; color: #43526a; font-size: 14px; line-height: 21px; } .ds-context-detail { min-height: 40px; margin-top: 16px; border: 0; background: transparent; color: #10233f; padding: 8px 0; font: 500 14px/20px Inter, system-ui, sans-serif; cursor: pointer; } .ds-context-detail:hover { color: #276640; } .ds-context-detail:focus-visible { outline: 2px solid #2f7d4f; outline-offset: 2px; }"
+    },
+    {
+      "name": "Application Progress",
+      "kind": "custom",
+      "refersTo": "navigation-item",
+      "description": "A fixed seven-segment application indicator that never needs horizontal scrolling.",
+      "html": "<nav class=\"ds-progress\" aria-label=\"Application progress\"><div class=\"ds-progress-head\"><div><span>Application progress</span><strong>Drawmetrics</strong></div><b>Step 3 of 7</b></div><div class=\"ds-progress-bars\"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class=\"ds-progress-labels\"><span>Access</span><span>Profile</span><span>Drawmetrics</span><span>Skills</span><span>Portfolio</span><span>Screening</span><span>Review</span></div></nav>",
+      "css": ".ds-progress { max-width: 760px; border-top: 1px solid rgba(16, 35, 63, 0.1); border-bottom: 1px solid rgba(16, 35, 63, 0.1); padding: 20px 0; font-family: Inter, system-ui, sans-serif; } .ds-progress-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; color: #43526a; } .ds-progress-head span { display: block; color: #6d7a8d; font-size: 12px; font-weight: 500; } .ds-progress-head strong { display: block; margin-top: 4px; color: #10233f; font-size: 18px; font-weight: 600; } .ds-progress-head b { font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; } .ds-progress-bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 16px; } .ds-progress-bars i { height: 4px; border-radius: 999px; background: rgba(16, 35, 63, 0.16); } .ds-progress-bars i:nth-child(-n+3) { background: #2f7d4f; } .ds-progress-labels { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin-top: 10px; color: #6d7a8d; font-size: 11px; } .ds-progress-labels span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-progress-labels span:nth-child(3) { color: #10233f; font-weight: 600; } @media (max-width: 639px) { .ds-progress-labels { display: none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Evidence Desk",
+    "overview": "The Evidence Desk treats hiring as careful review rather than spectacle. It should feel like a well-prepared workspace where an employer can see the role, the candidate, and the proof behind a decision without visual noise or product friction.\n\nThe system is calm, credible, and evidence-led. Pale green working surfaces reduce glare, Decision Ink anchors hierarchy, and Evidence Green appears where an action, status, or verified signal matters. Information density is moderate: controls stay compact, while application evidence and decision context receive enough room to scan.\n\nExpression is intentionally narrow and disciplined. Skilio identity comes from the green-and-navy relationship, the leaf mark, compact evidence states, and precise operational language. The visual system rejects the legacy Aural chocolate palette, decorative gradients, structural color rails, and generic AI-dashboard styling.",
+    "keyCharacteristics": [
+      "Evidence leads; decoration recedes.",
+      "Green communicates action, status, or verified signal.",
+      "Decision Ink provides hierarchy without turning the product into a dark interface.",
+      "Panels are quietly layered with soft borders and ambient lift.",
+      "Employer and candidate views share one Skilio vocabulary while keeping task-specific layouts."
+    ],
+    "rules": [
+      {
+        "name": "The Signal, Not Decoration Rule",
+        "body": "Evidence Green and Signal Leaf must communicate action, status, selection, or verified evidence. Never use them as ambient decoration, and never replace their meaning with a gradient.",
+        "section": "colors"
+      },
+      {
+        "name": "The Evidence Hierarchy Rule",
+        "body": "Role names, applicant names, decisions, and key values lead through weight and contrast; labels and metadata recede through size and color. Do not make every line compete at the same weight.",
+        "section": "typography"
+      },
+      {
+        "name": "The Quiet Lift Rule",
+        "body": "A surface may use a tonal shift, a border, and one documented ambient shadow. Do not stack dramatic drop shadows or invent new elevation levels for ordinary content.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** make the role, applicant, decision, or current task the single visual focal point.",
+      "**Do** use Evidence Green only for actions, status, selection, or verified evidence.",
+      "**Do** keep sidebar, canvas, fields, and panels within the documented green-neutral surface family.",
+      "**Do** use Space Grotesk for hierarchy and Inter for operational reading.",
+      "**Do** preserve complete keyboard, responsive, loading, empty, error, and disabled states.",
+      "**Do** keep candidate job context unframed and place the application task in one bordered work surface."
+    ],
+    "donts": [
+      "**Don't** reintroduce the legacy Aural chocolate, terracotta, cream, or dark-brown interface palette into Skilio Hiring surfaces.",
+      "**Don't** use decorative gradients, glow blobs, gradient text, or generic AI-dashboard ornament.",
+      "**Don't** create a separate dark or saturated sidebar world; navigation shares the Hiring Canvas.",
+      "**Don't** nest cards inside cards or turn every page section into a floating panel.",
+      "**Don't** use green as decoration or create additional accent hues without a semantic need.",
+      "**Don't** use colored side rails, oversized summary sidebars, or horizontally scrolling step indicators in candidate applications.",
+      "**Don't** replace full applicant tables with repetitive card grids when comparison is the task.",
+      "**Don't** use oversized marketing typography inside operational dashboards, settings, forms, or review surfaces."
+    ]
+  }
+}

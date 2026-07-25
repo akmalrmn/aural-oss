@@ -326,6 +326,7 @@ try {
     const drawingCanvas = candidatePage.getByTestId(
       "drawing-assessment-canvas",
     );
+    await drawingCanvas.scrollIntoViewIfNeeded();
     const drawingBox = await drawingCanvas.boundingBox();
     assert.ok(drawingBox);
     await candidatePage.mouse.move(

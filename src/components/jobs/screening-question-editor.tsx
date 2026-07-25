@@ -49,9 +49,9 @@ export function ScreeningQuestionEditor({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {questions.length === 0 ? (
-        <div className="rounded-[var(--skilio-radius-md)] border border-dashed border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] px-5 py-8 text-center">
+        <div className="rounded-[var(--skilio-radius-md)] border border-dashed border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] px-5 py-10 text-center">
           <p className="text-sm font-semibold text-[var(--skilio-ink)]">
             No pre-screening questions
           </p>
@@ -60,13 +60,13 @@ export function ScreeningQuestionEditor({
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="divide-y divide-[var(--skilio-border)] border-y border-[var(--skilio-border)]">
           {questions.map((question, index) => (
             <div
               key={question.id}
-              className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-elevated)] p-4"
+              className="py-5"
             >
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_auto]">
+              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_40px] md:items-end">
                 <div>
                   <Label htmlFor={`${question.id}-prompt`}>
                     Question {index + 1}
@@ -82,7 +82,7 @@ export function ScreeningQuestionEditor({
                   />
                 </div>
                 <div>
-                  <Label>Answer type</Label>
+                  <Label htmlFor={`${question.id}-type`}>Answer type</Label>
                   <Select
                     value={question.type}
                     onValueChange={(value) =>
@@ -92,7 +92,11 @@ export function ScreeningQuestionEditor({
                       })
                     }
                   >
-                    <SelectTrigger className="mt-2">
+                    <SelectTrigger
+                      id={`${question.id}-type`}
+                      aria-label={`Answer type for question ${index + 1}`}
+                      className="mt-2 shadow-none"
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -107,7 +111,7 @@ export function ScreeningQuestionEditor({
                   variant="ghost"
                   size="icon"
                   aria-label={`Remove question ${index + 1}`}
-                  className="mt-6 text-[var(--skilio-ink-muted)] hover:bg-[var(--skilio-danger-soft)] hover:text-[var(--skilio-danger)]"
+                  className="text-[var(--skilio-ink-muted)] hover:bg-[var(--skilio-danger-soft)] hover:text-[var(--skilio-danger)]"
                   onClick={() =>
                     onChange(
                       questions.filter(
@@ -138,9 +142,9 @@ export function ScreeningQuestionEditor({
                       })
                     }
                     placeholder="Immediately, 2 weeks, 1 month"
-                    className="mt-2"
-                  />
-                </div>
+                  className="mt-2"
+                />
+              </div>
               )}
 
               <label className="mt-4 inline-flex min-h-10 cursor-pointer items-center gap-2 text-sm font-medium text-[var(--skilio-ink-soft)]">
@@ -162,7 +166,7 @@ export function ScreeningQuestionEditor({
       <Button
         type="button"
         variant="outline"
-        className="gap-2"
+        className="gap-2 rounded-[var(--skilio-radius-md)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] hover:bg-[var(--skilio-control)]"
         disabled={questions.length >= 12}
         onClick={() => onChange([...questions, createQuestion()])}
       >

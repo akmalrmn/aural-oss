@@ -1,6 +1,7 @@
 "use client";
 
 import { useAppLocale } from "@/components/app-locale-provider";
+import { PasswordField } from "@/components/auth/password-field";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -8,13 +9,12 @@ import {
     CardDescription,
     CardFooter,
     CardHeader,
-    CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { createClient } from "@/lib/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, MailCheck } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
@@ -25,6 +25,7 @@ export function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState("");
 
   const supabase = createClient();
 
@@ -39,6 +40,7 @@ export function RegisterForm() {
         password,
         options: {
           data: { full_name: defaultName },
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/jobs`,
         },
       });
 
@@ -65,76 +67,124 @@ export function RegisterForm() {
         return;
       }
 
-      // Fallback: if no session returned, sign in explicitly
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      setPendingConfirmationEmail(email);
+    } catch {
+      toast({
+        title: "Unable to create your account",
+        description: "Check your connection and try again.",
+        variant: "destructive",
       });
-
-      if (signInError) {
-        toast({
-          title: t("auth.registrationFailed"),
-          description: signInError.message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      window.location.href = "/jobs";
     } finally {
       setLoading(false);
     }
   };
 
+  if (pendingConfirmationEmail) {
+    return (
+      <Card className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 overflow-hidden rounded-[var(--skilio-radius-lg)] border-0 bg-[var(--skilio-elevated)] shadow-[var(--skilio-shadow-2)] motion-safe:duration-300">
+        <CardHeader className="items-center px-6 pb-6 pt-8 text-center sm:px-8">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]">
+            <MailCheck className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <h1 className="font-heading text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--skilio-ink)]">
+            Check your email
+          </h1>
+          <CardDescription className="mt-2 max-w-sm leading-6 text-[var(--skilio-ink-soft)]">
+            We sent a confirmation link to{" "}
+            <span className="break-all font-medium text-[var(--skilio-ink)]">
+              {pendingConfirmationEmail}
+            </span>
+            . Open it to activate your employer account.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter className="px-6 pb-8 sm:px-8">
+          <Button
+            asChild
+            className="h-11 w-full rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]"
+          >
+            <Link href="/login">Return to sign in</Link>
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
   return (
-    <Card className="overflow-hidden rounded-[var(--skilio-radius-lg)] border-[var(--skilio-border)] bg-[var(--skilio-elevated)] shadow-[var(--skilio-shadow-2)]">
-      <CardHeader className="text-center">
-        <Image
-          src="/logos/skilio-leaf-square.png"
-          alt="Skilio"
-          width={56}
-          height={56}
-          className="mx-auto mb-3 h-14 w-14 rounded-[var(--skilio-radius-md)] shadow-[var(--skilio-shadow-1)]"
-          priority
-        />
-        <CardTitle className="font-heading text-2xl">Create employer access</CardTitle>
-        <CardDescription>Create a workspace login for hiring operations.</CardDescription>
+    <Card className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 overflow-hidden rounded-[var(--skilio-radius-lg)] border-0 bg-[var(--skilio-elevated)] shadow-[var(--skilio-shadow-2)] motion-safe:duration-300">
+      <CardHeader className="space-y-0 px-6 pb-7 pt-6 sm:px-8 sm:pt-8">
+        <div className="mb-7 flex items-center gap-3">
+          <Image
+            src="/logos/skilio-leaf-square.png"
+            alt=""
+            width={40}
+            height={40}
+            className="h-10 w-10 rounded-[var(--skilio-radius-sm)]"
+            priority
+          />
+          <div>
+            <p className="text-sm font-semibold leading-5 text-[var(--skilio-ink)]">
+              Skilio Hiring
+            </p>
+            <p className="text-xs leading-5 text-[var(--skilio-ink-muted)]">
+              Employer access
+            </p>
+          </div>
+        </div>
+        <h1 className="font-heading text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--skilio-ink)]">
+          Create employer access
+        </h1>
+        <CardDescription className="mt-2 leading-6 text-[var(--skilio-ink-soft)]">
+          Create a workspace login for hiring operations.
+        </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <CardContent className="px-6 pb-0 sm:px-8">
+        <form onSubmit={handleSubmit} className="space-y-5" aria-busy={loading}>
           <div className="space-y-2">
             <Label htmlFor="email">{t("auth.email")}</Label>
             <Input
               id="email"
+              name="email"
               type="email"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              className="h-11"
               placeholder={t("auth.emailPlaceholder")}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={loading}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">{t("auth.password")}</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder={t("auth.passwordHint")}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
-          </div>
-          <Button className="w-full rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]" type="submit" disabled={loading}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t("auth.createAccount")}
+
+          <PasswordField
+            label={t("auth.password")}
+            value={password}
+            onChange={setPassword}
+            autoComplete="new-password"
+            minLength={8}
+            helperText="Use at least 8 characters."
+            disabled={loading}
+          />
+
+          <Button
+            className="h-11 w-full rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white transition-[background-color,transform] hover:bg-[var(--skilio-brand-strong)] active:scale-[0.98]"
+            type="submit"
+            disabled={loading}
+          >
+            {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            {loading ? "Creating account…" : t("auth.createAccount")}
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="justify-center">
-        <p className="text-sm text-muted-foreground">
+      <CardFooter className="justify-center px-6 pb-6 pt-7 sm:px-8 sm:pb-8">
+        <p className="text-sm text-[var(--skilio-ink-muted)]">
           {t("auth.haveAccount")}{" "}
-          <Link href="/login" className="font-medium text-[var(--skilio-brand)] hover:underline">
+          <Link
+            href="/login"
+            className="rounded-sm font-medium text-[var(--skilio-brand-strong)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--skilio-brand)]"
+          >
             {t("auth.signIn")}
           </Link>
         </p>

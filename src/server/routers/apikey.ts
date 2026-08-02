@@ -10,7 +10,12 @@ export const apiKeyRouter = router({
       .select("id, name, key, isActive, lastUsedAt, expiresAt, createdAt")
       .eq("userId", ctx.user.id)
       .order("createdAt", { ascending: false });
-    return data ?? [];
+    return (data ?? []).map(({ key, ...apiKey }) => ({
+      ...apiKey,
+      maskedKey: key.startsWith("dlv_")
+        ? `dlv_${key.slice(4, 12)}…${key.slice(-4)}`
+        : `${key.slice(0, 8)}…${key.slice(-4)}`,
+    }));
   }),
 
   create: protectedProcedure

@@ -11,9 +11,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
+import { SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -24,38 +23,57 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { trpc } from "@/lib/trpc/client";
-import { Ban, Copy, ExternalLink, Loader2, Trash2 } from "lucide-react";
+import {
+  Ban,
+  Copy,
+  ExternalLink,
+  KeyRound,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-function maskApiKey(key: string) {
-  const prefix = "dlv_";
-  if (!key.startsWith(prefix)) {
-    return `${key.slice(0, 8)}...`;
-  }
-  const secret = key.slice(prefix.length);
-  return `${prefix}${secret.slice(0, 8)}...`;
+function formatDate(value: string | null, fallback: string) {
+  if (!value) return fallback;
+  return new Intl.DateTimeFormat("en", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
 }
 
-function formatDate(value: string | null, locale: string, neverLabel: string) {
-  if (!value) return neverLabel;
-  return new Date(value).toLocaleString(locale === "zh" ? "zh-CN" : undefined);
+function keyStatus(row: {
+  isActive: boolean;
+  expiresAt: string | null;
+}) {
+  if (!row.isActive) {
+    return {
+      label: "Revoked",
+      className: "bg-[var(--skilio-control)] text-[var(--skilio-ink-muted)]",
+    };
+  }
+
+  if (row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now()) {
+    return {
+      label: "Expired",
+      className: "bg-[var(--skilio-danger-soft)] text-[var(--skilio-danger)]",
+    };
+  }
+
+  return {
+    label: "Active",
+    className:
+      "bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]",
+  };
 }
 
 export default function ApiKeysSettingsPage() {
   const { toast } = useToast();
-  const locale = "en";
-  const isZh = false;
   const utils = trpc.useUtils();
 
   const [name, setName] = useState("");
@@ -69,15 +87,13 @@ export default function ApiKeysSettingsPage() {
       setRevealedKey(data.key);
       setName("");
       setExpiresLocal("");
-      utils.apiKey.list.invalidate();
-      toast({
-        title: isZh ? "API 密钥已创建" : "API key created",
-      });
+      void utils.apiKey.list.invalidate();
+      toast({ title: "API key created" });
     },
-    onError: (err) => {
+    onError: (error) => {
       toast({
-        title: isZh ? "错误" : "Error",
-        description: err.message,
+        title: "Unable to create API key",
+        description: error.message,
         variant: "destructive",
       });
     },
@@ -85,13 +101,13 @@ export default function ApiKeysSettingsPage() {
 
   const revokeMutation = trpc.apiKey.revoke.useMutation({
     onSuccess: () => {
-      utils.apiKey.list.invalidate();
-      toast({ title: isZh ? "密钥已撤销" : "API key revoked" });
+      void utils.apiKey.list.invalidate();
+      toast({ title: "API key revoked" });
     },
-    onError: (err) => {
+    onError: (error) => {
       toast({
-        title: isZh ? "错误" : "Error",
-        description: err.message,
+        title: "Unable to revoke API key",
+        description: error.message,
         variant: "destructive",
       });
     },
@@ -99,13 +115,13 @@ export default function ApiKeysSettingsPage() {
 
   const deleteMutation = trpc.apiKey.delete.useMutation({
     onSuccess: () => {
-      utils.apiKey.list.invalidate();
-      toast({ title: isZh ? "密钥已删除" : "API key deleted" });
+      void utils.apiKey.list.invalidate();
+      toast({ title: "API key deleted" });
     },
-    onError: (err) => {
+    onError: (error) => {
       toast({
-        title: isZh ? "错误" : "Error",
-        description: err.message,
+        title: "Unable to delete API key",
+        description: error.message,
         variant: "destructive",
       });
     },
@@ -114,87 +130,129 @@ export default function ApiKeysSettingsPage() {
   const copyKey = async (key: string) => {
     try {
       await navigator.clipboard.writeText(key);
-      toast({ title: isZh ? "已复制到剪贴板" : "Copied to clipboard" });
+      toast({ title: "Copied to clipboard" });
     } catch {
       toast({
-        title: isZh ? "复制失败" : "Could not copy",
+        title: "Could not copy the API key",
+        description: "Select the key and copy it manually.",
         variant: "destructive",
       });
     }
   };
 
+  const expiresAt = expiresLocal ? new Date(expiresLocal) : null;
+  const expiryIsInvalid = Boolean(
+    expiresAt &&
+      (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()),
+  );
   const keys = listQuery.data ?? [];
 
   return (
-    <div className="max-w-5xl space-y-5">
-      <div className="rounded-3xl border border-[#dfe8db] bg-[#fbfdf8] p-6">
-        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2f7d4f]">
-          Developer access
+    <div className="space-y-5">
+      <SkilioPanel>
+        <div className="flex items-start gap-3 border-b border-[var(--skilio-border)] px-5 py-5 sm:px-6">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--skilio-radius-sm)] bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)]">
+            <KeyRound className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold text-[var(--skilio-ink)]">
+              Developer access
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--skilio-ink-soft)]">
+              Create credentials for integrations that use the Skilio Hiring API.
+              {" "}
+              <Link
+                href="/docs/developer-api"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-[var(--skilio-brand-strong)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--skilio-brand)]"
+              >
+                View API docs
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </p>
+          </div>
         </div>
-        <h2 className="mt-2 text-2xl font-semibold text-[#10233f]">API keys</h2>
-        <p className="mt-2 text-sm leading-6 text-[#5e6b7a]">
-          Manage API keys for programmatic access to the Skilio Hiring API.
-          {" "}
-          <Link
-            href="/docs/developer-api"
-            target="_blank"
-            className="inline-flex items-center gap-1 font-medium text-[#2f7d4f] underline-offset-4 hover:underline"
-          >
-            {isZh ? "查看 API 文档" : "View API docs"}
-            <ExternalLink className="h-3 w-3" />
-          </Link>
-        </p>
-      </div>
 
-      <Card className="border-[#dfe8db] bg-white/95 shadow-[0_18px_60px_rgba(14,33,72,0.07)]">
-        <CardHeader>
-          <CardTitle>{isZh ? "创建新密钥" : "Create a new key"}</CardTitle>
-          <CardDescription>
-            {isZh
-              ? "为每个集成使用不同的名称，便于识别。"
-              : "Use a distinct name per integration so you can tell them apart."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-            <div className="space-y-2 flex-1">
-              <Label htmlFor="keyName">{isZh ? "名称" : "Name"}</Label>
-              <Input
-                id="keyName"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={isZh ? "例如：生产环境 CI" : "e.g. Production CI"}
-              />
-            </div>
-            <div className="space-y-2 flex-1">
-              <Label htmlFor="keyExpires">{isZh ? "过期时间（可选）" : "Expires (optional)"}</Label>
-              <Input
-                id="keyExpires"
-                type="datetime-local"
-                value={expiresLocal}
-                onChange={(e) => setExpiresLocal(e.target.value)}
-              />
-            </div>
-            <Button
-              className="shrink-0 rounded-xl bg-[#2f7d4f] text-white hover:bg-[#256a42]"
-              disabled={createMutation.isPending || !name.trim()}
-              onClick={() => {
-                const expiresAt =
-                  expiresLocal.trim() === ""
-                    ? undefined
-                    : new Date(expiresLocal).toISOString();
-                createMutation.mutate({
-                  name: name.trim(),
-                  ...(expiresAt ? { expiresAt } : {}),
-                });
-              }}
+        <form
+          className="grid gap-5 px-5 py-5 sm:grid-cols-2 sm:px-6 sm:py-6"
+          aria-busy={createMutation.isPending}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (expiryIsInvalid) return;
+            createMutation.mutate({
+              name: name.trim(),
+              ...(expiresAt ? { expiresAt: expiresAt.toISOString() } : {}),
+            });
+          }}
+        >
+          <div className="space-y-2">
+            <Label htmlFor="keyName">Key name</Label>
+            <Input
+              id="keyName"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="e.g. Production integration"
+              autoComplete="off"
+              maxLength={80}
+              disabled={createMutation.isPending}
+              className="border-[var(--skilio-border-strong)] bg-[var(--skilio-control)]"
+            />
+            <p className="text-xs leading-5 text-[var(--skilio-ink-muted)]">
+              Use a name that identifies where this key is used.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="keyExpires">Expiration (optional)</Label>
+            <Input
+              id="keyExpires"
+              type="datetime-local"
+              value={expiresLocal}
+              onChange={(event) => setExpiresLocal(event.target.value)}
+              disabled={createMutation.isPending}
+              aria-invalid={expiryIsInvalid}
+              aria-describedby="keyExpiresHelp"
+              className="border-[var(--skilio-border-strong)] bg-[var(--skilio-control)]"
+            />
+            <p
+              id="keyExpiresHelp"
+              className={
+                expiryIsInvalid
+                  ? "text-xs leading-5 text-[var(--skilio-danger)]"
+                  : "text-xs leading-5 text-[var(--skilio-ink-muted)]"
+              }
             >
-              {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isZh ? "创建密钥" : "Create Key"}
+              {expiryIsInvalid
+                ? "Choose a date and time in the future."
+                : "Leave blank for a key that does not expire automatically."}
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-[var(--skilio-border)] pt-5 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex max-w-xl items-start gap-2 text-xs leading-5 text-[var(--skilio-ink-muted)]">
+              <ShieldCheck
+                className="mt-0.5 h-4 w-4 shrink-0 text-[var(--skilio-brand)]"
+                aria-hidden="true"
+              />
+              The complete secret is shown once. Store it in your password manager
+              or secrets vault before closing the confirmation.
+            </p>
+            <Button
+              type="submit"
+              disabled={
+                createMutation.isPending || !name.trim() || expiryIsInvalid
+              }
+              className="shrink-0 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)] active:scale-[0.98]"
+            >
+              {createMutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
+              {createMutation.isPending ? "Creating…" : "Create API key"}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </form>
+      </SkilioPanel>
 
       <Dialog
         open={revealedKey !== null}
@@ -202,177 +260,258 @@ export default function ApiKeysSettingsPage() {
           if (!open) setRevealedKey(null);
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="skilio-interface w-[calc(100%-2rem)] rounded-[var(--skilio-radius-lg)] border-[var(--skilio-border)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-2)] sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{isZh ? "保存你的 API 密钥" : "Save your API key"}</DialogTitle>
-            <DialogDescription>
-              {isZh
-                ? "这是你唯一一次查看完整密钥的机会。请立即复制并保存在安全位置；关闭此对话框后将无法再次显示完整密钥。"
-                : "This is the only time the full secret is shown. Copy it now and store it somewhere safe — you will not see it in full again after you close this dialog."}
+            <DialogTitle className="text-xl">Save your API key</DialogTitle>
+            <DialogDescription className="leading-6 text-[var(--skilio-ink-soft)]">
+              This is the only time the complete secret is shown. Copy it now and
+              store it somewhere safe.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-md border bg-muted/50 p-3 font-mono text-sm break-all">
+          <div className="rounded-[var(--skilio-radius-sm)] border border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] p-3 font-mono text-sm leading-6 text-[var(--skilio-ink)] break-all">
             {revealedKey}
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => revealedKey && copyKey(revealedKey)}>
-              <Copy className="mr-2 h-4 w-4" />
-              {isZh ? "复制" : "Copy"}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => revealedKey && copyKey(revealedKey)}
+              className="border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] hover:bg-[var(--skilio-control)]"
+            >
+              <Copy className="h-4 w-4" aria-hidden="true" />
+              Copy key
             </Button>
-            <Button type="button" onClick={() => setRevealedKey(null)}>
-              {isZh ? "完成" : "Done"}
+            <Button
+              type="button"
+              onClick={() => setRevealedKey(null)}
+              className="bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]"
+            >
+              I&apos;ve saved it
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Card className="border-[#dfe8db] bg-white/95 shadow-[0_18px_60px_rgba(14,33,72,0.07)]">
-        <CardHeader>
-          <CardTitle>{isZh ? "你的密钥" : "Your keys"}</CardTitle>
-          <CardDescription>
-            {isZh ? "撤销的密钥无法用于请求，但仍会显示在列表中直到删除。" : "Revoked keys cannot be used for requests but remain listed until deleted."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          {listQuery.isLoading ? (
-            <div className="flex justify-center py-12 text-muted-foreground text-sm">
-              <Loader2 className="h-5 w-5 animate-spin" />
-            </div>
-          ) : keys.length === 0 ? (
-            <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-              <p className="mb-3">
-                {isZh
-                  ? "还没有 API 密钥。创建一个即可开始通过 API 集成。"
-                  : "No API keys yet. Create one to start integrating with the API."}
-              </p>
-              <Link
-                href="/docs/developer-api"
-                className="text-primary font-medium underline-offset-4 hover:underline"
+      <SkilioPanel>
+        <div className="flex items-start gap-3 border-b border-[var(--skilio-border)] px-5 py-5 sm:items-center sm:px-6">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-semibold text-[var(--skilio-ink)]">
+              Your API keys
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">
+              Revoke a key to stop access immediately, or delete its record when
+              you no longer need it.
+            </p>
+          </div>
+          {!listQuery.isLoading && !listQuery.isError && (
+            <span className="shrink-0 rounded-[var(--skilio-radius-sm)] bg-[var(--skilio-control)] px-2.5 py-1.5 text-xs font-medium tabular-nums text-[var(--skilio-ink-soft)]">
+              {keys.length} {keys.length === 1 ? "key" : "keys"}
+            </span>
+          )}
+        </div>
+
+        {listQuery.isLoading ? (
+          <div className="space-y-px bg-[var(--skilio-border)]" role="status">
+            {[0, 1, 2].map((item) => (
+              <div
+                key={item}
+                className="grid min-h-20 animate-pulse gap-3 bg-[var(--skilio-elevated)] px-5 py-4 sm:px-6 md:grid-cols-[1fr_1fr_100px_1fr] md:items-center"
               >
-                {isZh ? "阅读开发者 API 文档" : "Read the Developer API docs"}
-              </Link>
+                <div className="h-3 w-36 rounded bg-[var(--skilio-control)]" />
+                <div className="h-3 w-44 max-w-full rounded bg-[var(--skilio-control)]" />
+                <div className="h-7 w-16 rounded bg-[var(--skilio-control)]" />
+                <div className="h-3 w-28 rounded bg-[var(--skilio-control)]" />
+              </div>
+            ))}
+            <span className="sr-only">Loading API keys</span>
+          </div>
+        ) : listQuery.isError ? (
+          <div className="px-6 py-12 text-center">
+            <h3 className="text-base font-semibold text-[var(--skilio-ink)]">
+              API keys could not be loaded
+            </h3>
+            <p className="mt-1 text-sm text-[var(--skilio-ink-soft)]">
+              Check your connection and try again.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void listQuery.refetch()}
+              className="mt-4 border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] hover:bg-[var(--skilio-control)]"
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Try again
+            </Button>
+          </div>
+        ) : keys.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <KeyRound
+              className="mx-auto h-6 w-6 text-[var(--skilio-ink-muted)]"
+              aria-hidden="true"
+            />
+            <h3 className="mt-3 text-base font-semibold text-[var(--skilio-ink)]">
+              No API keys yet
+            </h3>
+            <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-[var(--skilio-ink-soft)]">
+              Create a named key above when you are ready to connect an
+              integration.
+            </p>
+          </div>
+        ) : (
+          <div>
+            <div className="hidden grid-cols-[minmax(150px,1fr)_minmax(180px,1fr)_100px_140px_140px_88px] gap-4 border-b border-[var(--skilio-border)] bg-[var(--skilio-panel)] px-6 py-3 text-xs font-semibold text-[var(--skilio-ink-muted)] md:grid">
+              <span>Name</span>
+              <span>Key</span>
+              <span>Status</span>
+              <span>Last used</span>
+              <span>Expires</span>
+              <span className="sr-only">Actions</span>
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{isZh ? "名称" : "Name"}</TableHead>
-                  <TableHead>{isZh ? "密钥" : "Key"}</TableHead>
-                  <TableHead>{isZh ? "状态" : "Status"}</TableHead>
-                  <TableHead>{isZh ? "最后使用" : "Last used"}</TableHead>
-                  <TableHead>{isZh ? "创建时间" : "Created"}</TableHead>
-                  <TableHead className="w-[1%] text-right">{isZh ? "操作" : "Actions"}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {keys.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium">{row.name}</TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">
-                      {maskApiKey(row.key)}
-                    </TableCell>
-                    <TableCell>
-                      {row.isActive ? (
-                        <Badge variant="default">{isZh ? "有效" : "Active"}</Badge>
-                      ) : (
-                        <Badge variant="secondary">{isZh ? "已撤销" : "Revoked"}</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                      {formatDate(row.lastUsedAt, locale, isZh ? "从未" : "Never")}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                      {formatDate(row.createdAt, locale, "—")}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title={isZh ? "复制完整密钥" : "Copy full key"}
-                          onClick={() => copyKey(row.key)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        {row.isActive && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                title={isZh ? "撤销" : "Revoke"}
-                              >
-                                <Ban className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>
-                                  {isZh ? "撤销此 API 密钥？" : "Revoke this API key?"}
-                                </AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  {isZh
-                                    ? "撤销后，使用此密钥的请求将立即失败。你可以稍后再删除记录。"
-                                    : "Requests using this key will fail immediately. You can delete the record later."}
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>{isZh ? "取消" : "Cancel"}</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => revokeMutation.mutate({ id: row.id })}
-                                  disabled={revokeMutation.isPending}
-                                >
-                                  {isZh ? "撤销" : "Revoke"}
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
+            <ul className="divide-y divide-[var(--skilio-border)]">
+              {keys.map((row) => {
+                const status = keyStatus(row);
+                const isRevoking =
+                  revokeMutation.isPending &&
+                  revokeMutation.variables?.id === row.id;
+                const isDeleting =
+                  deleteMutation.isPending &&
+                  deleteMutation.variables?.id === row.id;
+
+                return (
+                  <li
+                    key={row.id}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-4 px-5 py-4 transition-colors hover:bg-[var(--skilio-panel)] sm:px-6 md:grid-cols-[minmax(150px,1fr)_minmax(180px,1fr)_100px_140px_140px_88px] md:items-center md:gap-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[var(--skilio-ink)]">
+                        {row.name}
+                      </p>
+                      <code className="mt-1 block truncate text-xs text-[var(--skilio-ink-muted)] md:hidden">
+                        {row.maskedKey}
+                      </code>
+                    </div>
+                    <code className="hidden truncate text-xs text-[var(--skilio-ink-soft)] md:block">
+                      {row.maskedKey}
+                    </code>
+                    <span
+                      className={`inline-flex min-h-7 items-center justify-self-end rounded-[var(--skilio-radius-sm)] px-2.5 text-xs font-semibold md:justify-self-start ${status.className}`}
+                    >
+                      {status.label}
+                    </span>
+                    <p className="text-xs tabular-nums text-[var(--skilio-ink-muted)] md:text-sm">
+                      <span className="font-medium text-[var(--skilio-ink-soft)] md:hidden">
+                        Last used: {" "}
+                      </span>
+                      {formatDate(row.lastUsedAt, "Never")}
+                    </p>
+                    <p className="text-xs tabular-nums text-[var(--skilio-ink-muted)] md:text-sm">
+                      <span className="font-medium text-[var(--skilio-ink-soft)] md:hidden">
+                        Expires: {" "}
+                      </span>
+                      {formatDate(row.expiresAt, "Never")}
+                    </p>
+                    <div className="col-start-2 row-start-2 row-span-2 flex items-end justify-end gap-1 self-end md:col-auto md:row-auto md:self-auto">
+                      {row.isActive && status.label !== "Expired" && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
+                              type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              title={isZh ? "删除" : "Delete"}
+                              aria-label={`Revoke ${row.name}`}
+                              title={`Revoke ${row.name}`}
+                              disabled={isRevoking}
+                              className="h-10 w-10 text-[var(--skilio-ink-muted)] hover:bg-[var(--skilio-control)] hover:text-[var(--skilio-ink)] md:h-9 md:w-9"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              {isRevoking ? (
+                                <Loader2
+                                  className="h-4 w-4 animate-spin"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <Ban className="h-4 w-4" aria-hidden="true" />
+                              )}
                             </Button>
                           </AlertDialogTrigger>
-                          <AlertDialogContent>
+                          <AlertDialogContent className="skilio-interface border-[var(--skilio-border)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)]">
                             <AlertDialogHeader>
                               <AlertDialogTitle>
-                                {isZh ? "删除此 API 密钥？" : "Delete this API key?"}
+                                Revoke &quot;{row.name}&quot;?
                               </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {isZh
-                                  ? "此操作无法撤销。任何仍持有该密钥的人都将无法再使用它。"
-                                  : "This cannot be undone. Anyone with the secret will no longer be able to use it."}
+                              <AlertDialogDescription className="text-[var(--skilio-ink-soft)]">
+                                Requests using this key will fail immediately. You
+                                can delete the record later.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>{isZh ? "取消" : "Cancel"}</AlertDialogCancel>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                onClick={() => deleteMutation.mutate({ id: row.id })}
-                                disabled={deleteMutation.isPending}
+                                onClick={() =>
+                                  revokeMutation.mutate({ id: row.id })
+                                }
+                                disabled={revokeMutation.isPending}
+                                className="bg-[var(--skilio-ink)] text-white hover:bg-[var(--skilio-ink)]/90"
                               >
-                                {isZh ? "删除" : "Delete"}
+                                Revoke key
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                      )}
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Delete ${row.name}`}
+                            title={`Delete ${row.name}`}
+                            disabled={isDeleting}
+                            className="h-10 w-10 text-[var(--skilio-danger)] hover:bg-[var(--skilio-danger-soft)] hover:text-[var(--skilio-danger)] md:h-9 md:w-9"
+                          >
+                            {isDeleting ? (
+                              <Loader2
+                                className="h-4 w-4 animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="skilio-interface border-[var(--skilio-border)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)]">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              Delete &quot;{row.name}&quot;?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-[var(--skilio-ink-soft)]">
+                              This removes the key record permanently. Any request
+                              using this secret will fail.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-[var(--skilio-danger)] text-white hover:bg-[var(--skilio-danger)]/90"
+                              onClick={() =>
+                                deleteMutation.mutate({ id: row.id })
+                              }
+                              disabled={deleteMutation.isPending}
+                            >
+                              Delete key
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </SkilioPanel>
     </div>
   );
 }

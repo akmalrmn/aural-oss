@@ -106,6 +106,9 @@ export function CompanyMembersPanel() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<TeamRole>("MEMBER");
+  const canSubmitInvite = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    inviteEmail.trim(),
+  );
 
   const membersQuery = trpc.orgMember.list.useQuery(
     { organizationId: currentOrg?.id ?? "" },
@@ -232,7 +235,7 @@ export function CompanyMembersPanel() {
                   Invite teammate
                 </Button>
               </DialogTrigger>
-              <DialogContent className="skilio-interface rounded-[var(--skilio-radius-lg)] border-[var(--skilio-border)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-2)] sm:max-w-md">
+              <DialogContent className="skilio-interface w-[calc(100%-2rem)] rounded-[var(--skilio-radius-lg)] border-[var(--skilio-border)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-2)] sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle className="text-xl">Invite a teammate</DialogTitle>
                   <DialogDescription className="leading-6 text-[var(--skilio-ink-soft)]">
@@ -308,7 +311,7 @@ export function CompanyMembersPanel() {
                       })
                     }
                     disabled={
-                      inviteMutation.isPending || !inviteEmail.includes("@")
+                      inviteMutation.isPending || !canSubmitInvite
                     }
                     className="bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]"
                   >
@@ -395,7 +398,10 @@ export function CompanyMembersPanel() {
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <Avatar className="h-10 w-10 shrink-0">
-                      <AvatarImage src={member.profile?.avatar ?? undefined} />
+                      <AvatarImage
+                        src={member.profile?.avatar ?? undefined}
+                        alt=""
+                      />
                       <AvatarFallback className="bg-[var(--skilio-control-strong)] text-xs font-semibold text-[var(--skilio-brand-strong)]">
                         {getInitials(name, email)}
                       </AvatarFallback>
@@ -443,13 +449,17 @@ export function CompanyMembersPanel() {
                     )}
                   </div>
 
-                  <p className="col-start-1 text-xs tabular-nums text-[var(--skilio-ink-muted)] md:col-auto md:text-sm">
+                  <time
+                    dateTime={member.joinedAt}
+                    className="col-start-1 text-xs tabular-nums text-[var(--skilio-ink-muted)] md:col-auto md:text-sm"
+                  >
+                    <span className="md:hidden">Joined </span>
                     {new Intl.DateTimeFormat("en", {
                       day: "numeric",
                       month: "short",
                       year: "numeric",
                     }).format(new Date(member.joinedAt))}
-                  </p>
+                  </time>
 
                   <div className="col-start-2 row-start-2 justify-self-end md:col-auto md:row-auto">
                     {canManage && role !== "OWNER" && !isCurrentUser && (

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
@@ -24,6 +24,12 @@ import { SourceAttributionPanel } from "@/components/jobs/source-attribution-pan
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -103,6 +109,9 @@ type JobDetail = {
 
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const utils = trpc.useUtils();
   const jobQuery = trpc.job.getById.useQuery({ id: params.id });
@@ -130,6 +139,26 @@ export default function JobDetailPage() {
   });
 
   const job = jobQuery.data as JobDetail | undefined;
+  const requestedTab = searchParams.get("tab");
+  const activeTab = ["role", "applicants", "stats"].includes(
+    requestedTab ?? "",
+  )
+    ? requestedTab!
+    : "role";
+
+  function changeTab(value: string) {
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+    if (value === "role") {
+      nextSearchParams.delete("tab");
+    } else {
+      nextSearchParams.set("tab", value);
+    }
+    const query = nextSearchParams.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }
+
   async function copyLink() {
     if (!job) return;
     await navigator.clipboard.writeText(job.publicApplicationUrl);
@@ -191,36 +220,30 @@ export default function JobDetailPage() {
             }
           />
 
-          <EmployerMetricStrip
-            metrics={[
-              {
-                label: "Applicants",
-                value: job.summary.totalApplicants,
-                detail: "Submitted applications",
-              },
-              {
-                label: "Accepted",
-                value: job.summary.shortlisted,
-                detail: "Moved forward",
-              },
-              {
-                label: "Average match",
-                value:
-                  job.summary.averageMatch === null
-                    ? "-"
-                    : `${job.summary.averageMatch}%`,
-                detail: "Portfolio evidence",
-              },
-              {
-                label: "Must-have skills",
-                value: job.job_skills.filter((skill) => skill.priority === "MUST")
-                  .length,
-                detail: "Required for this role",
-              },
-            ]}
-          />
+          <Tabs value={activeTab} onValueChange={changeTab}>
+            <TabsList className="grid h-auto w-full grid-cols-3 rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-1">
+              <TabsTrigger
+                value="role"
+                className="min-h-11 rounded-[var(--skilio-radius-sm)] text-[var(--skilio-ink-soft)] data-[state=active]:bg-[var(--skilio-elevated)] data-[state=active]:text-[var(--skilio-ink)] data-[state=active]:shadow-[var(--skilio-shadow-1)]"
+              >
+                Role brief
+              </TabsTrigger>
+              <TabsTrigger
+                value="applicants"
+                className="min-h-11 rounded-[var(--skilio-radius-sm)] text-[var(--skilio-ink-soft)] data-[state=active]:bg-[var(--skilio-elevated)] data-[state=active]:text-[var(--skilio-ink)] data-[state=active]:shadow-[var(--skilio-shadow-1)]"
+              >
+                Applicants
+              </TabsTrigger>
+              <TabsTrigger
+                value="stats"
+                className="min-h-11 rounded-[var(--skilio-radius-sm)] text-[var(--skilio-ink-soft)] data-[state=active]:bg-[var(--skilio-elevated)] data-[state=active]:text-[var(--skilio-ink)] data-[state=active]:shadow-[var(--skilio-shadow-1)]"
+              >
+                Job stats
+              </TabsTrigger>
+            </TabsList>
 
-          <SkilioPanel>
+            <TabsContent value="applicants" className="mt-5">
+              <SkilioPanel>
             <div className="flex items-center justify-between gap-4 border-b border-[var(--skilio-border)] px-5 py-4">
               <div>
                 <div className="flex items-center gap-2">
@@ -388,17 +411,12 @@ export default function JobDetailPage() {
                 </div>
               </>
             )}
-          </SkilioPanel>
+              </SkilioPanel>
+            </TabsContent>
 
-          <SourceAttributionPanel
-            jobId={job.id}
-            directApplicationUrl={job.publicApplicationUrl}
-            sourceLinks={job.sourceLinks}
-            attribution={job.attribution}
-          />
-
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-            <SkilioPanel>
+            <TabsContent value="role" className="mt-5">
+              <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+                <SkilioPanel>
               <div className="border-b border-[var(--skilio-border)] px-5 py-4">
                 <h2 className="font-heading text-lg font-semibold text-[var(--skilio-ink)]">
                   Role brief
@@ -433,9 +451,9 @@ export default function JobDetailPage() {
                   </ol>
                 )}
               </div>
-            </SkilioPanel>
+                </SkilioPanel>
 
-            <SkilioPanel>
+                <SkilioPanel>
               <section className="p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -518,9 +536,48 @@ export default function JobDetailPage() {
                   )}
                 </div>
               </section>
+                </SkilioPanel>
+              </div>
+            </TabsContent>
 
-            </SkilioPanel>
-          </div>
+            <TabsContent value="stats" className="mt-5 space-y-5">
+              <EmployerMetricStrip
+                metrics={[
+                  {
+                    label: "Applicants",
+                    value: job.summary.totalApplicants,
+                    detail: "Submitted applications",
+                  },
+                  {
+                    label: "Accepted",
+                    value: job.summary.shortlisted,
+                    detail: "Moved forward",
+                  },
+                  {
+                    label: "Average match",
+                    value:
+                      job.summary.averageMatch === null
+                        ? "-"
+                        : `${job.summary.averageMatch}%`,
+                    detail: "Portfolio evidence",
+                  },
+                  {
+                    label: "Must-have skills",
+                    value: job.job_skills.filter(
+                      (skill) => skill.priority === "MUST",
+                    ).length,
+                    detail: "Required for this role",
+                  },
+                ]}
+              />
+              <SourceAttributionPanel
+                jobId={job.id}
+                directApplicationUrl={job.publicApplicationUrl}
+                sourceLinks={job.sourceLinks}
+                attribution={job.attribution}
+              />
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </SkilioMotionRoot>

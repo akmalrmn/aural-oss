@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Card,
   CardContent,
@@ -27,6 +28,11 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { FolderKanban, Loader2, Plus } from "lucide-react";
+import {
+  InterviewWorkspace,
+  InterviewWorkspaceHeader,
+  InterviewWorkspaceSurface,
+} from "@/components/interview/interview-workspace";
 
 export default function ProjectsPage() {
   const { toast } = useToast();
@@ -73,17 +79,16 @@ export default function ProjectsPage() {
   const projects = projectsQuery.data ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">{isZh ? "项目" : "Projects"}</h1>
-          <p className="text-muted-foreground">
-            {isZh
-              ? "将面试归类到不同项目中。"
-              : "Organize interviews into projects."}
-          </p>
-        </div>
-        {isAdmin && (
+    <InterviewWorkspace>
+      <InterviewWorkspaceHeader
+        title={isZh ? "项目" : "Projects"}
+        description={
+          isZh
+            ? "将面试归类到不同项目中。"
+            : "Group related interviews so ownership, sessions, and reporting stay easy to scan."
+        }
+        actions={
+          isAdmin ? (
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -146,11 +151,21 @@ export default function ProjectsPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        )}
-      </div>
+          ) : undefined
+        }
+      />
 
-      {projects.length === 0 && !projectsQuery.isLoading ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
+      {projectsQuery.isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton
+              key={index}
+              className="h-36 rounded-[var(--skilio-radius-lg)]"
+            />
+          ))}
+        </div>
+      ) : projects.length === 0 ? (
+        <InterviewWorkspaceSurface className="p-8 text-center sm:p-12">
           <FolderKanban className="mx-auto h-12 w-12 text-muted-foreground/50" />
           <h3 className="mt-4 text-lg font-semibold">
             {isZh ? "还没有项目" : "No projects yet"}
@@ -160,12 +175,12 @@ export default function ProjectsPage() {
               ? "创建一个项目以开始组织面试。"
               : "Create a project to start organizing interviews."}
           </p>
-        </div>
+        </InterviewWorkspaceSurface>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
             <Link key={project.id} href={`/projects/${project.id}`}>
-              <Card className="transition-shadow hover:shadow-md cursor-pointer">
+              <Card className="cursor-pointer rounded-[var(--skilio-radius-lg)] border-0 shadow-[var(--skilio-shadow-1)] transition-[box-shadow,transform] hover:-translate-y-0.5 hover:shadow-[var(--skilio-shadow-2)]">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg">{project.name}</CardTitle>
                   {project.description && (
@@ -191,6 +206,6 @@ export default function ProjectsPage() {
           ))}
         </div>
       )}
-    </div>
+    </InterviewWorkspace>
   );
 }

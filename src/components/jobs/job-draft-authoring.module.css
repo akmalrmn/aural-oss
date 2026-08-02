@@ -1,0 +1,26 @@
+.dialogShell {
+  inset: 0 auto auto 0 !important;
+  width: 100vw;
+  max-width: none !important;
+  height: 100dvh;
+  max-height: none;
+  transform: none !important;
+}
+
+@media (min-width: 640px) {
+  .dialogShell {
+    inset: 50% auto auto 50% !important;
+    width: calc(100vw - 2rem);
+    height: auto;
+    max-height: 92vh;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  .briefDialog {
+    max-width: 42rem !important;
+  }
+
+  .reviewDialog {
+    max-width: 48rem !important;
+  }
+}

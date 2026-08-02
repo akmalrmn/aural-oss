@@ -29,6 +29,10 @@ import {
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { EditInterviewProvider } from "./edit-context";
+import {
+  InterviewWorkspace,
+  InterviewWorkspaceHeader,
+} from "@/components/interview/interview-workspace";
 
 const tabSkeletons: Record<string, React.ReactNode> = {
   content: (
@@ -150,12 +154,13 @@ export default function EditInterviewLayout({
     <EditInterviewProvider
       value={{ interview: data, interviewId: id, updateMutation }}
     >
-      <div className="space-y-6">
+      <InterviewWorkspace>
         {/* Header */}
         <div className="no-print">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">{data.title}</h1>
-            <div className="flex items-center gap-2">
+          <InterviewWorkspaceHeader
+            title={data.title}
+            actions={
+              <>
               <Button
                 variant="outline"
                 size="sm"
@@ -192,8 +197,9 @@ export default function EditInterviewLayout({
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-            </div>
-          </div>
+              </>
+            }
+          />
           <div className="mt-1 flex items-center gap-2">
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {(data as any).publicSlug && (data as any).isActive && !(data as any).requireInvite ? (
@@ -235,7 +241,7 @@ export default function EditInterviewLayout({
 
         {/* Tab navigation */}
         <div
-          className="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground no-print"
+          className="no-print grid w-full grid-cols-2 gap-1 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control)] p-1 text-muted-foreground sm:inline-flex sm:h-10 sm:w-auto"
           role="tablist"
         >
           {tabs.map((tab) => {
@@ -269,7 +275,7 @@ export default function EditInterviewLayout({
 
         {/* Tab content */}
         {isPending && pendingTab ? tabSkeletons[pendingTab] : children}
-      </div>
+      </InterviewWorkspace>
     </EditInterviewProvider>
   );
 }

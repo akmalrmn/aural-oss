@@ -5,6 +5,7 @@ import {
   createApplicationDrawingAssessment,
   DRAWING_STARTER_SHAPES,
   isDrawingAssessmentReusable,
+  isValidDrawingPhrase,
   parseApplicationDrawingAssessment,
   type ApplicationDrawingAssessment,
 } from "@/lib/drawing-assessment";
@@ -19,6 +20,10 @@ import {
   type JobStatus,
   type JobStatusAction,
 } from "@/lib/jobs/job-utils";
+import { consumeJobAuthoringRateLimit } from "@/lib/jobs/job-authoring-rate-limit";
+import { generateJobDraft } from "@/lib/jobs/job-draft-generator";
+import { createApplicationFileUploadToken } from "@/lib/jobs/application-file-upload-token";
+import { resolveStorageSignedUrl } from "@/lib/storage-signed-url";
 import {
   extractPortfolioSkills,
   provisionPortfolioAccount,
@@ -118,7 +123,15 @@ const drawingResponseSchema = z.object({
     "SLOPE",
     "LINE",
   ]),
-  phrase: z.string().trim().min(1).max(120),
+  phrase: z
+    .string()
+    .trim()
+    .min(1)
+    .max(60)
+    .refine(
+      isValidDrawingPhrase,
+      "Describe each drawing in three words or fewer.",
+    ),
   imageDataUrl: z
     .string()
     .max(750_000)
@@ -498,6 +511,74 @@ function defaultSourceLinkRows(jobId: string) {
 }
 
 export const jobRouter = router({
+  generateDraft: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        title: z.string().trim().min(2).max(140),
+        department: z.string().trim().max(100).optional(),
+        location: z.string().trim().max(120).optional(),
+        employmentType: z
+          .enum(["Full-time", "Part-time", "Contract", "Internship"])
+          .optional(),
+        seniority: z
+          .enum(["Entry-level", "Mid-level", "Senior", "Lead"])
+          .optional(),
+        notes: z.string().trim().max(4000).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (process.env.JOB_AI_AUTHORING_ENABLED === "false") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "AI job authoring is currently unavailable.",
+        });
+      }
+
+      await getProjectForAccess(
+        ctx.supabase as SupabaseLike,
+        input.projectId,
+        ctx.user.id,
+        "MEMBER",
+      );
+
+      const retryAfter = consumeJobAuthoringRateLimit(
+        `job-draft:${ctx.user.id}`,
+      );
+      if (retryAfter) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: `Too many authoring requests. Retry in ${retryAfter}s.`,
+        });
+      }
+
+      try {
+        return await generateJobDraft({
+          source: "brief",
+          content: JSON.stringify(
+            {
+              roleTitle: input.title,
+              department: input.department || undefined,
+              location: input.location || undefined,
+              employmentType: input.employmentType || undefined,
+              seniority: input.seniority || undefined,
+              employerNotes: input.notes || undefined,
+            },
+            null,
+            2,
+          ),
+        });
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "The role draft could not be generated.",
+        });
+      }
+    }),
+
   searchSkills: protectedProcedure
     .input(
       z.object({
@@ -895,7 +976,24 @@ export const jobRouter = router({
       }
 
       await getJobForAccess(supabase, data.jobId, ctx.user.id, "VIEWER");
-      return data;
+      const applicationFiles = await Promise.all(
+        (
+          (data.job_application_files ?? []) as Array<{
+            storageBucket?: string | null;
+            storagePath?: string | null;
+          }>
+        ).map(async (file) => ({
+          ...file,
+          url:
+            file.storageBucket && file.storagePath
+              ? await resolveStorageSignedUrl(
+                  file.storageBucket,
+                  file.storagePath,
+                )
+              : null,
+        })),
+      );
+      return { ...data, job_application_files: applicationFiles };
     }),
 
   updateApplicationStatus: protectedProcedure
@@ -1313,6 +1411,7 @@ export const jobRouter = router({
       return {
         ...data,
         portfolioProvisioning,
+        fileUploadToken: createApplicationFileUploadToken(data.id),
       };
     }),
 

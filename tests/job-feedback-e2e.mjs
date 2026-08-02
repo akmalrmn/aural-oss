@@ -195,6 +195,16 @@ try {
   await roleSkillButtons.first().click();
   await candidatePage.getByPlaceholder("Add another skill").fill("Facilitation");
   await candidatePage.getByRole("button", { name: "Add", exact: true }).click();
+  const artefact = {
+    name: "coda-skill-artefact.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\n% Skilio E2E skill artefact\n"),
+  };
+  const artefactInputs = candidatePage.getByLabel(
+    "Attach an artefact (optional)",
+  );
+  await artefactInputs.first().setInputFiles(artefact);
+  await artefactInputs.nth(1).setInputFiles(artefact);
   await candidatePage.screenshot({
     path: `${outputDir}/10-application-skills.png`,
     fullPage: true,
@@ -206,6 +216,11 @@ try {
   await candidatePage
     .getByLabel(/Tell us why you are applying/)
     .fill("I want to bring evidence-led product design to this team.");
+  await candidatePage.getByLabel("Resume file").setInputFiles({
+    name: "coda-feedback-resume.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\n% Skilio E2E resume\n"),
+  });
   await candidatePage
     .getByRole("button", { name: "Continue to pre-screening" })
     .click();
@@ -239,6 +254,7 @@ try {
 
   await employerPage.goto(`${baseUrl}/jobs/${createdJobId}`);
   await employerPage.waitForLoadState("networkidle");
+  await employerPage.getByRole("tab", { name: "Applicants" }).click();
   await employerPage
     .getByRole("link", { name: "Coda Feedback Candidate" })
     .waitFor({ state: "visible" });
@@ -254,6 +270,13 @@ try {
   await employerPage
     .getByRole("heading", { name: "Drawmetrics results" })
     .waitFor({ state: "visible" });
+  await employerPage
+    .getByRole("link", { name: /coda-skill-artefact\.pdf/ })
+    .first()
+    .waitFor();
+  await employerPage
+    .getByRole("link", { name: /coda-feedback-resume\.pdf/ })
+    .waitFor();
   await employerPage.screenshot({
     path: `${outputDir}/13-applicant-review.png`,
     fullPage: true,

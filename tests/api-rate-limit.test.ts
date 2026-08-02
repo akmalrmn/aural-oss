@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { afterEach, describe, it } from "node:test";
 
 function importFreshRateLimiter() {
   const url = new URL(
-    `../src/lib/api-rate-limit.ts?v=${crypto.randomUUID()}`,
+    `../src/lib/api-rate-limit.ts?v=${randomUUID()}`,
     import.meta.url,
   );
   return import(url.href) as Promise<typeof import("../src/lib/api-rate-limit")>;

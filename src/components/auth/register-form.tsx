@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { buildEmployerSignupMetadata } from "@/lib/employer-onboarding";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2, MailCheck } from "lucide-react";
 import Image from "next/image";
@@ -23,7 +24,9 @@ export function RegisterForm() {
   const { toast } = useToast();
   const { t } = useAppLocale();
   const [loading, setLoading] = useState(false);
+  const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState("");
 
@@ -34,12 +37,11 @@ export function RegisterForm() {
     setLoading(true);
 
     try {
-      const defaultName = email.split("@")[0].replace(/[._-]+/g, " ");
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password,
         options: {
-          data: { full_name: defaultName },
+          data: buildEmployerSignupMetadata({ companyName, fullName }),
           emailRedirectTo: `${window.location.origin}/auth/confirm?next=/jobs`,
         },
       });
@@ -94,7 +96,7 @@ export function RegisterForm() {
             <span className="break-all font-medium text-[var(--skilio-ink)]">
               {pendingConfirmationEmail}
             </span>
-            . Open it to activate your employer account.
+            . Open it to activate the {companyName.trim()} hiring workspace.
           </CardDescription>
         </CardHeader>
         <CardFooter className="px-6 pb-8 sm:px-8">
@@ -131,16 +133,53 @@ export function RegisterForm() {
           </div>
         </div>
         <h1 className="font-heading text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--skilio-ink)]">
-          Create employer access
+          Create your company workspace
         </h1>
         <CardDescription className="mt-2 leading-6 text-[var(--skilio-ink-soft)]">
-          Create a workspace login for hiring operations.
+          Set up your employer account and invite your hiring team after sign in.
         </CardDescription>
       </CardHeader>
       <CardContent className="px-6 pb-0 sm:px-8">
         <form onSubmit={handleSubmit} className="space-y-5" aria-busy={loading}>
           <div className="space-y-2">
-            <Label htmlFor="email">{t("auth.email")}</Label>
+            <Label htmlFor="fullName">Your name</Label>
+            <Input
+              id="fullName"
+              name="name"
+              type="text"
+              autoComplete="name"
+              className="h-11"
+              placeholder="Alex Morgan"
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              required
+              maxLength={100}
+              disabled={loading}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="companyName">Company name</Label>
+            <Input
+              id="companyName"
+              name="organization"
+              type="text"
+              autoComplete="organization"
+              className="h-11"
+              placeholder="ABC Company"
+              value={companyName}
+              onChange={(event) => setCompanyName(event.target.value)}
+              required
+              maxLength={100}
+              disabled={loading}
+            />
+            <p className="text-xs leading-5 text-[var(--skilio-ink-muted)]">
+              This becomes your team&apos;s shared organization in Skilio Hiring.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="email">Work email</Label>
             <Input
               id="email"
               name="email"
@@ -150,7 +189,7 @@ export function RegisterForm() {
               autoCapitalize="none"
               spellCheck={false}
               className="h-11"
-              placeholder={t("auth.emailPlaceholder")}
+              placeholder="you@company.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -174,7 +213,7 @@ export function RegisterForm() {
             disabled={loading}
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-            {loading ? "Creating account…" : t("auth.createAccount")}
+            {loading ? "Creating workspace…" : "Create company workspace"}
           </Button>
         </form>
       </CardContent>

@@ -35,6 +35,11 @@ import {
     XAxis,
     YAxis,
 } from "recharts";
+import {
+    InterviewWorkspace,
+    InterviewWorkspaceHeader,
+    InterviewWorkspaceToolbar,
+} from "@/components/interview/interview-workspace";
 
 type PeriodValue = "last7" | "last30" | "last90" | "thisMonth";
 
@@ -128,7 +133,7 @@ function UsageRing({
   };
 
   return (
-    <Card>
+    <Card className="rounded-[var(--skilio-radius-lg)] border-0 shadow-[var(--skilio-shadow-1)]">
       <CardContent className="pt-6">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
@@ -244,7 +249,7 @@ function UsageDetailSection({
   children?: React.ReactNode;
 }) {
   return (
-    <Card>
+    <Card className="rounded-[var(--skilio-radius-lg)] border-0 shadow-[var(--skilio-shadow-1)]">
       <CardContent className="grid gap-6 pt-6 md:grid-cols-[2fr_3fr]">
         <div className="flex flex-col justify-between">
           <div>
@@ -635,18 +640,18 @@ export default function UsagePage() {
   ];
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Usage</h1>
-        <p className="text-muted-foreground">
-          {isZh
+    <InterviewWorkspace>
+      <InterviewWorkspaceHeader
+        title="Usage"
+        description={
+          isZh
             ? "查看组织的资源使用统计"
-            : "View your organization's resource usage statistics"}
-        </p>
-      </div>
+            : "Understand interview activity and resource use across your organization."
+        }
+      />
 
       {/* Filters & Plan Info */}
-      <div className="flex flex-wrap items-center gap-3">
+      <InterviewWorkspaceToolbar>
         <Select
           value={period}
           onValueChange={(v) => setPeriod(v as PeriodValue)}
@@ -686,7 +691,7 @@ export default function UsagePage() {
             </span>
           </div>
         )}
-      </div>
+      </InterviewWorkspaceToolbar>
 
       <Separator />
 
@@ -756,7 +761,7 @@ export default function UsagePage() {
             total={formatHours(data.sessionTime.usedSeconds)}
             data={data.daily}
             dataKey="sessionMinutes"
-            color="hsl(24, 80%, 55%)"
+            color="#2f7d4f"
             yLabel={isZh ? "分钟" : "min"}
           >
             <CollapsibleDetailTable
@@ -791,7 +796,7 @@ export default function UsagePage() {
             total={`${data.templates.used.toLocaleString()} ${isZh ? "个模板" : "templates"}`}
             data={data.daily}
             dataKey="templates"
-            color="hsl(142, 60%, 45%)"
+            color="#7bc957"
             yLabel={isZh ? "个模板" : "templates"}
           >
             <CollapsibleDetailTable
@@ -813,6 +818,6 @@ export default function UsagePage() {
           </UsageDetailSection>
         </div>
       ) : null}
-    </div>
+    </InterviewWorkspace>
   );
 }

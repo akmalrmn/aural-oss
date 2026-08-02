@@ -89,6 +89,7 @@ try {
   );
   await employerPage.waitForURL(`**/jobs/${job.id}`);
   await employerPage.waitForLoadState("networkidle");
+  await employerPage.getByRole("tab", { name: "Job stats" }).click();
 
   const sourcePanel = employerPage.getByTestId("source-attribution-panel");
   await sourcePanel.getByRole("heading", { name: "Source performance" }).waitFor();
@@ -242,6 +243,7 @@ try {
 
   await employerPage.goto(`${baseUrl}/jobs/${job.id}`);
   await employerPage.waitForLoadState("networkidle");
+  await employerPage.getByRole("tab", { name: "Job stats" }).click();
   const customRow = employerPage
     .getByTestId("source-attribution-panel")
     .locator("tr")

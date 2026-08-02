@@ -126,7 +126,7 @@ export const organizationRouter = router({
       // Auto-create default project
       await ctx.supabase.from("projects").insert({
         organizationId: org.id,
-        name: "Default",
+        name: "Hiring",
         createdBy: ctx.user.id,
       });
 

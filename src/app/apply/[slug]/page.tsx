@@ -16,6 +16,7 @@ import {
   Linkedin,
   Loader2,
   LogIn,
+  Paperclip,
   Plus,
   ShieldCheck,
   UploadCloud,
@@ -42,9 +43,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import {
-  DRAWING_STARTER_SHAPES,
+  isCompleteDrawingResponses,
   type ApplicationDrawingResponse,
 } from "@/lib/drawing-assessment";
+import {
+  applicationFileFingerprint,
+  MAX_APPLICATION_FILES,
+  type ApplicationFileKind,
+  validateApplicationFile,
+} from "@/lib/jobs/application-files";
 import type { Json } from "@/lib/supabase/types";
 
 type PublicJob = {
@@ -72,6 +79,18 @@ type PortfolioProvisioningView = {
   nextUrl?: string | null;
   activationEmailSent?: boolean | null;
   message?: string;
+};
+
+type LocalApplicationFile = {
+  id: string;
+  file: File;
+  skillNames: string[];
+};
+
+type ApplicationUploadSession = {
+  applicationId: string;
+  fileUploadToken: string;
+  portfolioProvisioning: PortfolioProvisioningView | null;
 };
 
 const steps = [
@@ -168,6 +187,20 @@ function firstNonEmpty(...values: unknown[]) {
     if (text) return text;
   }
   return "";
+}
+
+function getApplicationErrorMessage(message?: string) {
+  if (
+    message?.includes("drawingResponses") ||
+    message?.includes("must use the") ||
+    message?.includes("Drawmetrics")
+  ) {
+    return "Your Drawmetrics set is incomplete. Return to Drawmetrics and complete all ten drawings before submitting.";
+  }
+  return (
+    message ||
+    "We could not submit this application. Check your details and try again."
+  );
 }
 
 function getCvAttachment(profile: Record<string, unknown>) {
@@ -267,7 +300,7 @@ function StepRail({ current }: { current: number }) {
               <span
                 data-testid="application-step-marker"
                 className={cn(
-                  "flex h-4 w-4 shrink-0 items-center justify-center text-[10px] font-semibold tabular-nums",
+                  "flex h-4 w-4 shrink-0 items-center justify-center text-xs font-semibold tabular-nums",
                   state === "active"
                     ? "text-[var(--skilio-brand-strong)]"
                     : state === "done"
@@ -436,11 +469,22 @@ export default function CandidateApplicationPage() {
   const [customSkill, setCustomSkill] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [skillEvidence, setSkillEvidence] = useState<Record<string, string>>({});
+  const [skillArtifacts, setSkillArtifacts] = useState<LocalApplicationFile[]>(
+    [],
+  );
   const [screeningAnswers, setScreeningAnswers] = useState<
     Record<string, string>
   >({});
   const [resumeFileName, setResumeFileName] = useState("");
   const [resumeUrl, setResumeUrl] = useState("");
+  const [resumeFile, setResumeFile] = useState<LocalApplicationFile | null>(
+    null,
+  );
+  const [fileError, setFileError] = useState("");
+  const [applicationError, setApplicationError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadSession, setUploadSession] =
+    useState<ApplicationUploadSession | null>(null);
   const [drawingResponses, setDrawingResponses] = useState<
     ApplicationDrawingResponse[]
   >([]);
@@ -450,20 +494,7 @@ export default function CandidateApplicationPage() {
     { slug: params.slug },
     { retry: false },
   );
-  const apply = trpc.job.apply.useMutation({
-    onSuccess: (data) => {
-      setSubmittedApplicationId(data.id);
-      setPortfolioProvisioning(
-        (data.portfolioProvisioning as PortfolioProvisioningView | null) ?? null,
-      );
-      setSubmitted(true);
-      setStep(steps.length - 1);
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    },
-    onSettled: () => {
-      submittingRef.current = false;
-    },
-  });
+  const apply = trpc.job.apply.useMutation();
   const retryProvisioning = trpc.job.retryPortfolioProvisioning.useMutation({
     onSuccess: (data) => {
       setPortfolioProvisioning(data as PortfolioProvisioningView);
@@ -639,7 +670,7 @@ export default function CandidateApplicationPage() {
       : null;
   const canReuseDrawingAssessment = Boolean(reusableDrawingStatus);
   const hasCompleteDrawingAssessment =
-    drawingResponses.length === DRAWING_STARTER_SHAPES.length;
+    isCompleteDrawingResponses(drawingResponses);
 
   const canContinue = useMemo(() => {
     if (submitted) return false;
@@ -684,6 +715,16 @@ export default function CandidateApplicationPage() {
           delete copy[skill];
           return copy;
         });
+        setSkillArtifacts((existing) =>
+          existing
+            .map((artifact) => ({
+              ...artifact,
+              skillNames: artifact.skillNames.filter(
+                (item) => normalizeSkill(item) !== normalizeSkill(skill),
+              ),
+            }))
+            .filter((artifact) => artifact.skillNames.length > 0),
+        );
         return next;
       }
       setSkillEvidence((existing) => ({ ...existing, [skill]: "" }));
@@ -699,6 +740,125 @@ export default function CandidateApplicationPage() {
       setSkillEvidence((existing) => ({ ...existing, [normalized]: "" }));
     }
     setCustomSkill("");
+  }
+
+  function addSkillArtifact(skill: string, file: File | undefined) {
+    if (!file) return;
+    setFileError("");
+
+    const validationError = validateApplicationFile(file, "skill_artifact");
+    if (validationError) {
+      setFileError(validationError);
+      return;
+    }
+
+    const fingerprint = applicationFileFingerprint(file);
+    const existing = skillArtifacts.find(
+      (artifact) => applicationFileFingerprint(artifact.file) === fingerprint,
+    );
+    if (existing) {
+      setSkillArtifacts((current) =>
+        current.map((artifact) =>
+          artifact.id === existing.id &&
+          !artifact.skillNames.some(
+            (item) => normalizeSkill(item) === normalizeSkill(skill),
+          )
+            ? { ...artifact, skillNames: [...artifact.skillNames, skill] }
+            : artifact,
+        ),
+      );
+      return;
+    }
+
+    if (skillArtifacts.length + (resumeFile ? 1 : 0) >= MAX_APPLICATION_FILES) {
+      setFileError(
+        `You can attach up to ${MAX_APPLICATION_FILES} files to one application.`,
+      );
+      return;
+    }
+
+    setSkillArtifacts((current) => [
+      ...current,
+      { id: window.crypto.randomUUID(), file, skillNames: [skill] },
+    ]);
+  }
+
+  function removeSkillArtifact(artifactId: string, skill: string) {
+    setSkillArtifacts((current) =>
+      current
+        .map((artifact) =>
+          artifact.id === artifactId
+            ? {
+                ...artifact,
+                skillNames: artifact.skillNames.filter(
+                  (item) => normalizeSkill(item) !== normalizeSkill(skill),
+                ),
+              }
+            : artifact,
+        )
+        .filter((artifact) => artifact.skillNames.length > 0),
+    );
+    setFileError("");
+  }
+
+  function selectResume(file: File | undefined) {
+    if (!file) return;
+    setFileError("");
+
+    const validationError = validateApplicationFile(file, "resume");
+    if (validationError) {
+      setFileError(validationError);
+      return;
+    }
+    if (!resumeFile && skillArtifacts.length >= MAX_APPLICATION_FILES) {
+      setFileError(
+        `You can attach up to ${MAX_APPLICATION_FILES} files to one application.`,
+      );
+      return;
+    }
+
+    setResumeFile({
+      id: window.crypto.randomUUID(),
+      file,
+      skillNames: [],
+    });
+    setResumeFileName(file.name);
+    setResumeUrl("");
+  }
+
+  async function uploadApplicationFile(
+    session: ApplicationUploadSession,
+    localFile: LocalApplicationFile,
+    kind: ApplicationFileKind,
+  ) {
+    const formData = new FormData();
+    formData.set("applicationId", session.applicationId);
+    formData.set("token", session.fileUploadToken);
+    formData.set("clientFileId", localFile.id);
+    formData.set("kind", kind);
+    formData.set("skillNames", JSON.stringify(localFile.skillNames));
+    formData.set("file", localFile.file);
+
+    const response = await fetch("/api/jobs/application-files", {
+      method: "POST",
+      body: formData,
+    });
+    const result = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    if (!response.ok) {
+      throw new Error(
+        result?.error ?? "A file could not be uploaded. Please retry.",
+      );
+    }
+  }
+
+  function finishSubmission(session: ApplicationUploadSession) {
+    setSubmittedApplicationId(session.applicationId);
+    setPortfolioProvisioning(session.portfolioProvisioning);
+    setSubmitted(true);
+    setStep(steps.length - 1);
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }
 
   function goNext() {
@@ -722,52 +882,109 @@ export default function CandidateApplicationPage() {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }
 
-  function submit(event?: FormEvent<HTMLFormElement>) {
+  async function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
+    if (currentStep !== steps.length - 1) return;
+    if (
+      !canReuseDrawingAssessment &&
+      !isCompleteDrawingResponses(drawingResponses)
+    ) {
+      setApplicationError(
+        "Your Drawmetrics set is incomplete. Complete all ten drawings before reviewing your application.",
+      );
+      setStep(2);
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      return;
+    }
     if (!job || submitted || submittingRef.current) return;
     submittingRef.current = true;
+    setIsSubmitting(true);
+    setFileError("");
+    setApplicationError("");
+    let session = uploadSession;
 
-    apply.mutate({
-      slug: params.slug,
-      portfolioUserId: skilioIdentity?.portfolioUserId,
-      identityLinkId: skilioIdentity?.id,
-      source: applyingWithSkilio ? "SKILIO" : "GUEST",
-      sourceVisitorId: sourceVisitorId ?? undefined,
-      name: name.trim(),
-      email: email.trim(),
-      phone: cleanOptionalText(
-        [phoneCountryCode, phone.trim()].filter(Boolean).join(" "),
-      ),
-      location: cleanOptionalText(location),
-      coverLetter: cleanOptionalText(coverLetter),
-      skills: selectedSkills.map((skill) => skill.trim()).filter(Boolean),
-      createSkilioAccount: applyingManually && createSkilioAccount,
-      links: {
-        portfolio: cleanOptionalUrl(portfolio),
-        linkedin: cleanOptionalUrl(linkedin),
-        github: cleanOptionalUrl(github),
-        website: cleanOptionalUrl(website),
-        resume: cleanOptionalUrl(resumeUrl),
-      },
-      screeningAnswers,
-      drawingResponses: canReuseDrawingAssessment
-        ? undefined
-        : drawingResponses,
-      profileSnapshot: {
-        portfolioUserId: skilioIdentity?.portfolioUserId,
-        identityLinkId: skilioIdentity?.id,
-        portfolioUsername: skilioIdentity?.username,
-        portfolioSnapshot: skilioProfileSnapshot,
-        portfolioSkills: skilioSkills,
-        profileId: profile?.id,
-        organization: profile?.organization,
-        authChoice: applyingWithSkilio ? "signed_in" : authChoice,
-        skillEvidence,
-        screeningAnswers,
-        resumeFileName,
-        resumeUrl,
-      },
-    });
+    try {
+      if (!session) {
+        const data = await apply.mutateAsync({
+          slug: params.slug,
+          portfolioUserId: skilioIdentity?.portfolioUserId,
+          identityLinkId: skilioIdentity?.id,
+          source: applyingWithSkilio ? "SKILIO" : "GUEST",
+          sourceVisitorId: sourceVisitorId ?? undefined,
+          name: name.trim(),
+          email: email.trim(),
+          phone: cleanOptionalText(
+            [phoneCountryCode, phone.trim()].filter(Boolean).join(" "),
+          ),
+          location: cleanOptionalText(location),
+          coverLetter: cleanOptionalText(coverLetter),
+          skills: selectedSkills.map((skill) => skill.trim()).filter(Boolean),
+          createSkilioAccount: applyingManually && createSkilioAccount,
+          links: {
+            portfolio: cleanOptionalUrl(portfolio),
+            linkedin: cleanOptionalUrl(linkedin),
+            github: cleanOptionalUrl(github),
+            website: cleanOptionalUrl(website),
+            resume: cleanOptionalUrl(resumeUrl),
+          },
+          screeningAnswers,
+          drawingResponses: canReuseDrawingAssessment
+            ? undefined
+            : drawingResponses,
+          profileSnapshot: {
+            portfolioUserId: skilioIdentity?.portfolioUserId,
+            identityLinkId: skilioIdentity?.id,
+            portfolioUsername: skilioIdentity?.username,
+            portfolioSnapshot: skilioProfileSnapshot,
+            portfolioSkills: skilioSkills,
+            profileId: profile?.id,
+            organization: profile?.organization,
+            authChoice: applyingWithSkilio ? "signed_in" : authChoice,
+            skillEvidence,
+            screeningAnswers,
+            resumeFileName,
+            resumeUrl,
+          },
+        });
+        session = {
+          applicationId: data.id,
+          fileUploadToken: data.fileUploadToken,
+          portfolioProvisioning:
+            (data.portfolioProvisioning as PortfolioProvisioningView | null) ??
+            null,
+        };
+        setUploadSession(session);
+      }
+      if (!session) {
+        throw new Error("The application upload session could not be created.");
+      }
+      const activeUploadSession = session;
+
+      await Promise.all([
+        ...(resumeFile
+          ? [uploadApplicationFile(activeUploadSession, resumeFile, "resume")]
+          : []),
+        ...skillArtifacts.map((artifact) =>
+          uploadApplicationFile(
+            activeUploadSession,
+            artifact,
+            "skill_artifact",
+          ),
+        ),
+      ]);
+      finishSubmission(activeUploadSession);
+    } catch (error) {
+      if (session) {
+        setFileError(
+          error instanceof Error
+            ? error.message
+            : "A file could not be uploaded. Retry to finish your application.",
+        );
+      }
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
   }
 
   const applyNextSearch = new URLSearchParams({ stage: "access" });
@@ -778,7 +995,14 @@ export default function CandidateApplicationPage() {
   return (
     <main className="skilio-interface min-h-screen overflow-x-hidden bg-[var(--skilio-panel)] text-[var(--skilio-ink)]">
       <header className="sticky top-0 z-20 border-b border-[var(--skilio-border)] bg-[var(--skilio-elevated)]">
-        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-6">
+        <div
+          className={cn(
+            "mx-auto flex h-16 items-center justify-between px-4 sm:px-6",
+            !hasStarted && !submitted && !jobUnavailable
+              ? "max-w-6xl"
+              : "max-w-4xl",
+          )}
+        >
           <Link href="/" className="flex items-center gap-3">
             <Image
               src="/logos/skilio-leaf-square.png"
@@ -818,34 +1042,52 @@ export default function CandidateApplicationPage() {
         </div>
       </header>
 
-      <SkilioMotionRoot className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
-        <JobSummaryCard
-          job={job}
-          loading={jobQuery.isLoading}
-          unavailable={jobUnavailable}
-          compact={hasStarted || submitted}
-        />
+      <SkilioMotionRoot
+        className={cn(
+          "mx-auto w-full px-4 py-8 sm:px-6 sm:py-10",
+          !hasStarted && !submitted && !jobUnavailable
+            ? "max-w-6xl"
+            : "max-w-4xl",
+        )}
+      >
+        <div
+          className={cn(
+            !hasStarted && !submitted && !jobUnavailable
+              ? "grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]"
+              : "contents",
+          )}
+        >
+          <JobSummaryCard
+            job={job}
+            loading={jobQuery.isLoading}
+            unavailable={jobUnavailable}
+            compact={hasStarted || submitted}
+          />
 
         {!hasStarted && !submitted && !jobUnavailable ? (
-          <section className="border-t border-[var(--skilio-border)] pt-6">
+          <aside className="lg:sticky lg:top-24">
             {jobQuery.isLoading ? (
-              <Skeleton className="ml-auto h-11 w-full sm:w-52" />
+              <Skeleton className="h-44 w-full" />
             ) : (
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm leading-6 text-[var(--skilio-ink-soft)]">
-                  Review the role before starting the application.
+              <SkilioPanel className="border-[var(--skilio-border)] bg-[var(--skilio-elevated)] p-5 shadow-[var(--skilio-shadow-1)]">
+                <h2 className="text-lg font-semibold text-[var(--skilio-ink)]">
+                  Ready to apply?
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                  Start when you are ready. You can review your answers before
+                  submitting.
                 </p>
                 <Button
                   type="button"
                   onClick={startApplication}
-                  className="h-11 gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] px-5 text-white hover:bg-[var(--skilio-brand-strong)]"
+                  className="mt-5 h-11 w-full gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] px-5 text-white hover:bg-[var(--skilio-brand-strong)]"
                 >
                   Start application
                   <ArrowRight className="h-4 w-4" />
                 </Button>
-              </div>
+              </SkilioPanel>
             )}
-          </section>
+          </aside>
         ) : (
           <section className="mt-6 min-w-0 space-y-6">
             {!submitted && !jobUnavailable && <StepRail current={currentStep} />}
@@ -970,6 +1212,14 @@ export default function CandidateApplicationPage() {
               </div>
             ) : (
               <form onSubmit={submit} className="space-y-6">
+                {applicationError && (
+                  <div
+                    role="alert"
+                    className="rounded-[var(--skilio-radius-md)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                  >
+                    {applicationError}
+                  </div>
+                )}
                 {currentStep === 0 && (
                   <div className="space-y-5">
                     <div>
@@ -1167,8 +1417,9 @@ export default function CandidateApplicationPage() {
                         Drawmetrics
                       </h2>
                       <p className="mt-1 text-sm text-[var(--skilio-ink-soft)]">
-                        Complete ten drawings by continuing each fixed mark and
-                        naming the picture you create.
+                        You will be presented with a series of symbols. Draw the
+                        first thing that comes to mind when you see each symbol,
+                        then describe what you drew in three words or fewer.
                       </p>
                     </div>
                     {drawingStatusQuery.isLoading ? (
@@ -1206,7 +1457,12 @@ export default function CandidateApplicationPage() {
                       </div>
                     ) : (
                       <ApplicationDrawingAssessment
-                        onChange={setDrawingResponses}
+                        onChange={(responses) => {
+                          setDrawingResponses(responses);
+                          if (isCompleteDrawingResponses(responses)) {
+                            setApplicationError("");
+                          }
+                        }}
                       />
                     )}
                   </div>
@@ -1308,11 +1564,78 @@ export default function CandidateApplicationPage() {
                             value={skillEvidence[skill] ?? ""}
                             onChange={(event) => setSkillEvidence((current) => ({ ...current, [skill]: event.target.value }))}
                             className="mt-3 min-h-20"
-                            placeholder={`Optional: share where you used ${skill} or link it to a portfolio example.`}
+                            placeholder={`Optional: describe where you used ${skill} or link it to a portfolio example.`}
                           />
+                          <div className="mt-4 border-t border-[var(--skilio-border)] pt-4">
+                            <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] px-3 py-2 text-sm font-medium text-[var(--skilio-ink)] transition-colors hover:bg-[var(--skilio-control)] focus-within:ring-2 focus-within:ring-[var(--skilio-brand)] focus-within:ring-offset-2">
+                              <Paperclip className="h-4 w-4 text-[var(--skilio-brand)]" />
+                              Attach an artefact (optional)
+                              <input
+                                type="file"
+                                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+                                className="sr-only"
+                                onChange={(event) => {
+                                  addSkillArtifact(
+                                    skill,
+                                    event.target.files?.[0],
+                                  );
+                                  event.currentTarget.value = "";
+                                }}
+                              />
+                            </label>
+                            {skillArtifacts.some((artifact) =>
+                              artifact.skillNames.some(
+                                (item) =>
+                                  normalizeSkill(item) ===
+                                  normalizeSkill(skill),
+                              ),
+                            ) && (
+                              <ul className="mt-3 space-y-2">
+                                {skillArtifacts
+                                  .filter((artifact) =>
+                                    artifact.skillNames.some(
+                                      (item) =>
+                                        normalizeSkill(item) ===
+                                        normalizeSkill(skill),
+                                    ),
+                                  )
+                                  .map((artifact) => (
+                                    <li
+                                      key={artifact.id}
+                                      className="flex items-center justify-between gap-3 rounded-[var(--skilio-radius-sm)] bg-[var(--skilio-control)] px-3 py-2"
+                                    >
+                                      <span className="min-w-0 truncate text-sm font-medium text-[var(--skilio-ink)]">
+                                        {artifact.file.name}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          removeSkillArtifact(
+                                            artifact.id,
+                                            skill,
+                                          )
+                                        }
+                                        aria-label={`Remove ${artifact.file.name} from ${skill}`}
+                                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--skilio-radius-sm)] text-[var(--skilio-ink-muted)] hover:bg-[var(--skilio-elevated)] hover:text-[var(--skilio-danger)]"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    </li>
+                                  ))}
+                              </ul>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
+                    {fileError && (
+                      <p
+                        role="alert"
+                        className="text-sm font-medium text-[var(--skilio-danger)]"
+                      >
+                        {fileError}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -1371,11 +1694,38 @@ export default function CandidateApplicationPage() {
                           accept=".pdf,.doc,.docx"
                           className="sr-only"
                           onChange={(event) => {
-                            setResumeFileName(event.target.files?.[0]?.name ?? "");
-                            setResumeUrl("");
+                            selectResume(event.target.files?.[0]);
+                            event.currentTarget.value = "";
                           }}
                         />
                       </label>
+                      {resumeFile && (
+                        <div className="mt-2 flex items-center justify-between gap-3 rounded-[var(--skilio-radius-sm)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] px-3 py-2">
+                          <span className="min-w-0 truncate text-sm font-medium text-[var(--skilio-ink)]">
+                            {resumeFile.file.name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setResumeFile(null);
+                              setResumeFileName("");
+                              setFileError("");
+                            }}
+                            aria-label={`Remove ${resumeFile.file.name}`}
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--skilio-radius-sm)] text-[var(--skilio-ink-muted)] hover:bg-[var(--skilio-elevated)] hover:text-[var(--skilio-danger)]"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                      {fileError && (
+                        <p
+                          role="alert"
+                          className="mt-2 text-sm font-medium text-[var(--skilio-danger)]"
+                        >
+                          {fileError}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -1536,7 +1886,20 @@ export default function CandidateApplicationPage() {
 
                 {apply.isError && (
                   <div className="rounded-[var(--skilio-radius-md)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {apply.error?.message || "We could not submit this application. Check your details and try again."}
+                    {getApplicationErrorMessage(apply.error?.message)}
+                  </div>
+                )}
+                {fileError && currentStep >= 5 && (
+                  <div
+                    role="alert"
+                    className="rounded-[var(--skilio-radius-md)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                  >
+                    <div className="font-semibold">
+                      {uploadSession
+                        ? "Your application was saved, but its files still need to finish uploading."
+                        : "One or more attached files needs attention."}
+                    </div>
+                    <p className="mt-1">{fileError}</p>
                   </div>
                 )}
 
@@ -1545,7 +1908,7 @@ export default function CandidateApplicationPage() {
                     type="button"
                     variant="outline"
                     onClick={goBack}
-                    disabled={apply.isLoading}
+                    disabled={isSubmitting}
                     className="gap-2"
                   >
                     <ArrowLeft className="h-4 w-4" />
@@ -1566,8 +1929,19 @@ export default function CandidateApplicationPage() {
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   ) : (
-                    <Button type="submit" className="gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
-                      Submit application
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]"
+                    >
+                      {isSubmitting && (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      )}
+                      {uploadSession
+                        ? "Retry file uploads"
+                        : isSubmitting
+                          ? "Submitting application"
+                          : "Submit application"}
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   )}
@@ -1577,6 +1951,7 @@ export default function CandidateApplicationPage() {
             </SkilioPanel>
           </section>
         )}
+        </div>
       </SkilioMotionRoot>
     </main>
   );

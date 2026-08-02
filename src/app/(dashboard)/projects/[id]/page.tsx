@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { InterviewWorkspace } from "@/components/interview/interview-workspace";
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -117,8 +118,8 @@ export default function ProjectDetailPage() {
   const interviews = interviewsQuery.data?.interviews ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
+    <InterviewWorkspace>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <Button
           variant="ghost"
           size="icon"
@@ -174,7 +175,7 @@ export default function ProjectDetailPage() {
             <p className="text-muted-foreground">{project.description}</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link href={`/interviews/new?projectId=${projectId}`}>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -216,7 +217,7 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden rounded-[var(--skilio-radius-lg)] border-0 shadow-[var(--skilio-shadow-1)]">
         <CardHeader>
           <CardTitle>{isZh ? "面试" : "Interviews"}</CardTitle>
           <CardDescription>
@@ -234,6 +235,7 @@ export default function ProjectDetailPage() {
                 : "No interviews yet. Create one to get started."}
             </div>
           ) : (
+            <div className="overflow-x-auto code-scrollbar">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -271,9 +273,10 @@ export default function ProjectDetailPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
-    </div>
+    </InterviewWorkspace>
   );
 }

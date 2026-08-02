@@ -88,6 +88,12 @@ import {
   type InterviewTemplate,
 } from "@/lib/interview-templates";
 import { useProject } from "@/components/project-provider";
+import {
+  InterviewWorkspace,
+  InterviewWorkspaceHeader,
+  InterviewWorkspaceSurface,
+  InterviewWorkspaceToolbar,
+} from "@/components/interview/interview-workspace";
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -541,19 +547,19 @@ export default function InterviewsPage() {
   );
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">{t("interviews.title")}</h1>
-          <p className="text-muted-foreground">{t("interviews.subtitle")}</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <InterviewWorkspace>
+      <InterviewWorkspaceHeader
+        title={t("interviews.title")}
+        description={t("interviews.subtitle")}
+        actions={
+          <>
           <div className="flex items-center rounded-md border bg-muted/30 p-0.5">
             <Button
               variant={viewMode === "card" ? "default" : "ghost"}
               size="icon"
               className="h-7 w-7"
+              aria-label="Card view"
+              aria-pressed={viewMode === "card"}
               onClick={() => setViewMode("card")}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
@@ -562,6 +568,8 @@ export default function InterviewsPage() {
               variant={viewMode === "table" ? "default" : "ghost"}
               size="icon"
               className="h-7 w-7"
+              aria-label="Table view"
+              aria-pressed={viewMode === "table"}
               onClick={() => setViewMode("table")}
             >
               <List className="h-3.5 w-3.5" />
@@ -581,12 +589,13 @@ export default function InterviewsPage() {
             )}
             {t("sidebar.newInterview")}
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Filter bar */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
+      <InterviewWorkspaceToolbar>
+        <div className="relative min-w-0 flex-1 sm:min-w-64">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder={t("interviews.search")}
@@ -606,7 +615,7 @@ export default function InterviewsPage() {
             setPage(0);
           }}
         >
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-full sm:w-[160px]">
             <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
@@ -626,7 +635,7 @@ export default function InterviewsPage() {
             setPage(0);
           }}
         >
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-full sm:w-[150px]">
             <CircleDot className="mr-2 h-4 w-4 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
@@ -643,6 +652,7 @@ export default function InterviewsPage() {
           variant="outline"
           onClick={handleExport}
           disabled={processedInterviews.length === 0}
+          className="w-full sm:w-auto"
         >
           <Download className="mr-2 h-4 w-4" />
           Export
@@ -672,7 +682,7 @@ export default function InterviewsPage() {
             </Button>
           </>
         )}
-      </div>
+      </InterviewWorkspaceToolbar>
 
       {/* Batch-delete confirmation dialog */}
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
@@ -740,17 +750,17 @@ export default function InterviewsPage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border p-6">
+          <InterviewWorkspaceSurface className="p-6">
             <Skeleton className="h-48" />
-          </div>
+          </InterviewWorkspaceSurface>
         )
       ) : processedInterviews.length === 0 ? (
         isFiltering ? (
-          <div className="rounded-lg border">
+          <InterviewWorkspaceSurface>
             <p className="py-8 text-center text-muted-foreground">
               {t("interviews.search")}
             </p>
-          </div>
+          </InterviewWorkspaceSurface>
         ) : (
           <div className="space-y-8">
             <div className="text-center">
@@ -848,7 +858,7 @@ export default function InterviewsPage() {
                   }
                 }}
                 className={cn(
-                  "group relative cursor-pointer transition-all",
+                  "group relative cursor-pointer rounded-[var(--skilio-radius-lg)] border-0 shadow-[var(--skilio-shadow-1)] transition-all",
                   isSelected
                     ? "border-primary ring-1 ring-primary bg-primary/5"
                     : "hover:shadow-md hover:border-primary/30 hover:bg-muted/30",
@@ -924,7 +934,8 @@ export default function InterviewsPage() {
         </div>
       ) : (
         /* ── Table view ─────────────────────────────────────────── */
-        <div className="rounded-lg border">
+        <InterviewWorkspaceSurface>
+          <div className="overflow-x-auto code-scrollbar">
           <Table>
             <TableHeader>
               <TableRow>
@@ -1102,6 +1113,7 @@ export default function InterviewsPage() {
               })}
             </TableBody>
           </Table>
+          </div>
 
           {processedInterviews.length > PAGE_SIZE_OPTIONS[0] && (
             <div className="flex items-center justify-between border-t px-4 py-3">
@@ -1152,8 +1164,8 @@ export default function InterviewsPage() {
               </div>
             </div>
           )}
-        </div>
+        </InterviewWorkspaceSurface>
       )}
-    </div>
+    </InterviewWorkspace>
   );
 }

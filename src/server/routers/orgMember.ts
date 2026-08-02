@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
+import { getInviteDisplayName } from "@/lib/employer-onboarding";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   getOrgMembership,
   assertMinRole,
@@ -103,29 +105,76 @@ export const orgMemberRouter = router({
       }
       assertMinRole(membership.role, "ADMIN");
 
-      const { data: profile } = await ctx.supabase
-        .from("profiles")
-        .select("id")
-        .eq("email", input.email)
-        .single();
-
-      if (!profile) {
+      if (membership.role === "ADMIN" && input.role === "ADMIN") {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "No user found with that email. They must sign up first.",
+          code: "FORBIDDEN",
+          message: "Only the organization owner can invite another admin.",
         });
       }
 
-      // Check not already a member
+      const normalizedEmail = input.email.trim().toLowerCase();
+      const { data: organization } = await ctx.supabase
+        .from("organizations")
+        .select("id, name")
+        .eq("id", input.organizationId)
+        .single();
+
+      if (!organization) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found.",
+        });
+      }
+
+      const { data: existingProfile } = await ctx.supabase
+        .from("profiles")
+        .select("id")
+        .ilike("email", normalizedEmail)
+        .maybeSingle();
+
+      let invitedAuthUserId: string | null = null;
+      let userId = existingProfile?.id ?? null;
+
+      if (!userId) {
+        const appUrl = (
+          process.env.NEXT_PUBLIC_APP_URL ?? "https://assessment.skilio.co"
+        ).replace(/\/$/, "");
+        const { data: invitation, error: invitationError } =
+          await supabaseAdmin.auth.admin.inviteUserByEmail(normalizedEmail, {
+            data: {
+              full_name: getInviteDisplayName(normalizedEmail),
+              invited_organization_id: organization.id,
+              invited_organization_name: organization.name,
+              skip_default_organization: true,
+            },
+            redirectTo: `${appUrl}/auth/confirm?next=/auth/accept-invite`,
+          });
+
+        if (invitationError || !invitation.user) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              invitationError?.message ??
+              "The invitation could not be sent. Try again.",
+          });
+        }
+
+        invitedAuthUserId = invitation.user.id;
+        userId = invitation.user.id;
+      }
+
       const existing = await getOrgMembership(
         ctx.supabase,
         input.organizationId,
-        profile.id,
+        userId,
       );
       if (existing) {
+        if (invitedAuthUserId) {
+          await supabaseAdmin.auth.admin.deleteUser(invitedAuthUserId);
+        }
         throw new TRPCError({
           code: "CONFLICT",
-          message: "User is already a member of this organization",
+          message: "This person already belongs to the organization.",
         });
       }
 
@@ -133,20 +182,73 @@ export const orgMemberRouter = router({
         .from("organization_members")
         .insert({
           workspaceId: input.organizationId,
-          userId: profile.id,
+          userId,
           role: input.role,
         })
         .select()
         .single();
 
-      if (error) {
+      if (error || !member) {
+        if (invitedAuthUserId) {
+          await supabaseAdmin.auth.admin.deleteUser(invitedAuthUserId);
+        }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: error.message,
+          message: error?.message ?? "The teammate could not be added.",
         });
       }
 
-      return member;
+      const { data: projects } = await ctx.supabase
+        .from("projects")
+        .select("id")
+        .eq("organizationId", input.organizationId);
+
+      if (projects && projects.length > 0) {
+        const { error: projectAccessError } = await ctx.supabase
+          .from("project_members")
+          .upsert(
+            projects.map((project) => ({
+              projectId: project.id,
+              userId,
+              role: input.role,
+            })),
+            { onConflict: "projectId,userId" },
+          );
+
+        if (projectAccessError) {
+          await ctx.supabase
+            .from("organization_members")
+            .delete()
+            .eq("workspaceId", input.organizationId)
+            .eq("userId", userId);
+          if (invitedAuthUserId) {
+            await supabaseAdmin.auth.admin.deleteUser(invitedAuthUserId);
+          }
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: projectAccessError.message,
+          });
+        }
+      }
+
+      const { data: profile } = await ctx.supabase
+        .from("profiles")
+        .select("id, email, name, avatar")
+        .eq("id", userId)
+        .maybeSingle();
+
+      return {
+        member: {
+          ...member,
+          profile: profile ?? {
+            id: userId,
+            email: normalizedEmail,
+            name: getInviteDisplayName(normalizedEmail),
+            avatar: null,
+          },
+        },
+        invitationSent: Boolean(invitedAuthUserId),
+      };
     }),
 
   updateRole: protectedProcedure
@@ -196,6 +298,12 @@ export const orgMemberRouter = router({
         });
       }
 
+      const { data: projects } = await ctx.supabase
+        .from("projects")
+        .select("id")
+        .eq("organizationId", input.organizationId);
+      const projectIds = (projects ?? []).map((project) => project.id);
+
       const { error } = await ctx.supabase
         .from("organization_members")
         .update({ role: input.role })
@@ -207,6 +315,26 @@ export const orgMemberRouter = router({
           code: "INTERNAL_SERVER_ERROR",
           message: error.message,
         });
+      }
+
+      if (projectIds.length > 0) {
+        const { error: projectRoleError } = await ctx.supabase
+          .from("project_members")
+          .update({ role: input.role })
+          .eq("userId", input.userId)
+          .in("projectId", projectIds);
+
+        if (projectRoleError) {
+          await ctx.supabase
+            .from("organization_members")
+            .update({ role: targetMembership.role })
+            .eq("workspaceId", input.organizationId)
+            .eq("userId", input.userId);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: projectRoleError.message,
+          });
+        }
       }
 
       return { success: true };
@@ -244,6 +372,20 @@ export const orgMemberRouter = router({
           code: "FORBIDDEN",
           message: "Cannot remove the organization owner",
         });
+      }
+
+      const { data: projects } = await ctx.supabase
+        .from("projects")
+        .select("id")
+        .eq("organizationId", input.organizationId);
+      const projectIds = (projects ?? []).map((project) => project.id);
+
+      if (projectIds.length > 0) {
+        await ctx.supabase
+          .from("project_members")
+          .delete()
+          .eq("userId", input.userId)
+          .in("projectId", projectIds);
       }
 
       await ctx.supabase
@@ -465,6 +607,20 @@ export const orgMemberRouter = router({
           message:
             "Organization owner cannot leave. Transfer ownership or delete the organization.",
         });
+      }
+
+      const { data: projects } = await ctx.supabase
+        .from("projects")
+        .select("id")
+        .eq("organizationId", input.organizationId);
+      const projectIds = (projects ?? []).map((project) => project.id);
+
+      if (projectIds.length > 0) {
+        await ctx.supabase
+          .from("project_members")
+          .delete()
+          .eq("userId", ctx.user.id)
+          .in("projectId", projectIds);
       }
 
       await ctx.supabase

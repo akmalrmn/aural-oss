@@ -99,7 +99,10 @@ export function SkillCataloguePicker({
         align="start"
         className="skilio-interface w-[var(--radix-popover-trigger-width)] border-[var(--skilio-border)] bg-[var(--skilio-elevated)] p-0 shadow-[var(--skilio-shadow-2)]"
       >
-        <Command shouldFilter={false} className="bg-[var(--skilio-elevated)]">
+        <Command
+          shouldFilter={false}
+          className="bg-[var(--skilio-elevated)] [&_[cmdk-input-wrapper]]:border-[var(--skilio-border)] [&_[cmdk-input-wrapper]]:bg-[var(--skilio-control)] [&_[cmdk-input-wrapper]]:text-[var(--skilio-ink-muted)] [&_[cmdk-input-wrapper]:focus-within]:border-[var(--skilio-brand)] [&_[cmdk-input-wrapper]_svg]:text-[var(--skilio-ink-muted)] [&_[cmdk-input-wrapper]_svg]:opacity-100 [&_[cmdk-input]]:!border-0 [&_[cmdk-input]]:!bg-transparent [&_[cmdk-input]]:!shadow-none [&_[cmdk-input]]:!outline-none [&_[cmdk-input]]:text-[var(--skilio-ink)] [&_[cmdk-input]]:placeholder:text-[var(--skilio-ink-muted)]"
+        >
           <CommandInput
             value={query}
             onValueChange={setQuery}

@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
+    // Match the build worker count to the deployment runner to prevent
+    // static-generation workers from exhausting memory on Node 18.
+    cpus: 2,
     serverComponentsExternalPackages: [
       "pdf-parse",
       "ws",

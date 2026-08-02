@@ -100,13 +100,21 @@ try {
       .count(),
     0,
   );
-  const applicantsY = await page
+  await page.getByRole("tab", { name: "Role brief" }).waitFor();
+  await page.getByRole("heading", { name: "Job post status" }).waitFor();
+  assert.equal(
+    await page
+      .getByRole("heading", { name: "Applicants", exact: true })
+      .isVisible(),
+    false,
+  );
+  await page.getByRole("tab", { name: "Applicants" }).click();
+  await page
     .getByRole("heading", { name: "Applicants", exact: true })
-    .boundingBox();
-  const roleBriefY = await page
-    .getByRole("heading", { name: "Role brief" })
-    .boundingBox();
-  assert.ok(applicantsY && roleBriefY && applicantsY.y < roleBriefY.y);
+    .waitFor();
+  await page.getByRole("tab", { name: "Job stats" }).click();
+  await page.getByTestId("source-attribution-panel").waitFor();
+  await page.getByRole("tab", { name: "Applicants" }).click();
   await assertViewportIntegrity();
   await page.screenshot({
     path: `${outputDir}/01-job-detail-desktop.png`,
@@ -125,6 +133,9 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload({ waitUntil: "domcontentloaded" });
   await settle();
+  await page
+    .getByRole("heading", { name: "Applicants", exact: true })
+    .waitFor();
   await assertViewportIntegrity();
   await page.screenshot({
     path: `${outputDir}/03-job-detail-mobile.png`,

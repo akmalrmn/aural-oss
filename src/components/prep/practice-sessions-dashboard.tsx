@@ -65,6 +65,12 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { scoreTone } from "./prep-types";
+import {
+    InterviewWorkspace,
+    InterviewWorkspaceHeader,
+    InterviewWorkspaceSurface,
+    InterviewWorkspaceToolbar,
+} from "@/components/interview/interview-workspace";
 
 export type PracticeSessionSummary = {
   id: string;
@@ -259,7 +265,7 @@ function Metric({
   tone?: string;
 }) {
   return (
-    <Card>
+    <Card className="rounded-[var(--skilio-radius-lg)] border-0 shadow-[var(--skilio-shadow-1)]">
       <CardContent className="flex items-center gap-4 p-6">
         <Icon className="h-8 w-8 text-primary" />
         <div>
@@ -457,15 +463,13 @@ export function PracticeSessionsDashboard({
 
   return (
     <TooltipProvider>
-    <div className="space-y-6" data-testid="practices-dashboard">
+    <InterviewWorkspace data-testid="practices-dashboard">
       {showHeader ? (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">{title}</h1>
-            <p className="text-muted-foreground">{subtitle}</p>
-          </div>
-          {primaryAction}
-        </div>
+        <InterviewWorkspaceHeader
+          title={title}
+          description={subtitle}
+          actions={primaryAction}
+        />
       ) : null}
 
       {showMetrics ? (
@@ -498,7 +502,7 @@ export function PracticeSessionsDashboard({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+      <InterviewWorkspaceToolbar>
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -586,9 +590,9 @@ export function PracticeSessionsDashboard({
         ) : (
           toolbarAction
         )}
-      </div>
+      </InterviewWorkspaceToolbar>
 
-      <div className="rounded-lg border" data-testid="practices-table">
+      <InterviewWorkspaceSurface data-testid="practices-table">
         {isLoading ? (
           <div className="p-6">
             <Skeleton className="h-48" />
@@ -885,7 +889,7 @@ export function PracticeSessionsDashboard({
             )}
           </>
         )}
-      </div>
+      </InterviewWorkspaceSurface>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
@@ -911,7 +915,7 @@ export function PracticeSessionsDashboard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </InterviewWorkspace>
     </TooltipProvider>
   );
 }

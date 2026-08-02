@@ -11,7 +11,8 @@ import {
   Timer,
   Users,
 } from "lucide-react";
-import { SkilioHero, SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
+import { SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
+import { InterviewWorkspaceHeader } from "@/components/interview/interview-workspace";
 import { useProject } from "@/components/project-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,37 +95,16 @@ export default function AssessmentsPage() {
 
   return (
     <SkilioMotionRoot className="mx-auto flex max-w-7xl flex-col gap-6">
-      <SkilioHero
-        title="Run interviews, questions, and candidate sessions from one assessment desk."
-        description="The original assessment workspace is back here, separate from job applications that do not require interviews."
-        action={
-          <Button asChild className="h-9 gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
+      <InterviewWorkspaceHeader
+        title="Interview assessment workspace"
+        description="Create structured interviews, manage questions, and review candidate sessions without adding an interview to every job application."
+        actions={
+          <Button asChild className="h-10 gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
             <Link href="/interviews/new">
               <Plus className="h-4 w-4" />
-              New interview
+              Create interview
             </Link>
           </Button>
-        }
-        aside={
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              ["Templates", stats.data?.totalInterviews ?? 0],
-              ["Sessions", stats.data?.totalSessions ?? 0],
-              ["Questions", stats.data?.totalQuestions ?? 0],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className="rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-3"
-              >
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--skilio-ink-muted)]">
-                  {label}
-                </div>
-                <div className="mt-1 font-heading text-xl font-semibold tabular-nums text-[var(--skilio-ink)]">
-                  {loading ? "-" : value}
-                </div>
-              </div>
-            ))}
-          </div>
         }
       />
 
@@ -158,14 +138,9 @@ export default function AssessmentsPage() {
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <SkilioPanel>
           <div className="flex items-center justify-between border-b border-[var(--skilio-border)] p-5">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--skilio-brand)]">
-                Assessment lane
-              </div>
-              <h2 className="mt-1 text-xl font-semibold text-[var(--skilio-ink)]">
-                Recent interviews
-              </h2>
-            </div>
+            <h2 className="text-xl font-semibold text-[var(--skilio-ink)]">
+              Recent interviews
+            </h2>
             <Button asChild variant="outline" className="rounded-[var(--skilio-radius-md)]">
               <Link href="/interviews">
                 View all
@@ -231,14 +206,9 @@ export default function AssessmentsPage() {
 
         <SkilioPanel>
           <div className="flex items-center justify-between border-b border-[var(--skilio-border)] p-5">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--skilio-brand)]">
-                Session review
-              </div>
-              <h2 className="mt-1 text-xl font-semibold text-[var(--skilio-ink)]">
-                Recent sessions
-              </h2>
-            </div>
+            <h2 className="text-xl font-semibold text-[var(--skilio-ink)]">
+              Recent sessions
+            </h2>
             <Button asChild variant="outline" className="rounded-[var(--skilio-radius-md)]">
               <Link href="/candidates">
                 Review

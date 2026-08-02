@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   BarChart3,
   Bell,
@@ -19,6 +20,7 @@ import {
   Settings,
   UserRound,
   UsersRound,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
@@ -58,13 +60,14 @@ const navItems = [
 ];
 
 const assessmentNavItems = [
+  { label: "Assessment overview", href: "/assessments", icon: ClipboardCheck, match: ["/assessments"], exact: true },
+  { label: "Create interview", href: "/interviews/new", icon: Plus, match: ["/interviews/new"], exact: true },
   { label: "Interview manager", href: "/interviews", icon: MessageSquare, match: ["/interviews"] },
   { label: "Sessions", href: "/candidates", icon: UsersRound, match: ["/candidates"] },
   { label: "Questions", href: "/questions", icon: ClipboardList, match: ["/questions"] },
   { label: "Practices", href: "/practices", icon: BrainCircuit, match: ["/practices"] },
   { label: "Projects", href: "/projects", icon: FolderKanban, match: ["/projects"] },
   { label: "Usage", href: "/usage", icon: BarChart3, match: ["/usage"] },
-  { label: "New interview", href: "/interviews/new", icon: Plus, match: ["/interviews/new"] },
 ];
 
 function initials(name: string) {
@@ -144,11 +147,15 @@ function NavLink({
     href: string;
     icon: React.ElementType;
     match: string[];
+    exact?: boolean;
   };
   onNavigate?: () => void;
   pathname: string;
 }) {
-  const active = item.match.some((prefix) => pathname.startsWith(prefix));
+  const active = item.exact
+    ? item.match.includes(pathname)
+    : item.match.some((prefix) => pathname.startsWith(prefix)) &&
+      !(item.href === "/interviews" && pathname === "/interviews/new");
 
   function handleClick() {
     resetDocumentScroll();
@@ -159,6 +166,7 @@ function NavLink({
     <Link
       href={item.href}
       onClick={handleClick}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "flex items-center gap-3 rounded-[var(--skilio-radius-md)] font-medium transition-[background-color,box-shadow,color,transform] duration-150 active:scale-[0.99]",
         child ? "h-8 px-2.5 text-[13px]" : "h-10 px-3 text-sm",
@@ -214,22 +222,31 @@ export function SkilioEmployerShell({ children }: { children: React.ReactNode })
 
   return (
     <div className="skilio-interface min-h-screen bg-[var(--skilio-canvas)] text-[var(--skilio-ink)]">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 lg:block">
+      <aside
+        aria-label="Primary navigation"
+        className="fixed inset-y-0 left-0 z-30 hidden w-64 lg:block"
+      >
         <SidebarContent />
       </aside>
 
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            aria-label="Close navigation"
-            className="absolute inset-0 bg-[rgba(16,35,63,0.32)]"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="relative h-full w-72 shadow-2xl">
+      <DialogPrimitive.Root open={mobileOpen} onOpenChange={setMobileOpen}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-[rgba(16,35,63,0.32)] lg:hidden" />
+          <DialogPrimitive.Content className="fixed inset-y-0 left-0 z-50 w-72 bg-[var(--skilio-canvas)] shadow-[var(--skilio-shadow-2)] outline-none lg:hidden">
+            <DialogPrimitive.Title className="sr-only">
+              Primary navigation
+            </DialogPrimitive.Title>
+            <DialogPrimitive.Description className="sr-only">
+              Navigate the Skilio Hiring workspace.
+            </DialogPrimitive.Description>
             <SidebarContent onNavigate={() => setMobileOpen(false)} />
-          </div>
-        </div>
-      )}
+            <DialogPrimitive.Close className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-[var(--skilio-radius-md)] text-[var(--skilio-ink-soft)] transition-colors hover:bg-[var(--skilio-control)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--skilio-brand)]">
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close navigation</span>
+            </DialogPrimitive.Close>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
 
       <div className="lg:pl-64">
         <header className="sticky top-0 z-20 border-b border-[var(--skilio-border)] bg-[rgba(244,249,242,0.86)] backdrop-blur-xl">
@@ -238,6 +255,8 @@ export function SkilioEmployerShell({ children }: { children: React.ReactNode })
               variant="ghost"
               size="icon"
               className="lg:hidden"
+              aria-label="Open navigation"
+              aria-expanded={mobileOpen}
               onClick={() => setMobileOpen(true)}
             >
               <Menu className="h-5 w-5" />
@@ -251,7 +270,12 @@ export function SkilioEmployerShell({ children }: { children: React.ReactNode })
                 {currentProject?.name ?? "Hiring workspace"}
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="text-[var(--skilio-ink-soft)] hover:bg-[var(--skilio-control)]">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Notifications"
+              className="text-[var(--skilio-ink-soft)] hover:bg-[var(--skilio-control)]"
+            >
               <Bell className="h-5 w-5" />
             </Button>
             <DropdownMenu>

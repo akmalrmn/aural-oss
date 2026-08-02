@@ -13,6 +13,7 @@ import {
   ListChecks,
   Mail,
   MapPin,
+  Paperclip,
   Phone,
   Shapes,
   ShieldCheck,
@@ -31,6 +32,18 @@ import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 type JsonRecord = Record<string, unknown>;
+
+type ApplicantFile = {
+  id: string;
+  kind: string;
+  fileName: string;
+  fileType?: string | null;
+  fileSize?: number | null;
+  storageBucket?: string | null;
+  storagePath?: string | null;
+  skillNames?: unknown;
+  url?: string | null;
+};
 
 type ApplicantDetail = {
   id: string;
@@ -76,13 +89,7 @@ type ApplicantDetail = {
       priority: string;
     }[];
   };
-  job_application_files?: {
-    id: string;
-    kind: string;
-    fileName: string;
-    fileType?: string | null;
-    fileSize?: number | null;
-  }[];
+  job_application_files?: ApplicantFile[];
 };
 
 function asRecord(value: unknown): JsonRecord {
@@ -191,6 +198,61 @@ function ExternalLinkRow({ label, value }: { label: string; value?: string }) {
   );
 }
 
+function StoredFileLink({ file }: { file: ApplicantFile }) {
+  if (!file.url) {
+    return (
+      <div className="rounded-[var(--skilio-radius-sm)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] px-3 py-2">
+        <div className="break-words text-sm font-medium text-[var(--skilio-ink)]">
+          {file.fileName}
+        </div>
+        <div className="mt-1 text-xs text-[var(--skilio-danger)]">
+          File unavailable
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={file.url}
+      target="_blank"
+      rel="noreferrer"
+      className="flex min-h-10 items-center justify-between gap-3 rounded-[var(--skilio-radius-sm)] border border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] px-3 py-2 text-sm font-medium text-[var(--skilio-ink)] transition-colors hover:bg-[var(--skilio-control)] hover:text-[var(--skilio-brand)]"
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <Paperclip className="h-4 w-4 shrink-0 text-[var(--skilio-brand)]" />
+        <span className="break-all">{file.fileName}</span>
+      </span>
+      <ExternalLink className="h-4 w-4 shrink-0" />
+    </a>
+  );
+}
+
+function LegacyFileRow({
+  fileName,
+  url,
+}: {
+  fileName: string;
+  url?: string;
+}) {
+  if (url) {
+    return (
+      <ExternalLinkRow label={fileName} value={url} />
+    );
+  }
+
+  return (
+    <div className="rounded-[var(--skilio-radius-sm)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] px-3 py-2">
+      <div className="break-words text-sm font-medium text-[var(--skilio-ink)]">
+        {fileName}
+      </div>
+      <p className="mt-1 text-xs leading-5 text-[var(--skilio-ink-muted)]">
+        File unavailable — this legacy application stored the filename only.
+      </p>
+    </div>
+  );
+}
+
 function TextBlock({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="border-b border-[var(--skilio-border)] py-4 first:pt-0 last:border-b-0 last:pb-0">
@@ -268,6 +330,13 @@ export default function ApplicantReviewPage() {
       }
     : profileSnapshot;
   const files = applicant?.job_application_files ?? [];
+  const hasStoredResume = files.some(
+    (file) =>
+      file.kind === "resume" &&
+      (!resumeName ||
+        file.fileName.trim().toLowerCase() ===
+          resumeName.trim().toLowerCase()),
+  );
   const jobSkills = applicant?.job_postings?.job_skills ?? [];
   const requiredSkills = jobSkills.filter((skill) => skill.priority === "MUST");
   const matchedRequiredSkills = requiredSkills.filter((requiredSkill) =>
@@ -285,7 +354,7 @@ export default function ApplicantReviewPage() {
   return (
     <SkilioMotionRoot className="mx-auto flex max-w-7xl flex-col gap-6">
       <Link
-        href={`/jobs/${params.id}`}
+        href={`/jobs/${params.id}?tab=applicants`}
         className="inline-flex min-h-10 w-fit items-center gap-2 text-sm font-medium text-[var(--skilio-ink-soft)] hover:text-[var(--skilio-brand)]"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -455,6 +524,15 @@ export default function ApplicantReviewPage() {
                       );
                       const proofs = asRecordArray(portfolioItem?.proofs);
                       const videos = asRecordArray(portfolioItem?.videos);
+                      const attachedFiles = files.filter(
+                        (file) =>
+                          file.kind === "skill_artifact" &&
+                          asStringArray(file.skillNames).some(
+                            (fileSkill) =>
+                              fileSkill.trim().toLowerCase() ===
+                              skill.trim().toLowerCase(),
+                          ),
+                      );
                       return (
                         <div
                           key={skill}
@@ -488,6 +566,18 @@ export default function ApplicantReviewPage() {
                                   </ul>
                                 </div>
                               )}
+                            </div>
+                          )}
+                          {attachedFiles.length > 0 && (
+                            <div className="mt-3">
+                              <div className="text-xs font-medium text-[var(--skilio-ink-muted)]">
+                                Attached artefacts
+                              </div>
+                              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                {attachedFiles.map((file) => (
+                                  <StoredFileLink key={file.id} file={file} />
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -598,15 +688,10 @@ export default function ApplicantReviewPage() {
                       label="Website"
                       value={asString(links.website)}
                     />
-                    <ExternalLinkRow
-                      label={resumeName || "Resume"}
-                      value={resumeUrl}
-                    />
                     {!asString(links.portfolio) &&
                       !asString(links.linkedin) &&
                       !asString(links.github) &&
-                      !asString(links.website) &&
-                      !resumeUrl && (
+                      !asString(links.website) && (
                         <p className="text-sm text-[var(--skilio-ink-soft)]">
                           No profile links were attached.
                         </p>
@@ -618,27 +703,21 @@ export default function ApplicantReviewPage() {
                   <h3 className="font-semibold text-[var(--skilio-ink)]">
                     Attachments
                   </h3>
-                  <div className="mt-3 divide-y divide-[var(--skilio-border)]">
-                    {resumeName && (
-                      <div className="py-3 text-sm font-medium text-[var(--skilio-ink)] first:pt-0">
-                        {resumeName}
-                      </div>
+                  <div className="mt-3 space-y-2">
+                    {resumeName && !hasStoredResume && (
+                      <LegacyFileRow fileName={resumeName} url={resumeUrl} />
                     )}
                     {certificateFileNames.map((fileName) => (
-                      <div
+                      <LegacyFileRow
                         key={fileName}
-                        className="py-3 text-sm font-medium text-[var(--skilio-ink)] first:pt-0"
-                      >
-                        {fileName}
-                      </div>
+                        fileName={fileName}
+                      />
                     ))}
                     {files.map((file) => (
-                      <div key={file.id} className="py-3 first:pt-0">
-                        <div className="text-sm font-medium text-[var(--skilio-ink)]">
-                          {file.fileName}
-                        </div>
-                        <div className="mt-1 text-xs capitalize text-[var(--skilio-ink-muted)]">
-                          {file.kind}
+                      <div key={file.id}>
+                        <StoredFileLink file={file} />
+                        <div className="mt-1 px-1 text-xs capitalize text-[var(--skilio-ink-muted)]">
+                          {file.kind.replaceAll("_", " ")}
                         </div>
                       </div>
                     ))}

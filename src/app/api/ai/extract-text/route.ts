@@ -1,6 +1,6 @@
 import { getAuthUser } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
-import * as cheerio from "cheerio";
+import { load } from "cheerio/slim";
 
 const log = createLogger("api/ai/extract-text");
 
@@ -17,7 +17,7 @@ function truncate(text: string): string {
 }
 
 function htmlToText(html: string): string {
-  const $ = cheerio.load(html);
+  const $ = load(html);
   $("script, style, noscript, svg, img, video, audio, iframe, nav, footer, header").remove();
 
   const mainContent =

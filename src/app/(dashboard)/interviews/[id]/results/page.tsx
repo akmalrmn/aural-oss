@@ -4,6 +4,10 @@ import { useParams, useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InterviewResults } from "@/components/interview/interview-results";
+import {
+  InterviewWorkspace,
+  InterviewWorkspaceHeader,
+} from "@/components/interview/interview-workspace";
 
 export default function ResultsPage() {
   const params = useParams();
@@ -18,17 +22,13 @@ export default function ResultsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">
-          {interview.data?.title} - Results
-        </h1>
-        <p className="text-muted-foreground">
-          Review and analyze interview sessions
-        </p>
-      </div>
+    <InterviewWorkspace>
+      <InterviewWorkspaceHeader
+        title={`${interview.data?.title ?? "Interview"} — Results`}
+        description="Review candidate performance and compare completed interview sessions."
+      />
 
       <InterviewResults interviewId={id} initialSessionId={sessionId} />
-    </div>
+    </InterviewWorkspace>
   );
 }

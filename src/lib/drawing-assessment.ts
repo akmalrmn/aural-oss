@@ -43,6 +43,15 @@ export type ApplicationDrawingAssessment = {
   responses: ApplicationDrawingResponse[];
 };
 
+export function countDrawingPhraseWords(phrase: string) {
+  return phrase.trim() ? phrase.trim().split(/\s+/).length : 0;
+}
+
+export function isValidDrawingPhrase(phrase: string) {
+  const wordCount = countDrawingPhraseWords(phrase);
+  return wordCount >= 1 && wordCount <= 3;
+}
+
 export function isCompleteDrawingResponses(
   responses: unknown,
 ): responses is ApplicationDrawingResponse[] {
@@ -64,6 +73,13 @@ export function isCompleteDrawingResponses(
       record.imageDataUrl.startsWith("data:image/png;base64,")
     );
   });
+}
+
+export function getCompleteOrderedDrawingResponses<
+  T extends ApplicationDrawingResponse,
+>(responses: Array<T | undefined>): T[] | null {
+  if (responses.some((response) => !response)) return null;
+  return isCompleteDrawingResponses(responses) ? (responses as T[]) : null;
 }
 
 export function parseApplicationDrawingAssessment(

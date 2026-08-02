@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createApplicationDrawingAssessment,
+  countDrawingPhraseWords,
   DRAWING_STARTER_SHAPES,
   DRAWING_HARDCODED_SCORE,
+  getCompleteOrderedDrawingResponses,
   isCompleteDrawingResponses,
   isDrawingAssessmentReusable,
+  isValidDrawingPhrase,
   normalizeDrawingAssessmentSnapshot,
   parseApplicationDrawingAssessment,
 } from "../src/lib/drawing-assessment";
@@ -27,6 +30,14 @@ test("ordinary whiteboard snapshots are not modified", () => {
   assert.equal(normalizeDrawingAssessmentSnapshot(snapshot), snapshot);
 });
 
+test("drawing descriptions contain one to three words", () => {
+  assert.equal(countDrawingPhraseWords("  kite in wind  "), 3);
+  assert.equal(isValidDrawingPhrase("kite"), true);
+  assert.equal(isValidDrawingPhrase("kite in wind"), true);
+  assert.equal(isValidDrawingPhrase("a kite in the wind"), false);
+  assert.equal(isValidDrawingPhrase("   "), false);
+});
+
 const completeResponses = DRAWING_STARTER_SHAPES.map((shape, index) => ({
   starterShape: shape.value,
   phrase: `Drawing ${index + 1}`,
@@ -43,6 +54,22 @@ test("application drawing set requires all ten ordered drawings and phrases", ()
       ...completeResponses.slice(2),
     ]),
     false,
+  );
+});
+
+test("partial drawing sets never shift later starter shapes into missing positions", () => {
+  const responsesWithMissingT = completeResponses.map((response) => ({
+    ...response,
+  })) as Array<(typeof completeResponses)[number] | undefined>;
+  responsesWithMissingT[4] = undefined;
+
+  assert.equal(
+    getCompleteOrderedDrawingResponses(responsesWithMissingT),
+    null,
+  );
+  assert.deepEqual(
+    getCompleteOrderedDrawingResponses(completeResponses),
+    completeResponses,
   );
 });
 

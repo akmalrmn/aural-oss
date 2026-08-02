@@ -3,6 +3,12 @@
 import { useAppLocale } from "@/components/app-locale-provider";
 import { useProject } from "@/components/project-provider";
 import {
+  InterviewWorkspace,
+  InterviewWorkspaceHeader,
+  InterviewWorkspaceSurface,
+  InterviewWorkspaceToolbar,
+} from "@/components/interview/interview-workspace";
+import {
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -451,20 +457,19 @@ export default function QuestionsPage() {
   }, [isZh, processedQuestions, questionTypeMeta]);
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">{isZh ? "题库" : "Questions"}</h1>
-        <p className="text-muted-foreground">
-          {isZh
+    <InterviewWorkspace>
+      <InterviewWorkspaceHeader
+        title={isZh ? "题库" : "Questions"}
+        description={
+          isZh
             ? "查看所有面试中的题目"
-            : "All questions across your interviews"}
-        </p>
-      </div>
+            : "Review and reuse questions across every interview."
+        }
+      />
 
       {/* Filters row */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
+      <InterviewWorkspaceToolbar>
+        <div className="relative min-w-0 flex-1 sm:min-w-64">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder={
@@ -488,7 +493,7 @@ export default function QuestionsPage() {
             setPage(0);
           }}
         >
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-full sm:w-[160px]">
             <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
@@ -508,7 +513,7 @@ export default function QuestionsPage() {
             setPage(0);
           }}
         >
-          <SelectTrigger className="w-[170px]">
+          <SelectTrigger className="w-full sm:w-[170px]">
             <HelpCircle className="mr-2 h-4 w-4 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
@@ -525,6 +530,7 @@ export default function QuestionsPage() {
           variant="outline"
           onClick={handleExport}
           disabled={processedQuestions.length === 0}
+          className="w-full sm:w-auto"
         >
           <Download className="mr-2 h-4 w-4" />
           {isZh ? "导出" : "Export"}
@@ -556,10 +562,10 @@ export default function QuestionsPage() {
             </Button>
           </>
         )}
-      </div>
+      </InterviewWorkspaceToolbar>
 
       {/* Table */}
-      <div className="rounded-lg border">
+      <InterviewWorkspaceSurface>
         {questions.isLoading ? (
           <div className="p-6">
             <Skeleton className="h-48" />
@@ -576,6 +582,7 @@ export default function QuestionsPage() {
           </p>
         ) : (
           <>
+            <div className="overflow-x-auto code-scrollbar">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -684,6 +691,7 @@ export default function QuestionsPage() {
                 })}
               </TableBody>
             </Table>
+            </div>
 
             {processedQuestions.length > PAGE_SIZE_OPTIONS[0] && (
               <div className="flex items-center justify-between border-t px-4 py-3">
@@ -737,7 +745,7 @@ export default function QuestionsPage() {
             )}
           </>
         )}
-      </div>
+      </InterviewWorkspaceSurface>
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
@@ -837,6 +845,6 @@ export default function QuestionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </InterviewWorkspace>
   );
 }

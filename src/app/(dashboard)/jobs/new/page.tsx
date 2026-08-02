@@ -6,11 +6,19 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  FileUp,
   Loader2,
   Plus,
+  Sparkles,
   Trash2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import {
+  GenerateJobDraftDialog,
+  JobDraftReviewDialog,
+  type JobAuthoringValues,
+  type JobDraftApplyField,
+} from "@/components/jobs/job-draft-authoring";
 import {
   ScreeningQuestionEditor,
   type ScreeningQuestionDraft,
@@ -34,6 +42,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import type { JobDraft } from "@/lib/jobs/job-draft-schema";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +67,7 @@ const starterSkills: SkillDraft[] = [];
 
 const fieldClass = "mt-2 shadow-none";
 const selectTriggerClass = "mt-2 shadow-none";
+const jobDocumentAccept = ".pdf,.docx,.txt";
 
 const stepCopy = [
   {
@@ -94,15 +104,17 @@ function resetStepScroll() {
 export default function JobCreationWizardPage() {
   const router = useRouter();
   const utils = trpc.useUtils();
-  const { toast } = useToast();
+  const { toast, dismiss } = useToast();
   const { currentProject, isLoading: projectLoading } = useProject();
   const [step, setStep] = useState(0);
   const [furthestStep, setFurthestStep] = useState(0);
   const [title, setTitle] = useState("");
   const [department, setDepartment] = useState("");
   const [location, setLocation] = useState("Remote");
-  const [employmentType, setEmploymentType] = useState("Full-time");
-  const [seniority, setSeniority] = useState("Mid-level");
+  const [employmentType, setEmploymentType] =
+    useState<JobAuthoringValues["employmentType"]>("Full-time");
+  const [seniority, setSeniority] =
+    useState<JobAuthoringValues["seniority"]>("Mid-level");
   const [description, setDescription] = useState("");
   const [skills, setSkills] = useState<SkillDraft[]>(starterSkills);
   const [suggestedSkills, setSuggestedSkills] = useState<CatalogueSkill[]>([]);
@@ -113,10 +125,39 @@ export default function JobCreationWizardPage() {
   const [skillKind, setSkillKind] = useState<"HARD" | "SOFT">("HARD");
   const [skillPriority, setSkillPriority] = useState<"MUST" | "NICE">("MUST");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [draftReview, setDraftReview] = useState<{
+    draft: JobDraft;
+    sourceLabel: string;
+  } | null>(null);
+  const [authoringError, setAuthoringError] = useState<string | null>(null);
+  const [importingDocument, setImportingDocument] = useState(false);
+  const documentInputRef = useRef<HTMLInputElement>(null);
 
   const createJob = trpc.job.create.useMutation();
   const transition = trpc.job.transition.useMutation();
   const suggestSkills = trpc.job.suggestSkills.useMutation();
+  const generateDraft = trpc.job.generateDraft.useMutation();
+
+  const authoringValues = useMemo<JobAuthoringValues>(
+    () => ({
+      title,
+      department,
+      location,
+      employmentType,
+      seniority,
+      description,
+    }),
+    [
+      department,
+      description,
+      employmentType,
+      location,
+      seniority,
+      title,
+    ],
+  );
 
   const canContinue = useMemo(() => {
     if (step === 0) return title.trim().length >= 2 && !!currentProject && !projectLoading;
@@ -178,6 +219,117 @@ export default function JobCreationWizardPage() {
       priority: skillPriority,
       skillSource: "CUSTOM",
     });
+  }
+
+  function presentDraft(draft: JobDraft, sourceLabel: string) {
+    dismiss();
+    setDraftReview({ draft, sourceLabel });
+    setReviewDialogOpen(true);
+    setGenerateDialogOpen(false);
+    setAuthoringError(null);
+  }
+
+  async function generateFromBrief(
+    input: Omit<JobAuthoringValues, "description"> & { notes: string },
+  ) {
+    if (!currentProject) return;
+    setAuthoringError(null);
+    try {
+      const draft = await generateDraft.mutateAsync({
+        projectId: currentProject.id,
+        ...input,
+      });
+      presentDraft(draft, "AI-generated role draft");
+    } catch (error) {
+      setAuthoringError(
+        error instanceof Error
+          ? error.message
+          : "The role draft could not be generated. Retry with more context.",
+      );
+    }
+  }
+
+  async function importJobDocument(file: File) {
+    if (!currentProject) return;
+    setImportingDocument(true);
+    setAuthoringError(null);
+    try {
+      const formData = new FormData();
+      formData.append("projectId", currentProject.id);
+      formData.append("file", file);
+      const response = await fetch("/api/jobs/draft/import", {
+        method: "POST",
+        body: formData,
+      });
+      const result = (await response.json()) as {
+        draft?: JobDraft;
+        fileName?: string;
+        error?: string;
+      };
+      if (!response.ok || !result.draft) {
+        throw new Error(
+          result.error ||
+            "The job description could not be imported. Check the file and retry.",
+        );
+      }
+      presentDraft(
+        result.draft,
+        `Imported from ${result.fileName || file.name}`,
+      );
+    } catch (error) {
+      setAuthoringError(
+        error instanceof Error
+          ? error.message
+          : "The job description could not be imported.",
+      );
+    } finally {
+      setImportingDocument(false);
+    }
+  }
+
+  async function applyDraft(fields: Set<JobDraftApplyField>) {
+    if (!draftReview) return;
+    const draft = draftReview.draft;
+
+    if (fields.has("title")) setTitle(draft.title);
+    if (fields.has("department")) setDepartment(draft.department);
+    if (fields.has("location")) setLocation(draft.location);
+    if (fields.has("employmentType")) {
+      setEmploymentType(draft.employmentType);
+    }
+    if (fields.has("seniority")) setSeniority(draft.seniority);
+    if (fields.has("description")) setDescription(draft.description);
+    if (fields.has("screeningQuestions")) {
+      setScreeningQuestions(
+        draft.screeningQuestions.map((question, index) => ({
+          ...question,
+          id: `generated-${Date.now()}-${index}`,
+        })),
+      );
+    }
+
+    setReviewDialogOpen(false);
+    toast({
+      title: "Draft applied",
+      description:
+        fields.has("description") && draft.skillQueries.length
+          ? "Role details were updated. Matching the skills with Lightcast now."
+          : "The selected role details were added to this job.",
+    });
+
+    if (fields.has("description")) {
+      setLastSuggestedDescription(draft.description);
+      try {
+        setSuggestedSkills(
+          await suggestSkills.mutateAsync({
+            description: draft.description,
+            limit: 12,
+          }),
+        );
+      } catch {
+        setSuggestedSkills([]);
+      }
+    }
   }
 
   async function advance() {
@@ -399,6 +551,84 @@ export default function JobCreationWizardPage() {
                   </div>
                 </div>
               )}
+              <section
+                aria-labelledby="authoring-tools-title"
+                className="flex flex-col gap-4 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="max-w-xl">
+                  <h3
+                    id="authoring-tools-title"
+                    className="text-sm font-semibold text-[var(--skilio-ink)]"
+                  >
+                    Start from a brief or an existing JD
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">
+                    Build a reviewed draft with AI, or import a PDF, DOCX, or TXT
+                    file. Your current fields stay unchanged until you approve
+                    them.
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-[var(--skilio-ink-muted)]">
+                    Only upload hiring content you are permitted to share. Files
+                    are processed by Skilio&apos;s configured AI providers and
+                    are not attached to the job.
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!currentProject || projectLoading}
+                    onClick={() => {
+                      setAuthoringError(null);
+                      setGenerateDialogOpen(true);
+                    }}
+                    className="rounded-[var(--skilio-radius-md)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] hover:bg-[var(--skilio-panel)]"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Draft with AI
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={
+                      importingDocument || !currentProject || projectLoading
+                    }
+                    onClick={() => documentInputRef.current?.click()}
+                    className="rounded-[var(--skilio-radius-md)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] hover:bg-[var(--skilio-panel)]"
+                  >
+                    {importingDocument ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileUp className="h-4 w-4" />
+                    )}
+                    {importingDocument ? "Importing..." : "Upload JD"}
+                  </Button>
+                  <input
+                    ref={documentInputRef}
+                    type="file"
+                    accept={jobDocumentAccept}
+                    className="sr-only"
+                    data-testid="job-document-input"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      if (file) void importJobDocument(file);
+                    }}
+                  />
+                </div>
+              </section>
+              {authoringError && !generateDialogOpen && (
+                <div
+                  role="alert"
+                  className="flex gap-3 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-danger-soft)] p-4 text-sm text-[var(--skilio-danger)]"
+                >
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <div className="font-semibold">Authoring tool unavailable</div>
+                    <p className="mt-1 leading-5">{authoringError}</p>
+                  </div>
+                </div>
+              )}
               <div className="grid gap-x-5 gap-y-5 md:grid-cols-2">
                 <div className="md:col-span-2">
                   <Label htmlFor="title">Job title</Label>
@@ -431,7 +661,14 @@ export default function JobCreationWizardPage() {
                 </div>
                 <div>
                   <Label htmlFor="employment-type">Employment type</Label>
-                  <Select value={employmentType} onValueChange={setEmploymentType}>
+                  <Select
+                    value={employmentType}
+                    onValueChange={(value) =>
+                      setEmploymentType(
+                        value as JobAuthoringValues["employmentType"],
+                      )
+                    }
+                  >
                     <SelectTrigger
                       id="employment-type"
                       className={selectTriggerClass}
@@ -448,7 +685,12 @@ export default function JobCreationWizardPage() {
                 </div>
                 <div>
                   <Label htmlFor="seniority">Seniority</Label>
-                  <Select value={seniority} onValueChange={setSeniority}>
+                  <Select
+                    value={seniority}
+                    onValueChange={(value) =>
+                      setSeniority(value as JobAuthoringValues["seniority"])
+                    }
+                  >
                     <SelectTrigger id="seniority" className={selectTriggerClass}>
                       <SelectValue />
                     </SelectTrigger>
@@ -818,6 +1060,23 @@ export default function JobCreationWizardPage() {
           )}
         </div>
       </SkilioPanel>
+
+      <GenerateJobDraftDialog
+        open={generateDialogOpen}
+        onOpenChange={setGenerateDialogOpen}
+        current={authoringValues}
+        loading={generateDraft.isLoading}
+        error={authoringError}
+        onGenerate={(input) => void generateFromBrief(input)}
+      />
+      <JobDraftReviewDialog
+        open={reviewDialogOpen}
+        onOpenChange={setReviewDialogOpen}
+        draft={draftReview?.draft ?? null}
+        sourceLabel={draftReview?.sourceLabel ?? "Proposed job draft"}
+        current={authoringValues}
+        onApply={(fields) => void applyDraft(fields)}
+      />
     </SkilioMotionRoot>
   );
 }

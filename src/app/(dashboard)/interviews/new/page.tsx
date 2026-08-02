@@ -37,6 +37,10 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import {
+  InterviewWorkspace,
+  InterviewWorkspaceHeader,
+} from "@/components/interview/interview-workspace";
 
 export default function NewInterviewPage() {
   const router = useRouter();
@@ -102,20 +106,18 @@ export default function NewInterviewPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">
-          {isZh ? "创建面试" : "Create Interview"}
-        </h1>
-        <p className="text-muted-foreground">
-          {isZh
+    <InterviewWorkspace className="max-w-4xl">
+      <InterviewWorkspaceHeader
+        title={isZh ? "创建面试" : "Create interview"}
+        description={
+          isZh
             ? "手动创建，或使用 AI 为你生成一场面试。"
-            : "Build manually or let AI generate an interview for you."}
-        </p>
-      </div>
+            : "Start with a focused brief, then build manually or generate a structured draft with AI."
+        }
+      />
 
       <Tabs defaultValue="ai" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid h-11 w-full grid-cols-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control)] p-1">
           <TabsTrigger value="ai" className="gap-2">
             <Sparkles className="h-4 w-4" />
             {isZh ? "AI 生成器" : "AI Generator"}
@@ -131,7 +133,7 @@ export default function NewInterviewPage() {
         </TabsContent>
 
         <TabsContent value="manual">
-          <Card>
+          <Card className="rounded-[var(--skilio-radius-lg)] border-0 shadow-[var(--skilio-shadow-1)]">
             <CardHeader>
               <CardTitle>{isZh ? "手动创建" : "Create Manually"}</CardTitle>
               <CardDescription>
@@ -412,6 +414,6 @@ export default function NewInterviewPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </InterviewWorkspace>
   );
 }

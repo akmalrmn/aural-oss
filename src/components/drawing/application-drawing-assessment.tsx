@@ -17,7 +17,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  countDrawingPhraseWords,
   DRAWING_STARTER_SHAPES,
+  getCompleteOrderedDrawingResponses,
+  isValidDrawingPhrase,
   type ApplicationDrawingResponse,
 } from "@/lib/drawing-assessment";
 import { cn } from "@/lib/utils";
@@ -54,7 +57,8 @@ export function ApplicationDrawingAssessment({
   const showingSummary = activeIndex === DRAWING_STARTER_SHAPES.length;
   const activeShape = DRAWING_STARTER_SHAPES[activeIndex];
   const activeDraft = drafts[activeIndex];
-  const canSave = hasDrawing && phrase.trim().length > 0;
+  const phraseWordCount = countDrawingPhraseWords(phrase);
+  const canSave = hasDrawing && isValidDrawingPhrase(phrase);
 
   const completedResponses = useMemo(
     () =>
@@ -65,10 +69,8 @@ export function ApplicationDrawingAssessment({
   );
 
   function publish(nextDrafts: Array<DrawingDraft | undefined>) {
-    const responses = nextDrafts
-      .filter((draft): draft is DrawingDraft => Boolean(draft))
-      .map(responseFromDraft);
-    onChange(responses);
+    const responses = getCompleteOrderedDrawingResponses(nextDrafts);
+    onChange(responses?.map(responseFromDraft) ?? []);
   }
 
   function openDrawing(index: number) {
@@ -81,7 +83,7 @@ export function ApplicationDrawingAssessment({
 
   function saveAndContinue() {
     const submission = canvasRef.current?.getSubmission();
-    if (!submission || !phrase.trim()) {
+    if (!submission || !isValidDrawingPhrase(phrase)) {
       setShowValidation(true);
       return;
     }
@@ -174,11 +176,12 @@ export function ApplicationDrawingAssessment({
             Drawing {activeIndex + 1} of {DRAWING_STARTER_SHAPES.length}
           </div>
           <h3 className="mt-2 text-xl font-semibold text-[var(--skilio-ink)]">
-            Turn the {activeShape.label.toLowerCase()} into a picture
+            Draw the first thing in your mind when you see the{" "}
+            {activeShape.label.toLowerCase()} symbol
           </h3>
           <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">
-            Continue the fixed grey mark in any way you choose, then name what
-            you created. There is no prescribed answer.
+            Draw on the symbol below and describe in a short phrase what you
+            have drawn.
           </p>
         </div>
         <div className="flex items-center gap-1" aria-label="Drawing progress">
@@ -211,18 +214,23 @@ export function ApplicationDrawingAssessment({
 
       <div className="space-y-2">
         <Label htmlFor={`drawing-phrase-${activeIndex}`}>
-          What did you draw?
+          Describe your drawing (3 words or fewer)
         </Label>
         <Input
           id={`drawing-phrase-${activeIndex}`}
           data-testid="drawing-phrase"
           value={phrase}
-          maxLength={120}
+          maxLength={60}
           onChange={(event) => {
             setPhrase(event.target.value);
             setShowValidation(false);
           }}
-          placeholder="For example: a kite in the wind"
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            saveAndContinue();
+          }}
+          placeholder="For example: Kite in wind"
           autoComplete="off"
         />
         <div className="flex items-start justify-between gap-3">
@@ -235,11 +243,11 @@ export function ApplicationDrawingAssessment({
             )}
           >
             {showValidation
-              ? "Add lines to the drawing and enter a phrase to continue."
-              : "Use a short phrase that describes the completed picture."}
+              ? "Add lines and describe your drawing in three words or fewer."
+              : "Use one to three words to describe the completed picture."}
           </p>
           <span className="shrink-0 text-xs tabular-nums text-[var(--skilio-ink-muted)]">
-            {phrase.length}/120
+            {phraseWordCount}/3 words
           </span>
         </div>
       </div>

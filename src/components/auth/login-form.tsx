@@ -129,12 +129,12 @@ export function LoginForm() {
       </CardContent>
       <CardFooter className="justify-center px-6 pb-6 pt-7 sm:px-8 sm:pb-8">
         <p className="text-sm text-[var(--skilio-ink-muted)]">
-          {t("auth.noAccount")}{" "}
+          New to Skilio Hiring?{" "}
           <Link
             href="/register"
             className="rounded-sm font-medium text-[var(--skilio-brand-strong)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--skilio-brand)]"
           >
-            {t("auth.signUp")}
+            Create company workspace
           </Link>
         </p>
       </CardFooter>

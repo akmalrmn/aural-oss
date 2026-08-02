@@ -317,13 +317,13 @@ try {
     .getByText("Suggested from the job description", { exact: true })
     .waitFor();
   await page.screenshot({
-    path: `${outputDir}/06-lightcast-handoff.png`,
+    path: `${outputDir}/06-skill-catalogue-handoff.png`,
     fullPage: true,
   });
 
   const skillPicker = page
     .locator('[role="combobox"]')
-    .filter({ hasText: "Search the Lightcast skill catalogue" });
+    .filter({ hasText: "Search the skill catalogue" });
   await skillPicker.click();
   const skillSearch = page.getByRole("combobox", { name: "Search skills" });
   await skillSearch.fill("product design");

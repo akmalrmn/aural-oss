@@ -327,7 +327,7 @@ export function JobEditDialog({ job }: { job: EditableJob }) {
                     </div>
                     {skill.skillSource === "LIGHTCAST" && (
                       <div className="mt-1 text-xs text-[var(--skilio-ink-muted)]">
-                        Lightcast catalogue
+                        Skill catalogue
                       </div>
                     )}
                   </div>

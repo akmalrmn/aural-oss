@@ -23,7 +23,7 @@ assert.ok(serviceSecret, "SKILIO_SSO_SECRET is configured");
 await mkdir(outputDir, { recursive: true });
 
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-const jobTitle = `Lightcast Product Designer ${suffix}`;
+const jobTitle = `Catalogue Product Designer ${suffix}`;
 const candidateEmail = `application-profile-${suffix}@example.com`;
 let jobId = null;
 let applicationId = null;
@@ -101,7 +101,7 @@ try {
     .click();
 
   await employerPage
-    .locator('button:has-text("Search the Lightcast skill catalogue")')
+    .locator('button:has-text("Search the skill catalogue")')
     .click();
   await employerPage
     .getByPlaceholder("Type at least 2 characters...")
@@ -113,7 +113,7 @@ try {
   await employerPage.getByText("2 skills", { exact: true }).waitFor();
 
   await employerPage.screenshot({
-    path: `${outputDir}/01-lightcast-skills-desktop.png`,
+    path: `${outputDir}/01-catalogue-skills-desktop.png`,
     fullPage: true,
   });
   await employerPage.setViewportSize({ width: 390, height: 844 });
@@ -122,10 +122,10 @@ try {
       () => document.documentElement.scrollWidth <= window.innerWidth + 1,
     ),
     true,
-    "Lightcast skill step does not overflow mobile",
+    "Skill catalogue step does not overflow mobile",
   );
   await employerPage.screenshot({
-    path: `${outputDir}/02-lightcast-skills-mobile.png`,
+    path: `${outputDir}/02-catalogue-skills-mobile.png`,
     fullPage: true,
   });
   await employerPage.setViewportSize({ width: 1440, height: 1000 });

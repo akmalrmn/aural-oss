@@ -13,7 +13,7 @@ const OUTPUT_CONTRACT = `{
   "employmentType": "Full-time | Part-time | Contract | Internship",
   "seniority": "Entry-level | Mid-level | Senior | Lead",
   "description": "80-6000 characters, plain text with readable section headings and bullet lines",
-  "skillQueries": ["specific skill or tool names for later Lightcast matching"],
+  "skillQueries": ["specific skill or tool names for later catalogue matching"],
   "screeningQuestions": [
     {
       "prompt": "question",

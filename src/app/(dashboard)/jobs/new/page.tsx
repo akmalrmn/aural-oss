@@ -313,7 +313,7 @@ export default function JobCreationWizardPage() {
       title: "Draft applied",
       description:
         fields.has("description") && draft.skillQueries.length
-          ? "Role details were updated. Matching the skills with Lightcast now."
+          ? "Role details were updated. Matching the skills now."
           : "The selected role details were added to this job.",
     });
 
@@ -424,7 +424,7 @@ export default function JobCreationWizardPage() {
           <h1 className="mt-1 text-3xl font-semibold leading-tight text-[var(--skilio-ink)] sm:text-4xl">
             Create a job
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--skilio-ink-soft)] sm:text-[15px]">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--skilio-ink-soft)]">
             Define the role, set the evidence that matters, and prepare the
             public application page.
           </p>
@@ -805,8 +805,8 @@ export default function JobCreationWizardPage() {
                     </Button>
                   </div>
                   <p className="mt-1 text-xs text-[var(--skilio-ink-soft)]">
-                    Lightcast identified these capabilities. Add only the ones
-                    the role genuinely requires.
+                    Suggested capabilities from the job description. Add only
+                    the ones the role genuinely requires.
                   </p>
                   {suggestSkills.isLoading ? (
                     <div className="mt-3 flex min-h-16 items-center gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control)] px-4 text-sm text-[var(--skilio-ink-soft)]">
@@ -870,14 +870,6 @@ export default function JobCreationWizardPage() {
                         >
                           {skill.kind === "HARD" ? "Hard skill" : "Soft skill"}
                         </Badge>
-                        {skill.skillSource === "LIGHTCAST" && (
-                          <Badge
-                            variant="outline"
-                            className="rounded-[var(--skilio-radius-sm)] border-[var(--skilio-border)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink-muted)]"
-                          >
-                            Lightcast
-                          </Badge>
-                        )}
                         <Badge
                           variant="outline"
                           className={cn(

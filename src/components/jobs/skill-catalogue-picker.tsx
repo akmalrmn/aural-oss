@@ -90,7 +90,7 @@ export function SkillCataloguePicker({
         >
           <span className="flex min-w-0 items-center gap-2">
             <Search className="h-4 w-4 shrink-0 text-[var(--skilio-brand)]" />
-            <span className="truncate">Search the Lightcast skill catalogue</span>
+            <span className="truncate">Search the skill catalogue</span>
           </span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 text-[var(--skilio-ink-muted)]" />
         </Button>
@@ -127,7 +127,7 @@ export function SkillCataloguePicker({
               <>
                 <CommandEmpty>No catalogue matches found.</CommandEmpty>
                 {results.length > 0 && (
-                  <CommandGroup heading="Lightcast catalogue">
+                  <CommandGroup heading="Skill catalogue">
                     {results.map((skill) => (
                       <CommandItem
                         key={skill.id}

@@ -443,7 +443,7 @@ export function JobDraftReviewDialog({
               {draft.skillQueries.length > 0 && (
                 <div>
                   <div className="text-sm font-semibold text-[var(--skilio-ink)]">
-                    Skills to match with Lightcast
+                    Skills to match in the catalogue
                   </div>
                   <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">
                     {draft.skillQueries.join(", ")}

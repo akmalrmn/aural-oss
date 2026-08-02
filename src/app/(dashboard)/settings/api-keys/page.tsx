@@ -162,12 +162,12 @@ export default function ApiKeysSettingsPage() {
               Create credentials for integrations that use the Skilio Hiring API.
               {" "}
               <Link
-                href="/docs/developer-api"
+                href="/api/v1/openapi.json"
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1 font-medium text-[var(--skilio-brand-strong)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--skilio-brand)]"
               >
-                View API docs
+                View API reference
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             </p>

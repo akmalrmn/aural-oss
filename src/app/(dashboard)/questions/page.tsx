@@ -84,37 +84,37 @@ const QUESTION_TYPE_META: Record<
     icon: MessageSquare,
     label: "Open Ended",
     badgeClass:
-      "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
   },
   SINGLE_CHOICE: {
     icon: CircleDot,
     label: "Single Choice",
     badgeClass:
-      "border-tertiary-400 bg-tertiary-100 text-tertiary-900 dark:border-tertiary-800 dark:bg-tertiary-900/30 dark:text-tertiary-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
   },
   MULTIPLE_CHOICE: {
     icon: ListChecks,
     label: "Multiple Choice",
     badgeClass:
-      "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
   },
   CODING: {
     icon: Code2,
     label: "Coding",
     badgeClass:
-      "border-secondary-200 bg-secondary-50 text-secondary-700 dark:border-secondary-800 dark:bg-secondary-900/30 dark:text-secondary-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
   },
   WHITEBOARD: {
     icon: PenLine,
     label: "Whiteboard",
     badgeClass:
-      "border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
   },
   RESEARCH: {
     icon: Microscope,
     label: "Research",
     badgeClass:
-      "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
   },
 };
 
@@ -582,7 +582,76 @@ export default function QuestionsPage() {
           </p>
         ) : (
           <>
-            <div className="overflow-x-auto code-scrollbar">
+            <div className="divide-y divide-[var(--skilio-border)] sm:hidden">
+              {paginatedQuestions.map((question) => {
+                const meta =
+                  questionTypeMeta[
+                    question.type as keyof typeof questionTypeMeta
+                  ] ?? questionTypeMeta.OPEN_ENDED;
+                const TypeIcon = meta.icon;
+
+                return (
+                  <article key={question.id} className="px-4 py-4">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <Checkbox
+                        checked={selectedIds.has(question.id)}
+                        onCheckedChange={() => toggleSelect(question.id)}
+                        aria-label={`Select ${question.text}`}
+                        className="mt-0.5 shrink-0 border-[var(--skilio-border-strong)]"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-sm font-semibold leading-6 text-[var(--skilio-ink)]">
+                          {question.text}
+                        </p>
+                        {question.description && (
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--skilio-ink-muted)]">
+                            {question.description}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10 shrink-0 text-[var(--skilio-ink-muted)] hover:bg-[var(--skilio-control)]"
+                        aria-label={
+                          isZh ? "复制到其他面试" : "Copy to interview"
+                        }
+                        onClick={() => setCopyDialog(question)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 pl-7">
+                      <Badge variant="outline" className={meta.badgeClass}>
+                        <TypeIcon className="mr-1 h-3 w-3" />
+                        {meta.label}
+                      </Badge>
+                      <span className="min-w-0 break-words text-xs text-[var(--skilio-ink-soft)]">
+                        {question.interview?.title ?? "-"}
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        className="text-[var(--skilio-border-strong)]"
+                      >
+                        /
+                      </span>
+                      <time className="text-xs tabular-nums text-[var(--skilio-ink-muted)]">
+                        {new Date(question.createdAt).toLocaleDateString(
+                          undefined,
+                          {
+                            year: "numeric",
+                            month: "numeric",
+                            day: "numeric",
+                          },
+                        )}
+                      </time>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto code-scrollbar sm:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -694,9 +763,8 @@ export default function QuestionsPage() {
             </div>
 
             {processedQuestions.length > PAGE_SIZE_OPTIONS[0] && (
-              <div className="flex items-center justify-between border-t px-4 py-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>Rows per page</span>
+              <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--skilio-ink-muted)]">
                   <span>{isZh ? "每页行数" : "Rows per page"}</span>
                   <select
                     className="rounded border bg-background px-2 py-1 text-sm"
@@ -712,13 +780,13 @@ export default function QuestionsPage() {
                       </option>
                     ))}
                   </select>
-                  <span className="ml-2">
+                  <span className="sm:ml-2">
                     {page * pageSize + 1}–
                     {Math.min((page + 1) * pageSize, processedQuestions.length)}{" "}
                     {isZh ? " / 共 " : " of "} {processedQuestions.length}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2 sm:justify-end">
                   <Button
                     variant="outline"
                     size="sm"

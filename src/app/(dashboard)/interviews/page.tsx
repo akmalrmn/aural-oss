@@ -803,7 +803,7 @@ export default function InterviewsPage() {
                       </div>
                       <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-primary/60" />
                     </div>
-                    <p className="text-[13px] leading-relaxed text-muted-foreground line-clamp-2">
+                    <p className="line-clamp-2 text-sm leading-6 text-[var(--skilio-ink-soft)]">
                       {tpl.description}
                     </p>
                     <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground/70">
@@ -858,7 +858,7 @@ export default function InterviewsPage() {
                   }
                 }}
                 className={cn(
-                  "group relative cursor-pointer rounded-[var(--skilio-radius-lg)] border-0 shadow-[var(--skilio-shadow-1)] transition-all",
+                  "group relative w-full min-w-0 cursor-pointer rounded-[var(--skilio-radius-lg)] border-0 bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-1)] transition-[background-color,box-shadow]",
                   isSelected
                     ? "border-primary ring-1 ring-primary bg-primary/5"
                     : "hover:shadow-md hover:border-primary/30 hover:bg-muted/30",
@@ -871,7 +871,7 @@ export default function InterviewsPage() {
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                   </div>
                 )}
-                <CardHeader className="pb-3">
+                <CardHeader className="min-w-0 p-5 pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <CardTitle className="text-base truncate">
@@ -884,8 +884,8 @@ export default function InterviewsPage() {
                     {renderActionsMenu(interview)}
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <CardContent className="min-w-0 p-5 pt-0">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--skilio-ink-muted)]">
                     <span>
                       {interview._count.questions}{" "}
                       {t("dashboard.questions").toLowerCase()}
@@ -898,7 +898,7 @@ export default function InterviewsPage() {
                     <span>&middot;</span>
                     <span>{formatDateShort(interview.createdAt)}</span>
                   </div>
-                  <div className="mt-3 flex items-center gap-2">
+                  <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
                     {interview.publicSlug &&
                     interview.isActive &&
                     !interview.requireInvite ? (

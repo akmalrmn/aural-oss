@@ -76,51 +76,51 @@ export const QUESTION_TYPE_STYLES: Record<
     icon: MessageSquare,
     label: "Open Ended",
     badgeClass:
-      "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
     optionClass: "",
   },
   SINGLE_CHOICE: {
     icon: CircleDot,
     label: "Single Choice",
     badgeClass:
-      "border-tertiary-400 bg-tertiary-100 text-tertiary-900 dark:border-tertiary-800 dark:bg-tertiary-900/30 dark:text-tertiary-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
     optionClass:
-      "bg-tertiary-100 text-tertiary-900 dark:bg-tertiary-900/30 dark:text-tertiary-300",
+      "bg-[var(--skilio-control)] text-[var(--skilio-ink-soft)]",
   },
   MULTIPLE_CHOICE: {
     icon: ListChecks,
     label: "Multiple Choice",
     badgeClass:
-      "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
     optionClass:
-      "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+      "bg-[var(--skilio-control)] text-[var(--skilio-ink-soft)]",
   },
   CODING: {
     icon: Code2,
     label: "Coding",
     badgeClass:
-      "border-secondary-200 bg-secondary-50 text-secondary-700 dark:border-secondary-800 dark:bg-secondary-900/30 dark:text-secondary-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
     optionClass: "",
   },
   WHITEBOARD: {
     icon: PenLine,
     label: "Whiteboard",
     badgeClass:
-      "border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
     optionClass: "",
   },
   DRAWING: {
     icon: Shapes,
     label: "Drawing Completion",
     badgeClass:
-      "border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
     optionClass: "",
   },
   RESEARCH: {
     icon: Microscope,
     label: "Research",
     badgeClass:
-      "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+      "border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-brand-strong)]",
     optionClass: "",
   },
 };
@@ -318,7 +318,7 @@ export function QuestionCard({
                     {(local.options?.options ?? []).map(
                       (opt: string, oi: number) => (
                         <div key={oi} className="flex items-center gap-2">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
                             {String.fromCharCode(65 + oi)}
                           </span>
                           <Input
@@ -593,7 +593,7 @@ export function QuestionCard({
               <div className="mt-2 overflow-hidden rounded-md border bg-zinc-950">
                 <div className="flex items-center gap-1.5 border-b border-zinc-800 bg-zinc-900 px-3 py-1.5">
                   <Code2 className="h-3 w-3 text-zinc-400" />
-                  <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">
+                  <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
                     {data.starterCode.language}
                   </span>
                 </div>

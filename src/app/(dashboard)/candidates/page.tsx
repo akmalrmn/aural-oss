@@ -1120,7 +1120,103 @@ export default function CandidatesPage() {
           </p>
         ) : (
           <>
-            <div className="overflow-x-auto code-scrollbar">
+            <div className="divide-y divide-[var(--skilio-border)] sm:hidden">
+              {paginatedRows.map((row) => {
+                const status = getSessionStatus(row);
+                const hasSession =
+                  !!row.session && status !== "Not Started";
+                const compositeId = `${row.type}-${row.id}`;
+                const score = getSessionScore(row);
+
+                return (
+                  <article key={compositeId} className="px-4 py-4">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <Checkbox
+                        checked={selectedIds.has(compositeId)}
+                        onCheckedChange={() => toggleSelect(compositeId)}
+                        aria-label={`Select ${row.name || row.email || row.interviewTitle}`}
+                        className="mt-0.5 shrink-0 border-[var(--skilio-border-strong)]"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="break-words text-sm font-semibold text-[var(--skilio-ink)]">
+                          {row.name || row.email || (isZh ? "未命名" : "Unnamed")}
+                        </div>
+                        <div className="mt-1 break-words text-xs leading-5 text-[var(--skilio-ink-soft)]">
+                          {row.interviewTitle}
+                        </div>
+                      </div>
+                      {hasSession && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10 shrink-0 text-[var(--skilio-ink-muted)] hover:bg-[var(--skilio-control)]"
+                          aria-label={
+                            isZh ? "查看会话详情" : "View session details"
+                          }
+                          onClick={() => handleRowClick(row)}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2 pl-7">
+                      <Badge
+                        variant={getSessionBadgeVariant(status)}
+                        className="rounded-[var(--skilio-radius-sm)]"
+                      >
+                        {statusLabel(status)}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className="rounded-[var(--skilio-radius-sm)] border-[var(--skilio-border)] bg-[var(--skilio-control)] text-[var(--skilio-ink-soft)]"
+                      >
+                        {sourceLabel(row.type)}
+                      </Badge>
+                    </div>
+
+                    <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[var(--skilio-border)] pt-4 text-xs">
+                      <div className="col-span-2 min-w-0">
+                        <dt className="text-[var(--skilio-ink-muted)]">
+                          {columnLabel.email}
+                        </dt>
+                        <dd className="mt-1 break-all text-[var(--skilio-ink-soft)]">
+                          {row.email || "-"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[var(--skilio-ink-muted)]">
+                          {columnLabel.score}
+                        </dt>
+                        <dd className="mt-1 font-semibold tabular-nums text-[var(--skilio-ink)]">
+                          {score === null ? "-" : `${score.toFixed(1)}/10`}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[var(--skilio-ink-muted)]">
+                          {columnLabel.duration}
+                        </dt>
+                        <dd className="mt-1 tabular-nums text-[var(--skilio-ink)]">
+                          {hasSession
+                            ? formatDuration(row.session.totalDurationSeconds)
+                            : "-"}
+                        </dd>
+                      </div>
+                      <div className="col-span-2">
+                        <dt className="text-[var(--skilio-ink-muted)]">
+                          {columnLabel.started}
+                        </dt>
+                        <dd className="mt-1 tabular-nums text-[var(--skilio-ink)]">
+                          {hasSession ? formatDate(getStartDate(row)) : "-"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto code-scrollbar sm:block">
               <Table className="border-collapse">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -1290,8 +1386,8 @@ export default function CandidatesPage() {
 
             {/* Pagination */}
             {processedRows.length > PAGE_SIZE_OPTIONS[0] && (
-              <div className="flex items-center justify-between border-t px-4 py-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--skilio-ink-muted)]">
                   <span>{isZh ? "每页行数" : "Rows per page"}</span>
                   <select
                     className="rounded border bg-background px-2 py-1 text-sm"
@@ -1307,13 +1403,13 @@ export default function CandidatesPage() {
                       </option>
                     ))}
                   </select>
-                  <span className="ml-2">
+                  <span className="sm:ml-2">
                     {safePage * pageSize + 1}–
                     {Math.min((safePage + 1) * pageSize, processedRows.length)}{" "}
                     {isZh ? " / 共 " : " of "} {processedRows.length}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2 sm:justify-end">
                   <Button
                     variant="outline"
                     size="sm"

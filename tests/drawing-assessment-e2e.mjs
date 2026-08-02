@@ -261,6 +261,7 @@ try {
   await employerPage.screenshot({
     path: `${outputDir}/04-employer-drawing-result.png`,
     fullPage: true,
+    timeout: 120_000,
   });
   const drawingResults = employerPage.getByTestId("drawing-responses");
   await drawingResults.waitFor();
@@ -538,6 +539,25 @@ try {
       screenshots: outputDir,
     }),
   );
+} catch (error) {
+  await candidatePage
+    .screenshot({
+      path: `${outputDir}/failure-candidate.png`,
+      fullPage: true,
+      timeout: 120_000,
+    })
+    .catch(() => {});
+  console.error(
+    JSON.stringify({
+      url: candidatePage.url(),
+      browserErrors,
+      body: (await candidatePage.locator("body").innerText().catch(() => "")).slice(
+        0,
+        4_000,
+      ),
+    }),
+  );
+  throw error;
 } finally {
   await employerContext.close().catch(() => {});
   await candidateContext.close().catch(() => {});

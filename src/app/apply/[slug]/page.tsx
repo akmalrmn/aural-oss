@@ -1915,7 +1915,15 @@ export default function CandidateApplicationPage() {
                     {currentStep === 0 ? "Job details" : "Back"}
                   </Button>
                   {currentStep < steps.length - 1 ? (
-                    <Button type="button" onClick={goNext} disabled={!canContinue} className="gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]">
+                    <Button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        goNext();
+                      }}
+                      disabled={!canContinue}
+                      className="gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)]"
+                    >
                       {
                         [
                           "Continue to profile",

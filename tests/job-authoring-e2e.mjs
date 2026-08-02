@@ -70,6 +70,72 @@ try {
 
   await page.getByRole("button", { name: "Draft with AI" }).click();
   const generateDialog = page.getByRole("dialog");
+  await generateDialog.waitFor();
+  await page.waitForTimeout(250);
+
+  const aiDialogStyles = await generateDialog.evaluate((dialog) => {
+    const title = dialog.querySelector("#ai-role-title");
+    const notes = dialog.querySelector("#ai-role-notes");
+    if (!(title instanceof HTMLInputElement)) {
+      throw new Error("AI job title field is missing");
+    }
+    if (!(notes instanceof HTMLTextAreaElement)) {
+      throw new Error("AI role context field is missing");
+    }
+    const dialogStyle = getComputedStyle(dialog);
+    const titleStyle = getComputedStyle(title);
+    const notesStyle = getComputedStyle(notes);
+    return {
+      dialogBackground: dialogStyle.backgroundColor,
+      titleBackground: titleStyle.backgroundColor,
+      titleColor: titleStyle.color,
+      titleBorder: titleStyle.borderColor,
+      titleFocusRing: titleStyle.boxShadow,
+      notesBackground: notesStyle.backgroundColor,
+    };
+  });
+  assert.equal(aiDialogStyles.dialogBackground, "rgb(255, 255, 255)");
+  assert.equal(aiDialogStyles.titleBackground, "rgb(240, 246, 237)");
+  assert.equal(aiDialogStyles.notesBackground, "rgb(240, 246, 237)");
+  assert.equal(aiDialogStyles.titleColor, "rgb(16, 35, 63)");
+  assert.equal(aiDialogStyles.titleBorder, "rgb(47, 125, 79)");
+  assert.match(aiDialogStyles.titleFocusRing, /47, 125, 79/);
+
+  await generateDialog.getByLabel("Employment type").click();
+  const employmentOptions = page.getByRole("listbox");
+  await employmentOptions.waitFor();
+  await page.waitForTimeout(200);
+  const employmentOptionsStyle = await employmentOptions.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { background: style.backgroundColor, color: style.color };
+  });
+  assert.deepEqual(employmentOptionsStyle, {
+    background: "rgb(255, 255, 255)",
+    color: "rgb(16, 35, 63)",
+  });
+  await page.screenshot({
+    path: `${outputDir}/02-ai-brief-and-dropdown.png`,
+  });
+  await page.keyboard.press("Escape");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(250);
+  const mobileBriefBounds = await generateDialog.boundingBox();
+  assert.ok(mobileBriefBounds, "AI brief dialog has visible mobile bounds");
+  assert.ok(mobileBriefBounds.x >= -1);
+  assert.ok(mobileBriefBounds.x + mobileBriefBounds.width <= 391);
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+    true,
+    "AI brief dialog does not overflow mobile",
+  );
+  await page.screenshot({
+    path: `${outputDir}/03-ai-brief-mobile.png`,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+
   await generateDialog.getByLabel("Job title").fill("Product Designer");
   await generateDialog.getByLabel("Department").fill("Product");
   await generateDialog
@@ -95,7 +161,7 @@ try {
     "AI output does not change the form before review",
   );
   await page.screenshot({
-    path: `${outputDir}/02-ai-draft-review.png`,
+    path: `${outputDir}/04-ai-draft-review.png`,
   });
 
   const reviewDialog = page.getByRole("dialog");
@@ -219,7 +285,7 @@ try {
   const reviewBounds = await mobileReview.boundingBox();
   assert.ok(reviewBounds, "review dialog has visible bounds");
   await page.screenshot({
-    path: `${outputDir}/03-import-review-mobile.png`,
+    path: `${outputDir}/05-import-review-mobile.png`,
   });
   assert.ok(
     reviewBounds.x >= -1,
@@ -251,8 +317,38 @@ try {
     .getByText("Suggested from the job description", { exact: true })
     .waitFor();
   await page.screenshot({
-    path: `${outputDir}/04-lightcast-handoff.png`,
+    path: `${outputDir}/06-lightcast-handoff.png`,
     fullPage: true,
+  });
+
+  const skillPicker = page
+    .locator('[role="combobox"]')
+    .filter({ hasText: "Search the Lightcast skill catalogue" });
+  await skillPicker.click();
+  const skillSearch = page.getByRole("combobox", { name: "Search skills" });
+  await skillSearch.fill("product design");
+  await page.waitForTimeout(400);
+  const skillSearchStyles = await skillSearch.evaluate((input) => {
+    const wrapper = input.closest("[cmdk-input-wrapper]");
+    const icon = wrapper?.querySelector("svg");
+    if (!(wrapper instanceof HTMLElement) || !(icon instanceof SVGElement)) {
+      throw new Error("Skill search field structure is missing");
+    }
+    return {
+      inputBackground: getComputedStyle(input).backgroundColor,
+      inputColor: getComputedStyle(input).color,
+      wrapperBackground: getComputedStyle(wrapper).backgroundColor,
+      iconColor: getComputedStyle(icon).color,
+    };
+  });
+  assert.deepEqual(skillSearchStyles, {
+    inputBackground: "rgba(0, 0, 0, 0)",
+    inputColor: "rgb(16, 35, 63)",
+    wrapperBackground: "rgb(240, 246, 237)",
+    iconColor: "rgb(109, 122, 141)",
+  });
+  await page.screenshot({
+    path: `${outputDir}/07-skill-picker.png`,
   });
 
   const relevantErrors = browserErrors.filter(

@@ -55,7 +55,8 @@ type GenerateDialogProps = {
   }) => void;
 };
 
-const fieldClass = "mt-2 shadow-none";
+const fieldClass =
+  "mt-2 border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-ink)] shadow-none placeholder:text-[var(--skilio-ink-muted)] hover:bg-[var(--skilio-control-strong)] focus-visible:ring-[var(--skilio-brand)] focus-visible:ring-offset-[var(--skilio-elevated)]";
 
 export function GenerateJobDraftDialog({
   open,
@@ -101,7 +102,7 @@ export function GenerateJobDraftDialog({
         className={cn(
           styles.dialogShell,
           styles.briefDialog,
-          "grid grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none border-[var(--skilio-border)] bg-[var(--skilio-elevated)] p-0 text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-2)] sm:rounded-[var(--skilio-radius-lg)]",
+          "skilio-interface grid grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none border-[var(--skilio-border)] bg-[var(--skilio-elevated)] p-0 text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-2)] sm:rounded-[var(--skilio-radius-lg)]",
           loading && "[&>button]:hidden",
         )}
       >
@@ -199,7 +200,7 @@ export function GenerateJobDraftDialog({
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               placeholder="What should this person own, deliver, and work with? Include any real requirements that must remain in the draft."
-              className="mt-2 min-h-36 resize-y shadow-none"
+              className={cn(fieldClass, "min-h-36 resize-y")}
             />
             <p className="mt-2 text-xs leading-5 text-[var(--skilio-ink-muted)]">
               Do not include private candidate or employee information. This
@@ -227,7 +228,7 @@ export function GenerateJobDraftDialog({
             variant="outline"
             disabled={loading}
             onClick={() => onOpenChange(false)}
-            className="rounded-[var(--skilio-radius-md)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)]"
+            className="rounded-[var(--skilio-radius-md)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] hover:bg-[var(--skilio-control)]"
           >
             Cancel
           </Button>
@@ -347,7 +348,7 @@ export function JobDraftReviewDialog({
         className={cn(
           styles.dialogShell,
           styles.reviewDialog,
-          "grid grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none border-[var(--skilio-border)] bg-[var(--skilio-elevated)] p-0 text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-2)] sm:rounded-[var(--skilio-radius-lg)]",
+          "skilio-interface grid grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none border-[var(--skilio-border)] bg-[var(--skilio-elevated)] p-0 text-[var(--skilio-ink)] shadow-[var(--skilio-shadow-2)] sm:rounded-[var(--skilio-radius-lg)]",
         )}
       >
         <DialogHeader className="border-b border-[var(--skilio-border)] px-6 pb-5 pt-6 pr-14 text-left">
@@ -471,7 +472,7 @@ export function JobDraftReviewDialog({
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="rounded-[var(--skilio-radius-md)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)]"
+            className="rounded-[var(--skilio-radius-md)] border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)] text-[var(--skilio-ink)] hover:bg-[var(--skilio-control)]"
           >
             Keep current job
           </Button>

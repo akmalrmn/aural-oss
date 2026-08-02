@@ -296,6 +296,7 @@ try {
 
   await employerPage.goto(`${baseUrl}/jobs/${job.id}`);
   await employerPage.waitForLoadState("networkidle");
+  await employerPage.getByRole("tab", { name: "Job stats" }).click();
   const acceptedRow = employerPage
     .getByTestId("source-attribution-panel")
     .locator("tr")

@@ -118,7 +118,9 @@ try {
     fullPage: true,
   });
   assert.ok(
-    await employerPage.getByText("Pre-screening", { exact: true }).isVisible(),
+    await employerPage
+      .getByText("Pre-screening questions", { exact: true })
+      .isVisible(),
     "Pre-screening summary is visible",
   );
 

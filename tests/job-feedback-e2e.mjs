@@ -180,6 +180,40 @@ try {
     path: `${outputDir}/09-application-drawmetrics.png`,
     fullPage: true,
   });
+
+  for (let index = 0; index < 10; index += 1) {
+    const drawingCanvas = candidatePage.getByTestId(
+      "drawing-assessment-canvas",
+    );
+    await drawingCanvas.scrollIntoViewIfNeeded();
+    const drawingBox = await drawingCanvas.boundingBox();
+    assert.ok(drawingBox);
+    await candidatePage.mouse.move(
+      drawingBox.x + drawingBox.width * 0.25,
+      drawingBox.y + drawingBox.height * 0.62,
+    );
+    await candidatePage.mouse.down();
+    await candidatePage.mouse.move(
+      drawingBox.x + drawingBox.width * 0.5,
+      drawingBox.y + drawingBox.height * 0.32,
+      { steps: 5 },
+    );
+    await candidatePage.mouse.move(
+      drawingBox.x + drawingBox.width * 0.75,
+      drawingBox.y + drawingBox.height * 0.62,
+      { steps: 5 },
+    );
+    await candidatePage.mouse.up();
+    await candidatePage
+      .getByTestId("drawing-phrase")
+      .fill(`Feedback picture ${index + 1}`);
+    await candidatePage.getByTestId("save-drawing-response").click();
+  }
+
+  await candidatePage
+    .getByTestId("drawmetrics-summary")
+    .getByText("All drawings complete", { exact: true })
+    .waitFor();
   await candidatePage
     .getByRole("button", { name: "Continue to skills" })
     .click();
@@ -278,6 +312,7 @@ try {
     .waitFor();
   await employerPage
     .getByLabel("Video artefact: coda-skill-artefact.mp4")
+    .first()
     .waitFor();
   await employerPage.getByText("Score N/A", { exact: true }).waitFor();
   await employerPage

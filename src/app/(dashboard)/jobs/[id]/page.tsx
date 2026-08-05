@@ -314,9 +314,7 @@ export default function JobDetailPage() {
                             {applicant.job_source_links?.name ?? "Direct"}
                           </TableCell>
                           <TableCell className="font-medium tabular-nums text-[var(--skilio-ink)]">
-                            {applicant.matchScore === null
-                              ? "-"
-                              : `${applicant.matchScore}%`}
+                            N/A
                           </TableCell>
                           <TableCell>
                             <ApplicantStatusBadge status={applicant.status} />
@@ -372,9 +370,7 @@ export default function JobDetailPage() {
                             Match
                           </dt>
                           <dd className="mt-1 font-semibold tabular-nums text-[var(--skilio-ink)]">
-                            {applicant.matchScore === null
-                              ? "-"
-                              : `${applicant.matchScore}%`}
+                            N/A
                           </dd>
                         </div>
                         <div>
@@ -555,11 +551,8 @@ export default function JobDetailPage() {
                   },
                   {
                     label: "Average match",
-                    value:
-                      job.summary.averageMatch === null
-                        ? "-"
-                        : `${job.summary.averageMatch}%`,
-                    detail: "Portfolio evidence",
+                    value: "N/A",
+                    detail: "Scoring unavailable",
                   },
                   {
                     label: "Must-have skills",

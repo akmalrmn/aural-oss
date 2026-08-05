@@ -2,6 +2,10 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { getInviteDisplayName } from "@/lib/employer-onboarding";
+import {
+  sendTeamAccessEmail,
+  sendTeamInvitationEmail,
+} from "@/lib/auth-verification-email";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   getOrgMembership,
@@ -38,6 +42,62 @@ async function ensureProjectMembersPopulated(
       role: m.role,
     })),
   );
+}
+
+async function sendExistingUserTeamEmail(args: {
+  companyName: string;
+  email: string;
+  organizationId: string;
+  userId: string;
+}) {
+  const appUrl = (
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://assessment.skilio.co"
+  ).replace(/\/$/, "");
+  const { data: existingAuthUser, error: authUserError } =
+    await supabaseAdmin.auth.admin.getUserById(args.userId);
+
+  if (authUserError || !existingAuthUser.user) {
+    throw authUserError ?? new Error("The teammate account could not be loaded.");
+  }
+
+  if (existingAuthUser.user.email_confirmed_at) {
+    await sendTeamAccessEmail({
+      companyName: args.companyName,
+      loginUrl: `${appUrl}/login`,
+      to: args.email,
+    });
+    return;
+  }
+
+  await supabaseAdmin.auth.admin.updateUserById(args.userId, {
+    user_metadata: {
+      ...existingAuthUser.user.user_metadata,
+      invited_organization_id: args.organizationId,
+      invited_organization_name: args.companyName,
+      skip_default_organization: true,
+    },
+  });
+
+  const link = await supabaseAdmin.auth.admin.generateLink({
+    type: "magiclink",
+    email: args.email,
+  });
+  const invitationCode = link.data.properties?.email_otp;
+
+  if (link.error || !invitationCode) {
+    throw link.error ?? new Error("A new invitation code could not be generated.");
+  }
+
+  const acceptUrl = new URL("/auth/accept-invite", appUrl);
+  acceptUrl.searchParams.set("email", args.email);
+  acceptUrl.searchParams.set("digits", String(invitationCode.length));
+
+  await sendTeamInvitationEmail({
+    acceptUrl: acceptUrl.toString(),
+    code: invitationCode,
+    companyName: args.companyName,
+    to: args.email,
+  });
 }
 
 export const orgMemberRouter = router({
@@ -139,8 +199,10 @@ export const orgMemberRouter = router({
         const appUrl = (
           process.env.NEXT_PUBLIC_APP_URL ?? "https://assessment.skilio.co"
         ).replace(/\/$/, "");
-        const { data: invitation, error: invitationError } =
-          await supabaseAdmin.auth.admin.inviteUserByEmail(normalizedEmail, {
+        const invitation = await supabaseAdmin.auth.admin.generateLink({
+          type: "invite",
+          email: normalizedEmail,
+          options: {
             data: {
               full_name: getInviteDisplayName(normalizedEmail),
               invited_organization_id: organization.id,
@@ -148,19 +210,41 @@ export const orgMemberRouter = router({
               skip_default_organization: true,
             },
             redirectTo: `${appUrl}/auth/confirm?next=/auth/accept-invite`,
-          });
+          },
+        });
 
-        if (invitationError || !invitation.user) {
+        const invitationCode = invitation.data.properties?.email_otp;
+        if (invitation.error || !invitation.data.user || !invitationCode) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message:
-              invitationError?.message ??
+              invitation.error?.message ??
               "The invitation could not be sent. Try again.",
           });
         }
 
-        invitedAuthUserId = invitation.user.id;
-        userId = invitation.user.id;
+        invitedAuthUserId = invitation.data.user.id;
+        userId = invitation.data.user.id;
+
+        const acceptUrl = new URL("/auth/accept-invite", appUrl);
+        acceptUrl.searchParams.set("email", normalizedEmail);
+        acceptUrl.searchParams.set("digits", String(invitationCode.length));
+
+        try {
+          await sendTeamInvitationEmail({
+            acceptUrl: acceptUrl.toString(),
+            code: invitationCode,
+            companyName: organization.name,
+            to: normalizedEmail,
+          });
+        } catch (error) {
+          await supabaseAdmin.auth.admin.deleteUser(invitedAuthUserId);
+          console.error("Team invitation email failed:", error);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "The invitation email could not be sent. Try again.",
+          });
+        }
       }
 
       const existing = await getOrgMembership(
@@ -169,6 +253,48 @@ export const orgMemberRouter = router({
         userId,
       );
       if (existing) {
+        if (!invitedAuthUserId) {
+          try {
+            await sendExistingUserTeamEmail({
+              companyName: organization.name,
+              email: normalizedEmail,
+              organizationId: organization.id,
+              userId,
+            });
+          } catch (error) {
+            console.error("Team re-invitation email failed:", error);
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "The invitation email could not be sent. Try again.",
+            });
+          }
+
+          const { data: pendingMember } = await ctx.supabase
+            .from("organization_members")
+            .select()
+            .eq("workspaceId", input.organizationId)
+            .eq("userId", userId)
+            .single();
+          const { data: pendingProfile } = await ctx.supabase
+            .from("profiles")
+            .select("id, email, name, avatar")
+            .eq("id", userId)
+            .maybeSingle();
+
+          return {
+            member: {
+              ...pendingMember,
+              profile: pendingProfile ?? {
+                id: userId,
+                email: normalizedEmail,
+                name: getInviteDisplayName(normalizedEmail),
+                avatar: null,
+              },
+            },
+            invitationSent: true,
+          };
+        }
+
         if (invitedAuthUserId) {
           await supabaseAdmin.auth.admin.deleteUser(invitedAuthUserId);
         }
@@ -231,6 +357,38 @@ export const orgMemberRouter = router({
         }
       }
 
+      if (!invitedAuthUserId) {
+        try {
+          await sendExistingUserTeamEmail({
+            companyName: organization.name,
+            email: normalizedEmail,
+            organizationId: organization.id,
+            userId,
+          });
+        } catch (emailError) {
+          if (projects && projects.length > 0) {
+            await ctx.supabase
+              .from("project_members")
+              .delete()
+              .eq("userId", userId)
+              .in(
+                "projectId",
+                projects.map((project) => project.id),
+              );
+          }
+          await ctx.supabase
+            .from("organization_members")
+            .delete()
+            .eq("workspaceId", input.organizationId)
+            .eq("userId", userId);
+          console.error("Existing teammate invitation email failed:", emailError);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "The invitation email could not be sent. Try again.",
+          });
+        }
+      }
+
       const { data: profile } = await ctx.supabase
         .from("profiles")
         .select("id, email, name, avatar")
@@ -247,7 +405,7 @@ export const orgMemberRouter = router({
             avatar: null,
           },
         },
-        invitationSent: Boolean(invitedAuthUserId),
+        invitationSent: true,
       };
     }),
 

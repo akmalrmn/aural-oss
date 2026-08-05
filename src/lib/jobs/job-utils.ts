@@ -51,10 +51,6 @@ export function getNextJobStatus(status: JobStatus, action: JobStatusAction): Jo
 }
 
 export function summarizeJobApplications(applications: ApplicationSummaryInput[]) {
-  const scored = applications
-    .map((application) => application.matchScore)
-    .filter((score): score is number => typeof score === "number" && Number.isFinite(score));
-
   const methodCounts = new Map<string, number>();
   for (const application of applications) {
     const method =
@@ -67,10 +63,7 @@ export function summarizeJobApplications(applications: ApplicationSummaryInput[]
   return {
     totalApplicants: applications.length,
     shortlisted: applications.filter((application) => application.status === "SHORTLISTED").length,
-    averageMatch:
-      scored.length === 0
-        ? null
-        : Math.round(scored.reduce((sum, score) => sum + score, 0) / scored.length),
+    averageMatch: null,
     applicationMethods: Array.from(methodCounts.entries())
       .map(([method, count]) => ({ method, count }))
       .sort((a, b) => b.count - a.count || a.method.localeCompare(b.method)),
@@ -135,30 +128,4 @@ export function summarizeJobAttribution(
       },
     ],
   };
-}
-
-function normalizeSkill(skill: string): string {
-  return skill.trim().toLowerCase();
-}
-
-export function computeApplicationMatch(input: {
-  requiredSkills: string[];
-  optionalSkills: string[];
-  candidateSkills: string[];
-}): number | null {
-  const candidate = new Set(input.candidateSkills.map(normalizeSkill).filter(Boolean));
-  const required = Array.from(
-    new Set(input.requiredSkills.map(normalizeSkill).filter(Boolean)),
-  );
-  const requiredSet = new Set(required);
-  const optional = Array.from(
-    new Set(input.optionalSkills.map(normalizeSkill).filter(Boolean)),
-  ).filter((skill) => !requiredSet.has(skill));
-  const totalWeight = required.length * 40 + optional.length * 10;
-
-  if (totalWeight === 0) return null;
-
-  const matchedRequired = required.filter((skill) => candidate.has(skill)).length * 40;
-  const matchedOptional = optional.filter((skill) => candidate.has(skill)).length * 10;
-  return Math.round(((matchedRequired + matchedOptional) / totalWeight) * 100);
 }

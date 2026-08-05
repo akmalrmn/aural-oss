@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  computeApplicationMatch,
   createJobPublicSlug,
   getNextJobStatus,
   summarizeJobAttribution,
@@ -27,7 +26,7 @@ describe("job portal utilities", () => {
     assert.throws(() => getNextJobStatus("ARCHIVED", "publish"), /Cannot publish/);
   });
 
-  it("summarizes application pipeline counts and average match", () => {
+  it("summarizes application pipeline counts with scoring disabled", () => {
     const summary = summarizeJobApplications([
       { status: "NEW", matchScore: 80, applicationMethod: "SKILIO" },
       { status: "SHORTLISTED", matchScore: 90, applicationMethod: "GUEST" },
@@ -36,7 +35,7 @@ describe("job portal utilities", () => {
 
     assert.equal(summary.totalApplicants, 3);
     assert.equal(summary.shortlisted, 1);
-    assert.equal(summary.averageMatch, 85);
+    assert.equal(summary.averageMatch, null);
     assert.deepEqual(summary.applicationMethods, [
       { method: "SKILIO", count: 2 },
       { method: "GUEST", count: 1 },
@@ -99,23 +98,4 @@ describe("job portal utilities", () => {
     assert.equal(summary.sources.at(-1)?.submitted, 1);
   });
 
-  it("computes match score from overlapping required and optional skills", () => {
-    const score = computeApplicationMatch({
-      requiredSkills: ["Data Analysis", "Communication"],
-      optionalSkills: ["Excel", "Project Management"],
-      candidateSkills: ["communication", "excel", "public speaking"],
-    });
-
-    assert.equal(score, 50);
-  });
-
-  it("deduplicates job skills before computing a skills match", () => {
-    const score = computeApplicationMatch({
-      requiredSkills: ["Communication", "communication"],
-      optionalSkills: ["Excel", "Communication"],
-      candidateSkills: ["COMMUNICATION"],
-    });
-
-    assert.equal(score, 80);
-  });
 });

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { AntiCheatingFunctionalHarness } from "./anti-cheating-functional-harness";
 import { VoiceFunctionalHarness } from "./voice-functional-harness";
 
 interface VoiceFunctionalPageProps {
@@ -24,6 +25,10 @@ export default function VoiceFunctionalPage({
   const scenario = Array.isArray(scenarioParam)
     ? scenarioParam[0]
     : scenarioParam || "default";
+
+  if (scenario === "anti-cheating") {
+    return <AntiCheatingFunctionalHarness />;
+  }
 
   return <VoiceFunctionalHarness language={language} scenario={scenario} />;
 }

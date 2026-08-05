@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import {
-  DRAWING_HARDCODED_SCORE,
   type DrawingAssessmentSnapshot,
   type DrawingStarterShape,
   type DrawingStroke,
@@ -260,8 +259,8 @@ export const DrawingAssessmentCanvas = forwardRef<
         const snapshot: DrawingAssessmentSnapshot = {
           assessmentMode: "DRAWING",
           starterShape,
-          hardcodedScore: DRAWING_HARDCODED_SCORE,
-          scoreMode: "HARDCODED",
+          score: null,
+          scoreMode: "UNSCORED",
           strokes: strokesRef.current,
         };
         return {

@@ -22,7 +22,7 @@ function errorResponse(error: string, status: number) {
 export async function POST(request: Request) {
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > MAX_REQUEST_BYTES) {
-    return errorResponse("Files must be 10 MB or smaller.", 413);
+    return errorResponse("Artefacts must be 100 MB or smaller.", 413);
   }
 
   const formData = await request.formData();

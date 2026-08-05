@@ -198,9 +198,9 @@ try {
   await candidatePage.getByPlaceholder("Add another skill").fill("Facilitation");
   await candidatePage.getByRole("button", { name: "Add", exact: true }).click();
   const artefact = {
-    name: "coda-skill-artefact.pdf",
-    mimeType: "application/pdf",
-    buffer: Buffer.from("%PDF-1.4\n% Skilio E2E skill artefact\n"),
+    name: "coda-skill-artefact.mp4",
+    mimeType: "video/mp4",
+    buffer: Buffer.from("\x00\x00\x00\x18ftypisom\x00\x00\x02\x00isomiso2", "binary"),
   };
   const artefactInputs = candidatePage.getByLabel(
     "Attach an artefact (optional)",
@@ -273,9 +273,13 @@ try {
     .getByRole("heading", { name: "Drawmetrics results" })
     .waitFor({ state: "visible" });
   await employerPage
-    .getByRole("link", { name: /coda-skill-artefact\.pdf/ })
+    .getByRole("link", { name: /coda-skill-artefact\.mp4/ })
     .first()
     .waitFor();
+  await employerPage
+    .getByLabel("Video artefact: coda-skill-artefact.mp4")
+    .waitFor();
+  await employerPage.getByText("Score N/A", { exact: true }).waitFor();
   await employerPage
     .getByRole("link", { name: /coda-feedback-resume\.pdf/ })
     .waitFor();

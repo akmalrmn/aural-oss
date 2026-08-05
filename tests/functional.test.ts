@@ -60,17 +60,23 @@ async function waitForHttp(url: string, timeoutMs = 60_000): Promise<void> {
 }
 
 function startAppServer(port: number): ChildProcess {
-  const child = spawn("npx", ["next", "dev", "--port", String(port)], {
-    cwd: APP_CWD,
-    env: {
-      ...process.env,
-      NODE_ENV: "development",
-      ENABLE_FUNCTIONAL_TEST_PAGES: "1",
-      NEXT_PUBLIC_VOICE_RELAY_URL: `ws://127.0.0.1:${port}/ws/voice`,
-      NEXT_PUBLIC_OPENAI_VOICE_RELAY_URL: `ws://127.0.0.1:${port}/ws/openai-voice`,
+  const nextBin = resolve(APP_CWD, "node_modules/next/dist/bin/next");
+  const child = spawn(
+    process.execPath,
+    [nextBin, "dev", "--port", String(port)],
+    {
+      cwd: APP_CWD,
+      env: {
+        ...process.env,
+        NODE_ENV: "development",
+        ENABLE_FUNCTIONAL_TEST_PAGES: "1",
+        NEXT_PUBLIC_VOICE_RELAY_URL: `ws://127.0.0.1:${port}/ws/voice`,
+        NEXT_PUBLIC_OPENAI_VOICE_RELAY_URL: `ws://127.0.0.1:${port}/ws/openai-voice`,
+        NEXT_PUBLIC_VOICE_RELAY_PRIMARY: "volcengine",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
     },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  );
 
   child.stdout?.on("data", (chunk) => {
     process.stdout.write(`[functional-next] ${chunk}`);
@@ -142,6 +148,9 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${port}`;
   serverProcess = startAppServer(port);
   await waitForHttp(`${baseUrl}/login`);
+  await waitForHttp(
+    `${baseUrl}/functional-tests/voice?language=en&scenario=anti-cheating`,
+  );
   browser = await chromium.launch({ headless: true });
 });
 
@@ -150,24 +159,24 @@ after(async () => {
   await stopProcess(serverProcess);
 });
 
-test("login defaults to English and no longer shows a language toggle", async () => {
+test("login uses the English employer heading and no language toggle", async () => {
   const context = await browser.newContext({ locale: "en-US" });
   const page = await context.newPage();
 
   await page.goto(`${baseUrl}/login`);
 
-  await waitForText(page, "Welcome back");
+  await waitForText(page, "Employer sign in");
   assert.equal(await page.getByText("English", { exact: true }).count(), 0);
   assert.equal(await page.getByText("中文", { exact: true }).count(), 0);
 
   await context.close();
 });
 
-test("login honors browser locale and persisted locale cache", async () => {
+test("login keeps its employer heading stable across locale preferences", async () => {
   const zhContext = await browser.newContext({ locale: "zh-CN" });
   const zhPage = await zhContext.newPage();
   await zhPage.goto(`${baseUrl}/login`);
-  await waitForText(zhPage, "欢迎回来");
+  await waitForText(zhPage, "Employer sign in");
   await zhContext.close();
 
   const cachedContext = await browser.newContext({ locale: "en-US" });
@@ -176,8 +185,61 @@ test("login honors browser locale and persisted locale cache", async () => {
     window.localStorage.setItem("aural.app.locale", "zh");
   });
   await cachedPage.goto(`${baseUrl}/login`);
-  await waitForText(cachedPage, "欢迎回来");
+  await waitForText(cachedPage, "Employer sign in");
   await cachedContext.close();
+});
+
+test("anti-cheating survives restricted browser clipboard APIs and still blocks external paste", async () => {
+  const context = await browser.newContext({ locale: "en-US" });
+  const page = await context.newPage();
+  const pageErrors: string[] = [];
+
+  page.on("pageerror", (error) => pageErrors.push(String(error)));
+  await page.addInitScript(() => {
+    if (navigator.clipboard?.writeText) {
+      Object.defineProperty(navigator.clipboard, "writeText", {
+        configurable: true,
+        value: navigator.clipboard.writeText.bind(navigator.clipboard),
+        writable: false,
+      });
+    }
+    Object.defineProperty(window, "DataTransfer", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  await page.goto(
+    `${baseUrl}/functional-tests/voice?language=en&scenario=anti-cheating`,
+  );
+  await waitForText(page, "ready", 10_000, true);
+
+  const pasteWasBlocked = await page.evaluate(`(() => {
+    const input = document.querySelector("textarea");
+    if (!input) return false;
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        getData: function getData() {
+          return "content copied outside the interview";
+        },
+      },
+    });
+    input.dispatchEvent(event);
+    return event.defaultPrevented;
+  })()`);
+
+  await waitForCondition(
+    async () =>
+      (await page.getByTestId("anti-cheating-violations").textContent()) ===
+      "1",
+    5_000,
+    "Expected the external paste to be recorded",
+  );
+  assert.equal(pasteWasBlocked, true);
+  assert.deepEqual(pageErrors, []);
+
+  await context.close();
 });
 
 test("English interviews try the voice relay first and fail over to OpenAI", async () => {

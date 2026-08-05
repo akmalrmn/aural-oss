@@ -1,4 +1,3 @@
-export const DRAWING_HARDCODED_SCORE = 80;
 export const DRAWING_REUSE_DAYS = 365;
 
 export const DRAWING_STARTER_SHAPES = [
@@ -23,8 +22,8 @@ export type DrawingStroke = DrawingPoint[];
 export type DrawingAssessmentSnapshot = {
   assessmentMode: "DRAWING";
   starterShape: DrawingStarterShape;
-  hardcodedScore: number;
-  scoreMode: "HARDCODED";
+  score: null;
+  scoreMode: "UNSCORED";
   strokes: DrawingStroke[];
 };
 
@@ -38,8 +37,8 @@ export type ApplicationDrawingAssessment = {
   version: 1;
   completedAt: string;
   expiresAt: string;
-  score: number;
-  scoreMode: "HARDCODED";
+  score: null;
+  scoreMode: "UNSCORED";
   responses: ApplicationDrawingResponse[];
 };
 
@@ -100,8 +99,8 @@ export function parseApplicationDrawingAssessment(
     version: 1,
     completedAt: record.completedAt,
     expiresAt: record.expiresAt,
-    score: DRAWING_HARDCODED_SCORE,
-    scoreMode: "HARDCODED",
+    score: null,
+    scoreMode: "UNSCORED",
     responses: record.responses,
   };
 }
@@ -130,8 +129,8 @@ export function createApplicationDrawingAssessment(
     version: 1,
     completedAt: completedAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
-    score: DRAWING_HARDCODED_SCORE,
-    scoreMode: "HARDCODED",
+    score: null,
+    scoreMode: "UNSCORED",
     responses,
   };
 }
@@ -140,9 +139,11 @@ export function normalizeDrawingAssessmentSnapshot(
   snapshot: Record<string, unknown>,
 ) {
   if (snapshot.assessmentMode !== "DRAWING") return snapshot;
+  const rest = { ...snapshot };
+  delete rest.hardcodedScore;
   return {
-    ...snapshot,
-    hardcodedScore: DRAWING_HARDCODED_SCORE,
-    scoreMode: "HARDCODED" as const,
+    ...rest,
+    score: null,
+    scoreMode: "UNSCORED" as const,
   };
 }

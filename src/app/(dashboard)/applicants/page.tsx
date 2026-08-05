@@ -219,9 +219,7 @@ export default function ApplicantsPage() {
                         {formatSource(applicant.job_source_links)}
                       </TableCell>
                       <TableCell className="font-medium tabular-nums text-[var(--skilio-ink)]">
-                        {applicant.matchScore === null
-                          ? "-"
-                          : `${applicant.matchScore}%`}
+                        N/A
                       </TableCell>
                       <TableCell>
                         <ApplicantStatusBadge status={applicant.status} />
@@ -289,9 +287,7 @@ export default function ApplicantsPage() {
                     <div>
                       <dt className="text-xs text-[var(--skilio-ink-muted)]">Match</dt>
                       <dd className="mt-1 font-semibold tabular-nums text-[var(--skilio-ink)]">
-                        {applicant.matchScore === null
-                          ? "-"
-                          : `${applicant.matchScore}%`}
+                        N/A
                       </dd>
                     </div>
                     <div>

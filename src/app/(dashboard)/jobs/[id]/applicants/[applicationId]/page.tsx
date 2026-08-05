@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ExternalLink,
   FileText,
+  FileVideo,
   Link2,
   ListChecks,
   Mail,
@@ -212,6 +213,37 @@ function StoredFileLink({ file }: { file: ApplicantFile }) {
     );
   }
 
+  const isMp4 =
+    file.fileType?.toLowerCase() === "video/mp4" ||
+    file.fileName.toLowerCase().endsWith(".mp4");
+
+  if (isMp4) {
+    return (
+      <div className="overflow-hidden rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border-strong)] bg-[var(--skilio-elevated)]">
+        <video
+          controls
+          preload="metadata"
+          className="aspect-video w-full bg-[var(--skilio-ink)] object-contain"
+          aria-label={`Video artefact: ${file.fileName}`}
+        >
+          <source src={file.url} type="video/mp4" />
+        </video>
+        <a
+          href={file.url}
+          target="_blank"
+          rel="noreferrer"
+          className="flex min-h-11 items-center justify-between gap-3 px-3 py-2 text-sm font-medium text-[var(--skilio-ink)] transition-colors hover:bg-[var(--skilio-control)] hover:text-[var(--skilio-brand)]"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <FileVideo className="h-4 w-4 shrink-0 text-[var(--skilio-brand)]" />
+            <span className="break-all">{file.fileName}</span>
+          </span>
+          <ExternalLink className="h-4 w-4 shrink-0" />
+        </a>
+      </div>
+    );
+  }
+
   return (
     <a
       href={file.url}
@@ -337,15 +369,6 @@ export default function ApplicantReviewPage() {
         file.fileName.trim().toLowerCase() ===
           resumeName.trim().toLowerCase()),
   );
-  const jobSkills = applicant?.job_postings?.job_skills ?? [];
-  const requiredSkills = jobSkills.filter((skill) => skill.priority === "MUST");
-  const matchedRequiredSkills = requiredSkills.filter((requiredSkill) =>
-    skills.some(
-      (skill) =>
-        skill.trim().toLowerCase() === requiredSkill.name.trim().toLowerCase(),
-    ),
-  );
-
   function setStatus(status: "REVIEWED" | "SHORTLISTED" | "REJECTED") {
     if (!applicant) return;
     updateStatus.mutate({ id: applicant.id, status });
@@ -385,12 +408,10 @@ export default function ApplicantReviewPage() {
               <div className="flex items-center gap-6">
                 <div>
                   <div className="text-xs font-medium text-[var(--skilio-ink-muted)]">
-                    Evidence match
+                    Match score
                   </div>
                   <div className="mt-1 font-heading text-3xl font-semibold tabular-nums text-[var(--skilio-ink)]">
-                    {applicant.matchScore === null
-                      ? "-"
-                      : `${applicant.matchScore}%`}
+                    N/A
                   </div>
                 </div>
                 <div className="border-l border-[var(--skilio-border)] pl-6">
@@ -398,8 +419,7 @@ export default function ApplicantReviewPage() {
                     Hiring decision
                   </h2>
                   <p className="mt-1 text-sm text-[var(--skilio-ink-muted)]">
-                    {matchedRequiredSkills.length}/{requiredSkills.length} must-have
-                    skills matched
+                    Review the submitted skills and evidence below.
                   </p>
                 </div>
               </div>
@@ -606,7 +626,7 @@ export default function ApplicantReviewPage() {
                         </Badge>
                       )}
                       <Badge className="rounded-md bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)] hover:bg-[var(--skilio-control-strong)]">
-                        Score {drawingAssessment.score}/100
+                        Score N/A
                       </Badge>
                     </div>
                   )}
@@ -626,7 +646,7 @@ export default function ApplicantReviewPage() {
                     <p className="mb-4 text-sm text-[var(--skilio-ink-soft)]">
                       Ten candidate drawings completed{" "}
                       {formatDate(drawingAssessment.completedAt)}. Scoring is
-                      provisional until the analysis API is connected.
+                      not available yet.
                     </p>
                     <div
                       data-testid="applicant-drawmetrics-gallery"

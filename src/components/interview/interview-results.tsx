@@ -1042,11 +1042,10 @@ function SessionDetail({
                       (msg: any) =>
                         (
                           msg.whiteboardData as Record<string, unknown> | null
-                        )?.scoreMode === "HARDCODED",
+                        )?.assessmentMode === "DRAWING",
                     ) && (
                       <p className="mb-3 text-xs text-muted-foreground">
-                        Drawing scores are provisional while automated scoring
-                        is being developed.
+                        Drawing scoring is not available yet.
                       </p>
                     )}
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -1056,10 +1055,6 @@ function SessionDetail({
                         const label = drawingData?.label as string | undefined;
                         const isDrawingAssessment =
                           drawingData?.assessmentMode === "DRAWING";
-                        const hardcodedScore =
-                          typeof drawingData?.hardcodedScore === "number"
-                            ? drawingData.hardcodedScore
-                            : null;
                         const starterShape =
                           typeof drawingData?.starterShape === "string"
                             ? drawingData.starterShape.toLowerCase()
@@ -1089,17 +1084,17 @@ function SessionDetail({
                                   {label ?? "Untitled drawing"}
                                 </p>
                                 {isDrawingAssessment && starterShape && (
-                                  <p className="mt-0.5 text-[10px] capitalize text-muted-foreground">
+                                  <p className="mt-0.5 text-xs capitalize text-muted-foreground">
                                     Starter mark: {starterShape}
                                   </p>
                                 )}
                               </div>
-                              {isDrawingAssessment && hardcodedScore !== null ? (
+                              {isDrawingAssessment ? (
                                 <Badge className="shrink-0 bg-primary/10 text-primary hover:bg-primary/10">
-                                  {hardcodedScore} / 100
+                                  Score N/A
                                 </Badge>
                               ) : (
-                              <p className="ml-auto text-[10px] text-muted-foreground/60">
+                              <p className="ml-auto text-xs text-muted-foreground/60">
                                 {new Date(msg.timestamp).toLocaleTimeString(
                                   undefined,
                                   {
@@ -1211,11 +1206,11 @@ function SessionDetail({
                             <div className="flex items-center gap-2">
                               <Badge
                                 variant="outline"
-                                className="border-zinc-700 text-[10px] font-normal text-zinc-400"
+                                className="border-zinc-700 text-xs font-normal text-zinc-400"
                               >
                                 {language}
                               </Badge>
-                              <span className="text-[10px] text-zinc-500">
+                              <span className="text-xs text-zinc-500">
                                 {new Date(msg.timestamp).toLocaleTimeString(
                                   undefined,
                                   {
@@ -1315,7 +1310,7 @@ function SessionDetail({
                                 alt={`Camera at ${new Date(shot.timestamp).toLocaleTimeString()}`}
                                 className="h-24 w-full rounded object-cover"
                               />
-                              <p className="mt-0.5 text-center text-[10px] text-muted-foreground/60">
+                              <p className="mt-0.5 text-center text-xs text-muted-foreground/60">
                                 {new Date(shot.timestamp).toLocaleTimeString(
                                   undefined,
                                   {
@@ -1354,7 +1349,7 @@ function SessionDetail({
                                 alt={`Screen at ${new Date(shot.timestamp).toLocaleTimeString()}`}
                                 className="h-36 w-full rounded object-cover"
                               />
-                              <p className="mt-0.5 text-center text-[10px] text-muted-foreground/60">
+                              <p className="mt-0.5 text-center text-xs text-muted-foreground/60">
                                 {new Date(shot.timestamp).toLocaleTimeString(
                                   undefined,
                                   {
@@ -1448,7 +1443,7 @@ function SessionDetail({
                                         {isUser ? "Participant" : "Interviewer"}
                                       </span>
                                       <span
-                                        className={`text-[10px] ${isUser ? "text-primary-foreground/60" : "text-secondary-600 dark:text-secondary-400"}`}
+                                        className={`text-xs ${isUser ? "text-primary-foreground/60" : "text-secondary-600 dark:text-secondary-400"}`}
                                       >
                                         {new Date(
                                           msg.timestamp,
@@ -1508,7 +1503,7 @@ function SessionDetail({
                                       {isUser ? "Participant" : "Interviewer"}
                                     </span>
                                     <span
-                                      className={`text-[10px] ${isUser ? "text-primary-foreground/60" : "text-secondary-600 dark:text-secondary-400"}`}
+                                      className={`text-xs ${isUser ? "text-primary-foreground/60" : "text-secondary-600 dark:text-secondary-400"}`}
                                     >
                                       {new Date(
                                         msg.timestamp,

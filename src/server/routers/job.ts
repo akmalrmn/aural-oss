@@ -11,7 +11,6 @@ import {
 } from "@/lib/drawing-assessment";
 import type { Context } from "@/server/context";
 import {
-  computeApplicationMatch,
   createJobPublicSlug,
   getNextJobStatus,
   summarizeJobAttribution,
@@ -476,7 +475,9 @@ async function getJobForAccess(
 }
 
 function shapeJob(job: JobPostingRecord) {
-  const applications = (job.job_applications ?? []) as JobApplicationListItem[];
+  const applications = (
+    (job.job_applications ?? []) as JobApplicationListItem[]
+  ).map((application) => ({ ...application, matchScore: null }));
   const skills = [...((job.job_skills ?? []) as JobSkill[])].sort(
     (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0),
   );
@@ -958,7 +959,10 @@ export const jobRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
       }
 
-      return data ?? [];
+      return (data ?? []).map((application) => ({
+        ...application,
+        matchScore: null,
+      }));
     }),
 
   getApplicationById: protectedProcedure
@@ -993,7 +997,11 @@ export const jobRouter = router({
               : null,
         })),
       );
-      return { ...data, job_application_files: applicationFiles };
+      return {
+        ...data,
+        matchScore: null,
+        job_application_files: applicationFiles,
+      };
     }),
 
   updateApplicationStatus: protectedProcedure
@@ -1307,20 +1315,6 @@ export const jobRouter = router({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
 
-      const skills = ((job.job_skills ?? []) as JobSkill[]).map((skill) => ({
-        name: skill.name,
-        priority: skill.priority,
-      }));
-      const matchScore = computeApplicationMatch({
-        requiredSkills: skills
-          .filter((skill) => skill.priority === "MUST")
-          .map((skill) => skill.name),
-        optionalSkills: skills
-          .filter((skill) => skill.priority === "NICE")
-          .map((skill) => skill.name),
-        candidateSkills: input.skills,
-      });
-
       const freshDrawingAssessment = input.drawingResponses
         ? createApplicationDrawingAssessment(input.drawingResponses)
         : null;
@@ -1373,7 +1367,7 @@ export const jobRouter = router({
           screeningAnswers: input.screeningAnswers,
           skillsSnapshot: input.skills,
           links: input.links,
-          matchScore,
+          matchScore: null,
         })
         .select()
         .single();

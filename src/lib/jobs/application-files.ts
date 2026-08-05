@@ -1,5 +1,6 @@
 export const APPLICATION_FILE_BUCKET = "job-application-files";
-export const MAX_APPLICATION_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_APPLICATION_FILE_BYTES = 100 * 1024 * 1024;
+export const MAX_RESUME_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_APPLICATION_FILES = 10;
 
 export type ApplicationFileKind = "resume" | "skill_artifact";
@@ -31,8 +32,15 @@ const fileRules: Record<
     jpg: ["image/jpeg"],
     jpeg: ["image/jpeg"],
     webp: ["image/webp"],
+    mp4: ["video/mp4"],
   },
 };
+
+export function getApplicationFileByteLimit(kind: ApplicationFileKind) {
+  return kind === "resume"
+    ? MAX_RESUME_FILE_BYTES
+    : MAX_APPLICATION_FILE_BYTES;
+}
 
 export function getApplicationFileExtension(fileName: string) {
   return fileName.trim().toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
@@ -46,8 +54,11 @@ export function validateApplicationFile(
   if (!Number.isFinite(file.size) || file.size <= 0) {
     return "The selected file is empty.";
   }
-  if (file.size > MAX_APPLICATION_FILE_BYTES) {
-    return "Files must be 10 MB or smaller.";
+  const maxBytes = getApplicationFileByteLimit(kind);
+  if (file.size > maxBytes) {
+    return kind === "resume"
+      ? "Resume files must be 10 MB or smaller."
+      : "Artefacts must be 100 MB or smaller.";
   }
 
   const extension = getApplicationFileExtension(file.name);
@@ -55,7 +66,7 @@ export function validateApplicationFile(
   if (!allowedTypes) {
     return kind === "resume"
       ? "Resume files must be PDF, DOC, or DOCX."
-      : "Artefacts must be PDF, DOC, DOCX, PNG, JPG, or WEBP.";
+      : "Artefacts must be PDF, DOC, DOCX, PNG, JPG, WEBP, or MP4.";
   }
 
   const normalizedType = file.type.trim().toLowerCase();

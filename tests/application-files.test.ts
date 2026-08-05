@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   applicationFileFingerprint,
   MAX_APPLICATION_FILE_BYTES,
+  MAX_RESUME_FILE_BYTES,
   normalizeApplicationFileSkills,
   validateApplicationFile,
 } from "../src/lib/jobs/application-files";
@@ -18,6 +19,20 @@ test("application files are constrained by kind, type, and size", () => {
       "resume",
     ),
     null,
+  );
+  assert.equal(
+    validateApplicationFile(
+      { name: "demo.mp4", size: 1024, type: "video/mp4" },
+      "skill_artifact",
+    ),
+    null,
+  );
+  assert.match(
+    validateApplicationFile(
+      { name: "demo.mp4", size: 1024, type: "image/png" },
+      "skill_artifact",
+    ) ?? "",
+    /does not match/,
   );
   assert.match(
     validateApplicationFile(
@@ -41,6 +56,17 @@ test("application files are constrained by kind, type, and size", () => {
         type: "application/pdf",
       },
       "skill_artifact",
+    ) ?? "",
+    /100 MB/,
+  );
+  assert.match(
+    validateApplicationFile(
+      {
+        name: "resume.pdf",
+        size: MAX_RESUME_FILE_BYTES + 1,
+        type: "application/pdf",
+      },
+      "resume",
     ) ?? "",
     /10 MB/,
   );

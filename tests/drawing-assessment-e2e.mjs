@@ -70,7 +70,11 @@ const { data: job, error: jobError } = await supabase
     location: "Kuala Lumpur / Hybrid",
     employmentType: "Full-time",
     seniority: "Mid-level",
-    description: "Design clear, evidence-led product experiences.",
+    description: Array.from(
+      { length: 18 },
+      (_, index) =>
+        `Role responsibility ${index + 1}: design clear, evidence-led product experiences.`,
+    ).join("\n\n"),
     status: "ACTIVE",
     publicSlug: jobSlug,
     publishedAt: new Date().toISOString(),
@@ -110,7 +114,7 @@ let applicationId = null;
 
 for (const page of [employerPage, candidatePage]) {
   page.setDefaultTimeout(60_000);
-  page.setDefaultNavigationTimeout(90_000);
+  page.setDefaultNavigationTimeout(180_000);
   page.on("pageerror", (error) => browserErrors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") browserErrors.push(message.text());
@@ -248,7 +252,9 @@ try {
   assert.equal(drawingMessageError, null);
   assert.equal(drawingMessage.questionId, question.id);
   assert.equal(drawingMessage.whiteboardData.label, "A window into the future");
-  assert.equal(drawingMessage.whiteboardData.hardcodedScore, 80);
+  assert.equal(drawingMessage.whiteboardData.hardcodedScore, undefined);
+  assert.equal(drawingMessage.whiteboardData.score, null);
+  assert.equal(drawingMessage.whiteboardData.scoreMode, "UNSCORED");
   assert.ok(drawingMessage.whiteboardImageUrl.startsWith("data:image/png"));
 
   await employerPage.goto(
@@ -265,7 +271,7 @@ try {
   });
   const drawingResults = employerPage.getByTestId("drawing-responses");
   await drawingResults.waitFor();
-  await drawingResults.getByText("80 / 100", { exact: true }).waitFor();
+  await drawingResults.getByText("Score N/A", { exact: true }).waitFor();
 
   await candidatePage.goto(`${baseUrl}/apply/${jobSlug}`);
   await candidatePage.waitForLoadState("networkidle");
@@ -273,6 +279,39 @@ try {
     path: `${outputDir}/05-application-job-details.png`,
     fullPage: true,
   });
+  const desktopStartButton = candidatePage.getByRole("button", {
+    name: "Start application",
+  });
+  await candidatePage.evaluate(() =>
+    window.scrollTo(0, document.body.scrollHeight),
+  );
+  const desktopStartButtonBox = await desktopStartButton.boundingBox();
+  assert.ok(desktopStartButtonBox, "Desktop application CTA remains visible");
+  assert.ok(
+    desktopStartButtonBox.y >= 0 &&
+      desktopStartButtonBox.y + desktopStartButtonBox.height <= 900,
+    "Desktop application CTA follows the viewport while job details scroll",
+  );
+  await candidatePage.setViewportSize({ width: 390, height: 844 });
+  await candidatePage.evaluate(() =>
+    window.scrollTo(0, document.body.scrollHeight / 2),
+  );
+  const mobileFloatingCta = candidatePage.getByTestId(
+    "application-floating-cta",
+  );
+  await mobileFloatingCta.waitFor();
+  const mobileFloatingCtaBox = await mobileFloatingCta.boundingBox();
+  assert.ok(mobileFloatingCtaBox, "Mobile application CTA remains visible");
+  assert.ok(
+    mobileFloatingCtaBox.y >= 0 &&
+      mobileFloatingCtaBox.y + mobileFloatingCtaBox.height <= 844,
+    "Mobile application CTA follows the viewport while job details scroll",
+  );
+  await candidatePage.screenshot({
+    path: `${outputDir}/05b-application-job-details-mobile.png`,
+  });
+  await candidatePage.setViewportSize({ width: 1365, height: 900 });
+  await candidatePage.evaluate(() => window.scrollTo(0, 0));
   await candidatePage
     .getByRole("button", { name: "Start application" })
     .click();
@@ -419,7 +458,8 @@ try {
   applicationId = application.id;
   const applicationDrawing = application.profileSnapshot.drawingAssessment;
   assert.equal(applicationDrawing.responses.length, 10);
-  assert.equal(applicationDrawing.score, 80);
+  assert.equal(applicationDrawing.score, null);
+  assert.equal(applicationDrawing.scoreMode, "UNSCORED");
   assert.equal(applicationDrawing.responses[0].phrase, "Candidate picture 1");
   assert.ok(
     applicationDrawing.responses.every((response) =>
@@ -435,6 +475,7 @@ try {
     "applicant-drawmetrics-gallery",
   );
   await employerGallery.waitFor();
+  await employerPage.getByText("Score N/A", { exact: true }).waitFor();
   assert.equal(await employerGallery.locator("article").count(), 10);
   await employerPage.screenshot({
     path: `${outputDir}/09-employer-application-drawmetrics.png`,

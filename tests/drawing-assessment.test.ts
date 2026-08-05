@@ -4,7 +4,6 @@ import {
   createApplicationDrawingAssessment,
   countDrawingPhraseWords,
   DRAWING_STARTER_SHAPES,
-  DRAWING_HARDCODED_SCORE,
   getCompleteOrderedDrawingResponses,
   isCompleteDrawingResponses,
   isDrawingAssessmentReusable,
@@ -13,7 +12,7 @@ import {
   parseApplicationDrawingAssessment,
 } from "../src/lib/drawing-assessment";
 
-test("drawing assessment score is enforced by the server normalization", () => {
+test("drawing assessment normalization removes legacy scores", () => {
   const normalized = normalizeDrawingAssessmentSnapshot({
     assessmentMode: "DRAWING",
     hardcodedScore: 3,
@@ -21,8 +20,9 @@ test("drawing assessment score is enforced by the server normalization", () => {
     strokes: [[{ x: 0.2, y: 0.3 }]],
   });
 
-  assert.equal(normalized.hardcodedScore, DRAWING_HARDCODED_SCORE);
-  assert.equal(normalized.scoreMode, "HARDCODED");
+  assert.equal("hardcodedScore" in normalized, false);
+  assert.equal(normalized.score, null);
+  assert.equal(normalized.scoreMode, "UNSCORED");
 });
 
 test("ordinary whiteboard snapshots are not modified", () => {
@@ -94,12 +94,11 @@ test("completed application drawings can be reused for one year", () => {
     ),
     false,
   );
-  assert.equal(
-    parseApplicationDrawingAssessment({
-      ...assessment,
-      score: 3,
-      scoreMode: "CLIENT",
-    })?.score,
-    DRAWING_HARDCODED_SCORE,
-  );
+  const normalized = parseApplicationDrawingAssessment({
+    ...assessment,
+    score: 3,
+    scoreMode: "CLIENT",
+  });
+  assert.equal(normalized?.score, null);
+  assert.equal(normalized?.scoreMode, "UNSCORED");
 });

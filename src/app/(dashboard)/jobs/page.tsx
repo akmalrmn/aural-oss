@@ -73,19 +73,10 @@ export default function JobPostingsPage() {
       (sum, job) => sum + job.summary.totalApplicants,
       0,
     );
-    const avgScores = jobs
-      .map((job) => job.summary.averageMatch)
-      .filter((score): score is number => typeof score === "number");
-
     return {
       active,
       applicants,
-      averageMatch:
-        avgScores.length === 0
-          ? "-"
-          : `${Math.round(
-              avgScores.reduce((sum, score) => sum + score, 0) / avgScores.length,
-            )}%`,
+      averageMatch: "N/A",
     };
   }, [jobs]);
 
@@ -131,7 +122,7 @@ export default function JobPostingsPage() {
           {
             label: "Average match",
             value: totals.averageMatch,
-            detail: "Portfolio evidence",
+            detail: "Scoring unavailable",
           },
         ]}
       />
@@ -248,9 +239,7 @@ export default function JobPostingsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="font-medium tabular-nums text-[var(--skilio-ink)]">
-                        {job.summary.averageMatch === null
-                          ? "-"
-                          : `${job.summary.averageMatch}%`}
+                        N/A
                       </TableCell>
                       <TableCell className="max-w-72">
                         <div className="flex flex-wrap gap-1.5">
@@ -337,9 +326,7 @@ export default function JobPostingsPage() {
                     <div>
                       <dt className="text-xs text-[var(--skilio-ink-muted)]">Match</dt>
                       <dd className="mt-1 font-semibold tabular-nums text-[var(--skilio-ink)]">
-                        {job.summary.averageMatch === null
-                          ? "-"
-                          : `${job.summary.averageMatch}%`}
+                        N/A
                       </dd>
                     </div>
                   </dl>

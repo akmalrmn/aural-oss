@@ -69,9 +69,6 @@ export default function HiringOverviewPage() {
   const summary = useMemo(() => {
     const activeJobs = jobs.filter((job) => job.status === "ACTIVE").length;
     const applicants = jobs.reduce((sum, job) => sum + job.summary.totalApplicants, 0);
-    const avgScores = jobs
-      .map((job) => job.summary.averageMatch)
-      .filter((score): score is number => typeof score === "number");
     const shortlisted = applications.filter(
       (application) => application.status === "SHORTLISTED",
     ).length;
@@ -85,10 +82,7 @@ export default function HiringOverviewPage() {
       activeJobs,
       applicants,
       shortlisted,
-      averageMatch:
-        avgScores.length === 0
-          ? "-"
-          : `${Math.round(avgScores.reduce((sum, score) => sum + score, 0) / avgScores.length)}%`,
+      averageMatch: "N/A",
       sources: Object.entries(sources).sort((a, b) => b[1] - a[1]),
     };
   }, [applications, jobs]);
@@ -99,9 +93,7 @@ export default function HiringOverviewPage() {
   }
 
   const featuredJob = jobs[0];
-  const topApplicants = [...applications]
-    .sort((a, b) => (b.matchScore ?? -1) - (a.matchScore ?? -1))
-    .slice(0, 4);
+  const topApplicants = applications.slice(0, 4);
 
   return (
     <SkilioMotionRoot className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -138,7 +130,7 @@ export default function HiringOverviewPage() {
           { label: "Active jobs", value: summary.activeJobs, detail: "Accepting applications" },
           { label: "Applicants", value: summary.applicants, detail: "Across all roles" },
           { label: "Shortlisted", value: summary.shortlisted, detail: "Ready for a decision" },
-          { label: "Average match", value: summary.averageMatch, detail: "Portfolio evidence" },
+          { label: "Average match", value: summary.averageMatch, detail: "Scoring unavailable" },
         ]}
       />
 
@@ -227,9 +219,7 @@ export default function HiringOverviewPage() {
                         {job.summary.totalApplicants} applicants
                       </div>
                       <div className="text-xs tabular-nums text-[var(--skilio-ink-muted)]">
-                        {job.summary.averageMatch === null
-                          ? "No match data"
-                          : `${job.summary.averageMatch}% match`}
+                        Match N/A
                       </div>
                     </div>
                     <Button
@@ -294,7 +284,7 @@ export default function HiringOverviewPage() {
                     </div>
                     <div className="shrink-0 text-right">
                       <div className="font-semibold tabular-nums text-[var(--skilio-brand)]">
-                        {applicant.matchScore === null ? "-" : `${applicant.matchScore}%`}
+                        N/A
                       </div>
                       <div className="text-xs text-[var(--skilio-ink-muted)]">
                         {formatSource(applicant.job_source_links)}

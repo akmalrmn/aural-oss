@@ -19,21 +19,33 @@ export function AntiCheatingGuard({ enabled, sessionId }: AntiCheatingGuardProps
   const lastDepartureTs = useRef(0);
   const lastPasteToast = useRef(0);
 
-  const reportMutation = trpc.session.reportAntiCheatingViolation.useMutation();
+  const { mutate: reportViolation } =
+    trpc.session.reportAntiCheatingViolation.useMutation();
 
   const persistViolation = useCallback(
     (violation: AntiCheatingViolation) => {
       if (!sessionId) return;
-      reportMutation.mutate({
-        sessionId,
-        violation: {
-          type: violation.type,
-          timestamp: violation.timestamp,
-          detail: violation.detail,
-        },
-      });
+      try {
+        reportViolation(
+          {
+            sessionId,
+            violation: {
+              type: violation.type,
+              timestamp: violation.timestamp,
+              detail: violation.detail,
+            },
+          },
+          {
+            // Monitoring must never take down the active interview when the
+            // reporting request is unavailable. The local warning still works.
+            onError: () => undefined,
+          },
+        );
+      } catch {
+        // Keep the interview usable if the client transport is unavailable.
+      }
     },
-    [sessionId, reportMutation],
+    [sessionId, reportViolation],
   );
 
   const recordDeparture = useCallback(() => {
@@ -58,7 +70,8 @@ export function AntiCheatingGuard({ enabled, sessionId }: AntiCheatingGuardProps
           if (now - lastPasteToast.current < 3000) return;
           lastPasteToast.current = now;
           toast({
-            title: ((<span className="text-red-600 dark:text-red-400">External paste blocked</span>) as unknown as string),
+            variant: "destructive",
+            title: "External paste blocked",
             description:
               "Pasting content from outside the interview is not allowed.",
           });
@@ -67,7 +80,8 @@ export function AntiCheatingGuard({ enabled, sessionId }: AntiCheatingGuardProps
 
         case "multi_screen":
           toast({
-            title: ((<span className="text-red-600 dark:text-red-400">Additional display detected</span>) as unknown as string),
+            variant: "destructive",
+            title: "Additional display detected",
             description:
               "For the best experience, please use a single screen during this interview.",
           });

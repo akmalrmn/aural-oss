@@ -993,7 +993,12 @@ export default function CandidateApplicationPage() {
   const signInHref = `/auth/skilio/start?next=${encodeURIComponent(applyNextPath)}`;
 
   return (
-    <main className="skilio-interface min-h-screen overflow-x-hidden bg-[var(--skilio-panel)] text-[var(--skilio-ink)]">
+    <main
+      className={cn(
+        "skilio-interface min-h-screen overflow-x-clip bg-[var(--skilio-panel)] text-[var(--skilio-ink)]",
+        !hasStarted && !submitted && !jobUnavailable && "pb-24 lg:pb-0",
+      )}
+    >
       <header className="sticky top-0 z-20 border-b border-[var(--skilio-border)] bg-[var(--skilio-elevated)]">
         <div
           className={cn(
@@ -1065,7 +1070,7 @@ export default function CandidateApplicationPage() {
           />
 
         {!hasStarted && !submitted && !jobUnavailable ? (
-          <aside className="lg:sticky lg:top-24">
+          <aside className="hidden lg:sticky lg:top-24 lg:block">
             {jobQuery.isLoading ? (
               <Skeleton className="h-44 w-full" />
             ) : (
@@ -1572,7 +1577,7 @@ export default function CandidateApplicationPage() {
                               Attach an artefact (optional)
                               <input
                                 type="file"
-                                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+                                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.mp4,video/mp4"
                                 className="sr-only"
                                 onChange={(event) => {
                                   addSkillArtifact(
@@ -1583,6 +1588,9 @@ export default function CandidateApplicationPage() {
                                 }}
                               />
                             </label>
+                            <p className="mt-2 text-xs leading-5 text-[var(--skilio-ink-muted)]">
+                              PDF, DOC, DOCX, image, or MP4 video up to 100 MB.
+                            </p>
                             {skillArtifacts.some((artifact) =>
                               artifact.skillNames.some(
                                 (item) =>
@@ -1961,6 +1969,24 @@ export default function CandidateApplicationPage() {
         )}
         </div>
       </SkilioMotionRoot>
+
+      {!hasStarted && !submitted && !jobUnavailable && !jobQuery.isLoading && (
+        <div
+          data-testid="application-floating-cta"
+          className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--skilio-border)] bg-[var(--skilio-elevated)] p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[var(--skilio-shadow-2)] lg:hidden"
+        >
+          <div className="mx-auto max-w-4xl">
+            <Button
+              type="button"
+              onClick={startApplication}
+              className="h-11 w-full gap-2 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-brand)] px-5 text-white hover:bg-[var(--skilio-brand-strong)]"
+            >
+              Start application
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

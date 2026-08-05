@@ -26,6 +26,7 @@ export function useAntiCheating({
   const [violations, setViolations] = useState<AntiCheatingViolation[]>([]);
   const [departureCount, setDepartureCount] = useState(0);
   const [multiScreenDetected, setMultiScreenDetected] = useState(false);
+  const multiScreenDetectedRef = useRef(false);
   const onViolationRef = useRef(onViolation);
   onViolationRef.current = onViolation;
 
@@ -101,6 +102,14 @@ export function useAntiCheating({
     const handleCopy = (e: ClipboardEvent) => {
       trackText(getSelectionText());
       trackText(e.clipboardData?.getData("text/plain"));
+
+      // Some editors populate clipboardData in their own target handler. Read
+      // it once more after the event has finished without replacing browser
+      // native clipboard methods, which may be read-only or unavailable.
+      queueMicrotask(() => {
+        trackText(getSelectionText());
+        trackText(e.clipboardData?.getData("text/plain"));
+      });
     };
 
     const handlePaste = (e: ClipboardEvent) => {
@@ -115,32 +124,11 @@ export function useAntiCheating({
       });
     };
 
-    // Intercept DataTransfer.setData to catch editors (e.g. Monaco) that
-    // write selected text via clipboardData.setData() in their own copy/cut
-    // handlers, which run after our capture-phase listener.
-    const origSetData = DataTransfer.prototype.setData;
-    DataTransfer.prototype.setData = function (format: string, data: string) {
-      if (format === "text/plain" || format === "text") trackText(data);
-      return origSetData.call(this, format, data);
-    };
-
-    // Also intercept Clipboard API writeText for editors that bypass
-    // DOM copy events entirely.
-    const origWriteText = navigator.clipboard?.writeText?.bind(navigator.clipboard);
-    if (origWriteText) {
-      navigator.clipboard.writeText = (text: string) => {
-        trackText(text);
-        return origWriteText(text);
-      };
-    }
-
     document.addEventListener("copy", handleCopy, true);
     document.addEventListener("cut", handleCopy, true);
     document.addEventListener("paste", handlePaste, true);
 
     return () => {
-      DataTransfer.prototype.setData = origSetData;
-      if (origWriteText) navigator.clipboard.writeText = origWriteText;
       document.removeEventListener("copy", handleCopy, true);
       document.removeEventListener("cut", handleCopy, true);
       document.removeEventListener("paste", handlePaste, true);
@@ -150,48 +138,66 @@ export function useAntiCheating({
   useEffect(() => {
     if (!enabled) return;
 
+    let active = true;
+
+    const reportMultipleScreens = (detail: string) => {
+      if (!active || multiScreenDetectedRef.current) return;
+      multiScreenDetectedRef.current = true;
+      setMultiScreenDetected(true);
+      addViolation({
+        type: "multi_screen",
+        timestamp: Date.now(),
+        detail,
+      });
+    };
+
     const checkScreens = () => {
-      if (typeof window === "undefined") return;
+      try {
+        const screen = window.screen as Screen & { availLeft?: number };
+        const hasMultiple =
+          screen.availWidth > screen.width ||
+          (screen.availLeft !== undefined && screen.availLeft !== 0);
 
-      const screen = window.screen as Screen & { availLeft?: number };
-      const hasMultiple =
-        screen.availWidth > screen.width ||
-        (screen.availLeft !== undefined && screen.availLeft !== 0);
-
-      if (hasMultiple && !multiScreenDetected) {
-        setMultiScreenDetected(true);
-        addViolation({
-          type: "multi_screen",
-          timestamp: Date.now(),
-          detail: `Multiple screens detected (${window.screen.availWidth}x${window.screen.availHeight})`,
-        });
+        if (hasMultiple) {
+          reportMultipleScreens(
+            `Multiple screens detected (${screen.availWidth}x${screen.availHeight})`,
+          );
+        }
+      } catch {
+        // Screen geometry is a best-effort fallback and is not exposed by all
+        // browsers or embedded webviews.
       }
     };
 
-    const screenDetails = (window as unknown as { getScreenDetails?: () => Promise<{ screens: unknown[] }> })
-      .getScreenDetails;
-    if (screenDetails) {
-      screenDetails()
-        .then((details) => {
-          if (details.screens.length > 1) {
-            setMultiScreenDetected(true);
-            addViolation({
-              type: "multi_screen",
-              timestamp: Date.now(),
-              detail: `${details.screens.length} screens detected via Screen API`,
-            });
+    const screenDetailsApi = (
+      window as unknown as {
+        getScreenDetails?: () => Promise<{ screens?: unknown[] }>;
+      }
+    ).getScreenDetails;
+    if (typeof screenDetailsApi === "function") {
+      void (async () => {
+        try {
+          const details = await screenDetailsApi.call(window);
+          const screenCount = details?.screens?.length ?? 0;
+          if (screenCount > 1) {
+            reportMultipleScreens(
+              `${screenCount} screens detected via Screen API`,
+            );
           }
-        })
-        .catch(() => {
+        } catch {
           checkScreens();
-        });
+        }
+      })();
     } else {
       checkScreens();
     }
 
     const interval = setInterval(checkScreens, 10000);
-    return () => clearInterval(interval);
-  }, [enabled, multiScreenDetected, addViolation]);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [enabled, addViolation]);
 
   return { violations, departureCount, multiScreenDetected };
 }

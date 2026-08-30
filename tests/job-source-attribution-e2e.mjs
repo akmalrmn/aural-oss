@@ -283,6 +283,25 @@ try {
   await employerPage
     .getByText("Manual application", { exact: true })
     .waitFor();
+  const reviewNote = `Five-tier review note from the attributed source ${customName}.`;
+  await employerPage.getByLabel("Applicant tier").click();
+  await employerPage.getByRole("option", { name: /Tier 5/ }).click();
+  await employerPage.getByLabel("Internal comment").fill(reviewNote);
+  await employerPage.getByRole("button", { name: "Save review" }).click();
+
+  await waitForDatabase(async () => {
+    const { data } = await supabase
+      .from("job_applications")
+      .select("reviewTier,reviewNotes,reviewNotesUpdatedAt")
+      .eq("id", application.id)
+      .single();
+    return data?.reviewTier === "TIER_5" &&
+      data.reviewNotes === reviewNote &&
+      data.reviewNotesUpdatedAt
+      ? data
+      : null;
+  }, "Applicant tier and review note were not stored");
+
   await employerPage.getByRole("button", { name: "Accept" }).click();
 
   await waitForDatabase(async () => {

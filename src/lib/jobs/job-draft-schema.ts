@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  JOB_DESCRIPTION_MAX_LENGTH,
+  JOB_DESCRIPTION_MIN_LENGTH,
+} from "./job-description";
 
 const emptyStringForNull = (value: unknown) =>
   value === null || value === undefined ? "" : value;
@@ -24,7 +28,11 @@ export const jobDraftSchema = z.object({
     "Internship",
   ]),
   seniority: z.enum(["Entry-level", "Mid-level", "Senior", "Lead"]),
-  description: z.string().trim().min(80).max(6000),
+  description: z
+    .string()
+    .trim()
+    .min(JOB_DESCRIPTION_MIN_LENGTH)
+    .max(JOB_DESCRIPTION_MAX_LENGTH),
   skillQueries: z
     .array(z.string().trim().min(1).max(80))
     .max(24)

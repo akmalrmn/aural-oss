@@ -32,6 +32,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { JOB_DESCRIPTION_MAX_LENGTH } from "@/lib/jobs/job-description";
 import { trpc } from "@/lib/trpc/client";
 
 type SkillDraft = {
@@ -301,8 +302,12 @@ export function JobEditDialog({ job }: { job: EditableJob }) {
                 id="edit-job-description"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
+                maxLength={JOB_DESCRIPTION_MAX_LENGTH}
                 className="mt-2 min-h-64 resize-y"
               />
+              <p className="mt-2 text-xs text-[var(--skilio-ink-muted)]">
+                {description.length.toLocaleString()} / {JOB_DESCRIPTION_MAX_LENGTH.toLocaleString()} characters
+              </p>
             </div>
           </TabsContent>
 

@@ -20,6 +20,10 @@ import {
   type JobStatusAction,
 } from "@/lib/jobs/job-utils";
 import { consumeJobAuthoringRateLimit } from "@/lib/jobs/job-authoring-rate-limit";
+import {
+  JOB_DESCRIPTION_MAX_LENGTH,
+  JOB_DESCRIPTION_MIN_LENGTH,
+} from "@/lib/jobs/job-description";
 import { generateJobDraft } from "@/lib/jobs/job-draft-generator";
 import { createApplicationFileUploadToken } from "@/lib/jobs/application-file-upload-token";
 import { resolveStorageSignedUrl } from "@/lib/storage-signed-url";
@@ -45,6 +49,7 @@ const JOB_SELECT = `
   job_applications(
     id,
     status,
+    reviewTier,
     source,
     applicationMethod,
     sourceLinkId,
@@ -75,6 +80,20 @@ const skillSchema = z.object({
   lightcastSubcategoryId: z.string().max(80).nullish(),
   lightcastSubcategoryName: z.string().max(160).nullish(),
   skillSource: z.enum(["LIGHTCAST", "CUSTOM"]).default("CUSTOM"),
+});
+
+const applicationPortfolioSkillSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  lightcastId: z.string().trim().max(80).nullish(),
+  lightcastType: z
+    .enum(["SPECIALIZED", "COMMON", "CERTIFICATION"])
+    .nullish(),
+  lightcastDescription: z.string().trim().max(2000).nullish(),
+  lightcastApiVersion: z.string().trim().max(40).nullish(),
+  categoryId: z.string().trim().max(80).nullish(),
+  categoryName: z.string().trim().max(160).nullish(),
+  subcategoryId: z.string().trim().max(80).nullish(),
+  subcategoryName: z.string().trim().max(160).nullish(),
 });
 
 const screeningQuestionSchema = z.object({
@@ -178,6 +197,13 @@ type JobSkill = {
 type JobApplicationListItem = {
   id: string;
   status: ApplicationStatus;
+  reviewTier?:
+    | "TIER_1"
+    | "TIER_2"
+    | "TIER_3"
+    | "TIER_4"
+    | "TIER_5"
+    | null;
   source: string | null;
   applicationMethod?: "SKILIO" | "GUEST" | null;
   sourceLinkId?: string | null;
@@ -225,6 +251,8 @@ type PortfolioProvisioningView = {
   status: "CREATED" | "EXISTING_ACCOUNT" | "FAILED";
   nextUrl?: string | null;
   activationEmailSent?: boolean | null;
+  skillsAdded?: number;
+  skillsAlreadyPresent?: number;
   message?: string;
 };
 
@@ -244,23 +272,32 @@ function portfolioSkillType(
 function provisioningSkills(
   selectedSkills: string[],
   jobSkills: JobSkill[],
+  submittedDetails: PortfolioProvisioningSkill[] = [],
 ): PortfolioProvisioningSkill[] {
   return selectedSkills.map((name) => {
+    const submitted = submittedDetails.find(
+      (skill) => skill.name.trim().toLowerCase() === name.trim().toLowerCase(),
+    );
     const jobSkill = jobSkills.find(
       (skill) => skill.name.trim().toLowerCase() === name.trim().toLowerCase(),
     );
-    if (!jobSkill) return { name };
+    if (!jobSkill && !submitted) return { name };
 
     return {
       name,
-      lightcastId: jobSkill.lightcastId,
-      lightcastType: portfolioSkillType(jobSkill.lightcastType),
-      lightcastDescription: jobSkill.lightcastDescription,
-      lightcastApiVersion: jobSkill.lightcastApiVersion,
-      categoryId: jobSkill.lightcastCategoryId,
-      categoryName: jobSkill.lightcastCategoryName,
-      subcategoryId: jobSkill.lightcastSubcategoryId,
-      subcategoryName: jobSkill.lightcastSubcategoryName,
+      lightcastId: submitted?.lightcastId ?? jobSkill?.lightcastId,
+      lightcastType:
+        submitted?.lightcastType ?? portfolioSkillType(jobSkill?.lightcastType),
+      lightcastDescription:
+        submitted?.lightcastDescription ?? jobSkill?.lightcastDescription,
+      lightcastApiVersion:
+        submitted?.lightcastApiVersion ?? jobSkill?.lightcastApiVersion,
+      categoryId: submitted?.categoryId ?? jobSkill?.lightcastCategoryId,
+      categoryName: submitted?.categoryName ?? jobSkill?.lightcastCategoryName,
+      subcategoryId:
+        submitted?.subcategoryId ?? jobSkill?.lightcastSubcategoryId,
+      subcategoryName:
+        submitted?.subcategoryName ?? jobSkill?.lightcastSubcategoryName,
     };
   });
 }
@@ -269,12 +306,14 @@ async function runPortfolioProvisioning(
   supabase: SupabaseLike,
   input: {
     applicationId: string;
+    portfolioUserId?: string;
     name: string;
     email: string;
     country?: string | null;
     phone?: string | null;
     selectedSkills: string[];
     jobSkills: JobSkill[];
+    skillDetails?: PortfolioProvisioningSkill[];
   },
 ): Promise<PortfolioProvisioningView> {
   const { data: current } = await supabase
@@ -313,11 +352,16 @@ async function runPortfolioProvisioning(
   try {
     const result = await provisionPortfolioAccount({
       applicationId: input.applicationId,
+      portfolioUserId: input.portfolioUserId,
       name: input.name,
       email: input.email,
       country: input.country,
       phone: input.phone,
-      skills: provisioningSkills(input.selectedSkills, input.jobSkills),
+      skills: provisioningSkills(
+        input.selectedSkills,
+        input.jobSkills,
+        input.skillDetails,
+      ),
     });
     const status =
       result.status === "CREATED" ? "COMPLETED" : "EXISTING_ACCOUNT";
@@ -338,6 +382,8 @@ async function runPortfolioProvisioning(
       status: result.status,
       nextUrl: result.nextUrl,
       activationEmailSent: result.activationEmailSent,
+      skillsAdded: result.skillsAdded,
+      skillsAlreadyPresent: result.skillsAlreadyPresent,
     };
   } catch (error) {
     const message =
@@ -604,7 +650,11 @@ export const jobRouter = router({
   suggestSkills: protectedProcedure
     .input(
       z.object({
-        description: z.string().trim().min(80).max(6000),
+        description: z
+          .string()
+          .trim()
+          .min(JOB_DESCRIPTION_MIN_LENGTH)
+          .max(JOB_DESCRIPTION_MAX_LENGTH),
         limit: z.number().int().min(1).max(20).default(12),
       }),
     )
@@ -742,7 +792,7 @@ export const jobRouter = router({
         location: z.string().max(120).optional(),
         employmentType: z.string().max(80).default("Full-time"),
         seniority: z.string().max(80).optional(),
-        description: z.string().max(6000).optional(),
+        description: z.string().max(JOB_DESCRIPTION_MAX_LENGTH).optional(),
         skills: z.array(skillSchema).min(1).max(24),
         screeningQuestions: z.array(screeningQuestionSchema).max(12).default([]),
       }),
@@ -828,7 +878,7 @@ export const jobRouter = router({
         location: z.string().max(120).optional(),
         employmentType: z.string().max(80).optional(),
         seniority: z.string().max(80).optional(),
-        description: z.string().max(6000).optional(),
+        description: z.string().max(JOB_DESCRIPTION_MAX_LENGTH).optional(),
         skills: z.array(skillSchema).min(1).max(24).optional(),
         screeningQuestions: z.array(screeningQuestionSchema).max(12).optional(),
       }),
@@ -1036,6 +1086,51 @@ export const jobRouter = router({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: error?.message ?? "Failed to update applicant.",
+        });
+      }
+
+      return data;
+    }),
+
+  updateApplicationReview: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        reviewTier: z
+          .enum(["TIER_1", "TIER_2", "TIER_3", "TIER_4", "TIER_5"])
+          .nullable(),
+        reviewNotes: z.string().trim().max(4000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const supabase = ctx.supabase as SupabaseLike;
+      const { data: application } = await supabase
+        .from("job_applications")
+        .select("id, jobId")
+        .eq("id", input.id)
+        .single();
+
+      if (!application) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      await getJobForAccess(supabase, application.jobId, ctx.user.id, "MEMBER");
+
+      const { data, error } = await supabase
+        .from("job_applications")
+        .update({
+          reviewTier: input.reviewTier,
+          reviewNotes: input.reviewNotes || null,
+          reviewNotesUpdatedAt: new Date().toISOString(),
+        })
+        .eq("id", input.id)
+        .select()
+        .single();
+
+      if (error || !data) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error?.message ?? "Failed to save applicant review notes.",
         });
       }
 
@@ -1295,6 +1390,7 @@ export const jobRouter = router({
         bio: z.string().max(1500).optional(),
         coverLetter: z.string().max(4000).optional(),
         skills: z.array(z.string().min(1).max(80)).max(40).default([]),
+        skillDetails: z.array(applicationPortfolioSkillSchema).max(40).default([]),
         createSkilioAccount: z.boolean().default(false),
         profileSnapshot: z.record(z.string(), z.unknown()).default({}),
         screeningAnswers: z.record(z.string(), z.string().max(2000)).default({}),
@@ -1304,6 +1400,20 @@ export const jobRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const supabase = ctx.supabase as SupabaseLike;
+      const { data: verifiedSkilioIdentity } = ctx.user
+        ? await supabase
+            .from("skilio_identity_links")
+            .select("id,portfolioUserId,email")
+            .eq("userId", ctx.user.id)
+            .maybeSingle()
+        : { data: null };
+      const isVerifiedSkilioApplication = Boolean(
+        input.source === "SKILIO" && verifiedSkilioIdentity,
+      );
+      const applicationSource =
+        input.source === "SKILIO" && !isVerifiedSkilioApplication
+          ? "GUEST"
+          : input.source;
       const { data: job, error } = await supabase
         .from("job_postings")
         .select("*, job_skills(*)")
@@ -1347,10 +1457,14 @@ export const jobRouter = router({
         .from("job_applications")
         .insert({
           jobId: job.id,
-          portfolioUserId: input.portfolioUserId,
-          identityLinkId: input.identityLinkId,
-          source: input.source,
-          applicationMethod: input.source === "SKILIO" ? "SKILIO" : "GUEST",
+          portfolioUserId: isVerifiedSkilioApplication
+            ? verifiedSkilioIdentity?.portfolioUserId
+            : null,
+          identityLinkId: isVerifiedSkilioApplication
+            ? verifiedSkilioIdentity?.id
+            : null,
+          source: applicationSource,
+          applicationMethod: isVerifiedSkilioApplication ? "SKILIO" : "GUEST",
           sourceLinkId: sourceVisit?.sourceLinkId ?? null,
           sourceVisitId: sourceVisit?.id ?? null,
           name: input.name,
@@ -1390,15 +1504,22 @@ export const jobRouter = router({
       }
 
       const portfolioProvisioning =
-        input.createSkilioAccount && input.source !== "SKILIO"
+        isVerifiedSkilioApplication ||
+        (input.createSkilioAccount && applicationSource !== "SKILIO")
           ? await runPortfolioProvisioning(supabase, {
               applicationId: data.id,
+              portfolioUserId: isVerifiedSkilioApplication
+                ? verifiedSkilioIdentity?.portfolioUserId
+                : undefined,
               name: input.name,
-              email: input.email.trim().toLowerCase(),
+              email: isVerifiedSkilioApplication
+                ? verifiedSkilioIdentity?.email ?? input.email.trim().toLowerCase()
+                : input.email.trim().toLowerCase(),
               country: input.location,
               phone: input.phone,
               selectedSkills: input.skills,
               jobSkills: (job.job_skills ?? []) as JobSkill[],
+              skillDetails: input.skillDetails,
             })
           : null;
 

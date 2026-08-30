@@ -5,6 +5,7 @@ import {
   type JobDraft,
   type JobDraftGenerationRequest,
 } from "./job-draft-schema";
+import { JOB_DESCRIPTION_MAX_LENGTH } from "./job-description";
 
 const OUTPUT_CONTRACT = `{
   "title": "2-140 characters",
@@ -12,7 +13,7 @@ const OUTPUT_CONTRACT = `{
   "location": "0-120 characters",
   "employmentType": "Full-time | Part-time | Contract | Internship",
   "seniority": "Entry-level | Mid-level | Senior | Lead",
-  "description": "80-6000 characters, plain text with readable section headings and bullet lines",
+  "description": "80-${JOB_DESCRIPTION_MAX_LENGTH.toLocaleString()} characters, plain text with readable section headings and bullet lines",
   "skillQueries": ["specific skill or tool names for later catalogue matching"],
   "screeningQuestions": [
     {

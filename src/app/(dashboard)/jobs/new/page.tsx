@@ -43,6 +43,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import type { JobDraft } from "@/lib/jobs/job-draft-schema";
+import { JOB_DESCRIPTION_MAX_LENGTH } from "@/lib/jobs/job-description";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -708,12 +709,13 @@ export default function JobCreationWizardPage() {
                     id="description"
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
+                    maxLength={JOB_DESCRIPTION_MAX_LENGTH}
                     placeholder="Describe the role, responsibilities, outcomes, and what success looks like."
                     className={`${fieldClass} min-h-56 resize-y leading-6`}
                   />
                   <p className="mt-2 text-xs leading-5 text-[var(--skilio-ink-muted)]">
                     This appears on the public application page. Keep it
-                    specific and easy to scan.
+                    specific and easy to scan. {description.length.toLocaleString()} / {JOB_DESCRIPTION_MAX_LENGTH.toLocaleString()} characters.
                   </p>
                 </div>
               </div>

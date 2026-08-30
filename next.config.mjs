@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   experimental: {
     // Match the build worker count to the deployment runner to prevent
     // static-generation workers from exhausting memory on Node 18.

@@ -1,0 +1,2 @@
+export const JOB_DESCRIPTION_MIN_LENGTH = 80;
+export const JOB_DESCRIPTION_MAX_LENGTH = 15_000;

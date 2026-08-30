@@ -14,19 +14,35 @@ import {
   ListChecks,
   Mail,
   MapPin,
+  MessageSquareText,
   Paperclip,
   Phone,
+  Save,
   Shapes,
   ShieldCheck,
   UserRound,
   XCircle,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { ApplicantStatusBadge } from "@/components/jobs/applicant-status-badge";
+import {
+  APPLICANT_REVIEW_TIERS,
+  type ApplicantReviewTier,
+} from "@/components/jobs/applicant-tier-badge";
 import { EmployerPageHeader } from "@/components/jobs/employer-page";
 import { SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { parseApplicationDrawingAssessment } from "@/lib/drawing-assessment";
 import { trpc } from "@/lib/trpc/client";
@@ -57,6 +73,9 @@ type ApplicantDetail = {
     channel: string;
   } | null;
   status: string;
+  reviewTier?: ApplicantReviewTier | null;
+  reviewNotes?: string | null;
+  reviewNotesUpdatedAt?: string | null;
   name: string;
   email: string;
   phone?: string | null;
@@ -316,6 +335,10 @@ export default function ApplicantReviewPage() {
   const params = useParams<{ id: string; applicationId: string }>();
   const { toast } = useToast();
   const utils = trpc.useUtils();
+  const [reviewTier, setReviewTier] = useState<ApplicantReviewTier | "UNRANKED">(
+    "UNRANKED",
+  );
+  const [reviewNotes, setReviewNotes] = useState("");
   const applicationQuery = trpc.job.getApplicationById.useQuery({ id: params.applicationId });
   const updateStatus = trpc.job.updateApplicationStatus.useMutation({
     onSuccess: async () => {
@@ -332,14 +355,42 @@ export default function ApplicantReviewPage() {
       });
     },
   });
+  const updateReview = trpc.job.updateApplicationReview.useMutation({
+    onSuccess: async (data) => {
+      setReviewTier(
+        (data.reviewTier as ApplicantReviewTier | null) ?? "UNRANKED",
+      );
+      setReviewNotes(data.reviewNotes ?? "");
+      await utils.job.getApplicationById.invalidate({ id: params.applicationId });
+      await utils.job.getById.invalidate({ id: params.id });
+      await utils.job.applications.invalidate();
+      toast({ title: "Review notes saved" });
+    },
+    onError: (error) => {
+      toast({
+        title: "Review notes were not saved",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const applicant = applicationQuery.data as ApplicantDetail | undefined;
+  const persistedReviewTier = applicant?.reviewTier ?? "UNRANKED";
+  const persistedReviewNotes = applicant?.reviewNotes ?? "";
+  useEffect(() => {
+    if (!applicant?.id) return;
+    setReviewTier(persistedReviewTier);
+    setReviewNotes(persistedReviewNotes);
+  }, [applicant?.id, persistedReviewNotes, persistedReviewTier]);
+
   const profileSnapshot = asRecord(applicant?.profileSnapshot);
   const portfolioSnapshot = asRecord(profileSnapshot.portfolioSnapshot);
   const links = asRecord(applicant?.links);
   const screeningAnswers = asRecord(applicant?.screeningAnswers);
   const skillEvidence = asRecord(profileSnapshot.skillEvidence);
   const portfolioEvidence = asRecordArray(portfolioSnapshot.skillEvidence);
+  const applicationEvidence = asRecordArray(profileSnapshot.evidenceSources);
   const skills = asStringArray(applicant?.skillsSnapshot);
   const resumeName = firstText(profileSnapshot.resumeFileName);
   const resumeUrl = firstText(profileSnapshot.resumeUrl, links.resume);
@@ -372,6 +423,20 @@ export default function ApplicantReviewPage() {
   function setStatus(status: "REVIEWED" | "SHORTLISTED" | "REJECTED") {
     if (!applicant) return;
     updateStatus.mutate({ id: applicant.id, status });
+  }
+
+  const hasReviewChanges = Boolean(
+    applicant &&
+      (reviewTier !== persistedReviewTier || reviewNotes !== persistedReviewNotes),
+  );
+
+  function saveReview() {
+    if (!applicant || !hasReviewChanges) return;
+    updateReview.mutate({
+      id: applicant.id,
+      reviewTier: reviewTier === "UNRANKED" ? null : reviewTier,
+      reviewNotes,
+    });
   }
 
   return (
@@ -451,6 +516,100 @@ export default function ApplicantReviewPage() {
                   <XCircle className="h-4 w-4" />
                   Reject
                 </DecisionButton>
+              </div>
+            </div>
+          </SkilioPanel>
+
+          <SkilioPanel className="p-5">
+            <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)]">
+              <div>
+                <div className="flex items-center gap-2">
+                  <MessageSquareText className="h-5 w-5 text-[var(--skilio-brand)]" />
+                  <h2 className="font-heading text-lg font-semibold text-[var(--skilio-ink)]">
+                    Review notes
+                  </h2>
+                </div>
+                <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--skilio-ink-muted)]">
+                  Rank this applicant independently from the hiring decision and
+                  keep context for future review. These notes are only visible to
+                  your hiring workspace.
+                </p>
+                <div className="mt-4">
+                  <Label htmlFor="applicant-review-tier">Applicant tier</Label>
+                  <Select
+                    value={reviewTier}
+                    onValueChange={(value) =>
+                      setReviewTier(value as ApplicantReviewTier | "UNRANKED")
+                    }
+                    disabled={updateReview.isLoading}
+                  >
+                    <SelectTrigger
+                      id="applicant-review-tier"
+                      className="mt-2 bg-[var(--skilio-control)]"
+                    >
+                      <SelectValue placeholder="Choose a tier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="UNRANKED">Unranked</SelectItem>
+                      {APPLICANT_REVIEW_TIERS.map((tier) => (
+                        <SelectItem key={tier.value} value={tier.value}>
+                          <span className="flex items-baseline gap-2">
+                            <span>{tier.label}</span>
+                            <span className="text-xs text-[var(--skilio-ink-muted)]">
+                              {tier.description}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="applicant-review-notes">Internal comment</Label>
+                  <span className="text-xs tabular-nums text-[var(--skilio-ink-muted)]">
+                    {reviewNotes.length} / 4,000
+                  </span>
+                </div>
+                <Textarea
+                  id="applicant-review-notes"
+                  value={reviewNotes}
+                  onChange={(event) => setReviewNotes(event.target.value)}
+                  maxLength={4000}
+                  disabled={updateReview.isLoading}
+                  placeholder="Add observations, follow-up questions, or reasons for this ranking…"
+                  className="mt-2 min-h-32 resize-y border-[var(--skilio-border-strong)] bg-[var(--skilio-control)] text-[var(--skilio-ink)] placeholder:text-[var(--skilio-ink-muted)] focus-visible:ring-[var(--skilio-brand)]"
+                />
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p
+                    className={cn(
+                      "text-xs",
+                      hasReviewChanges
+                        ? "font-medium text-[var(--skilio-ink)]"
+                        : "text-[var(--skilio-ink-muted)]",
+                    )}
+                    aria-live="polite"
+                  >
+                    {updateReview.isLoading
+                      ? "Saving review…"
+                      : hasReviewChanges
+                        ? "Unsaved changes"
+                        : applicant.reviewNotesUpdatedAt
+                          ? `Saved ${formatDate(applicant.reviewNotesUpdatedAt)}`
+                          : "No review notes saved yet"}
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={saveReview}
+                    disabled={!hasReviewChanges || updateReview.isLoading}
+                    className="w-full bg-[var(--skilio-brand)] text-white hover:bg-[var(--skilio-brand-strong)] sm:w-auto"
+                  >
+                    <Save className="h-4 w-4" />
+                    {updateReview.isLoading ? "Saving…" : "Save review"}
+                  </Button>
+                </div>
               </div>
             </div>
           </SkilioPanel>
@@ -544,6 +703,15 @@ export default function ApplicantReviewPage() {
                       );
                       const proofs = asRecordArray(portfolioItem?.proofs);
                       const videos = asRecordArray(portfolioItem?.videos);
+                      const submittedLinks = applicationEvidence.filter(
+                        (item) =>
+                          Boolean(firstText(item.url)) &&
+                          asStringArray(item.skills).some(
+                            (itemSkill) =>
+                              itemSkill.trim().toLowerCase() ===
+                              skill.trim().toLowerCase(),
+                          ),
+                      );
                       const attachedFiles = files.filter(
                         (file) =>
                           file.kind === "skill_artifact" &&
@@ -586,6 +754,18 @@ export default function ApplicantReviewPage() {
                                   </ul>
                                 </div>
                               )}
+                            </div>
+                          )}
+                          {submittedLinks.length > 0 && (
+                            <div className="mt-3">
+                              <div className="text-xs font-medium text-[var(--skilio-ink-muted)]">
+                                Application evidence links
+                              </div>
+                              <ul className="mt-2 list-disc space-y-1 pl-4">
+                                {submittedLinks.map((item, index) => (
+                                  <EvidenceLink key={firstText(item.id) || index} item={item} />
+                                ))}
+                              </ul>
                             </div>
                           )}
                           {attachedFiles.length > 0 && (

@@ -11,6 +11,8 @@ import {
   buildJobDraftMessages,
   parseJobDraftResponse,
 } from "../src/lib/jobs/job-draft-prompt";
+import { JOB_DESCRIPTION_MAX_LENGTH } from "../src/lib/jobs/job-description";
+import { jobDraftSchema } from "../src/lib/jobs/job-draft-schema";
 import {
   detectJobDocumentType,
   extractJobDocument,
@@ -53,6 +55,25 @@ test("job draft parser rejects invalid enumerations", () => {
         JSON.stringify({ ...validDraft, employmentType: "Permanent" }),
       ),
     /Invalid option/,
+  );
+});
+
+test("job draft schema accepts a 15,000-character description", () => {
+  const maximumLengthDescription = "a".repeat(JOB_DESCRIPTION_MAX_LENGTH);
+  assert.equal(
+    jobDraftSchema.parse({
+      ...validDraft,
+      description: maximumLengthDescription,
+    }).description.length,
+    JOB_DESCRIPTION_MAX_LENGTH,
+  );
+  assert.throws(
+    () =>
+      jobDraftSchema.parse({
+        ...validDraft,
+        description: `${maximumLengthDescription}a`,
+      }),
+    /Too big/,
   );
 });
 

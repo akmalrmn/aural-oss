@@ -34,6 +34,8 @@ export type PortfolioProvisioningResult = {
   portfolioUserId: string;
   username: string;
   activationEmailSent?: boolean;
+  skillsAdded?: number;
+  skillsAlreadyPresent?: number;
   nextUrl: string;
 };
 
@@ -117,6 +119,7 @@ export async function extractPortfolioSkills(text: string, limit = 12) {
 
 export async function provisionPortfolioAccount(input: {
   applicationId: string;
+  portfolioUserId?: string;
   name: string;
   email: string;
   country?: string | null;

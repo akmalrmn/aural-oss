@@ -8,9 +8,21 @@ import {
   EmployerPageHeader,
 } from "@/components/jobs/employer-page";
 import { ApplicantStatusBadge } from "@/components/jobs/applicant-status-badge";
+import {
+  APPLICANT_REVIEW_TIERS,
+  ApplicantTierBadge,
+  type ApplicantReviewTier,
+} from "@/components/jobs/applicant-tier-badge";
 import { SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -24,12 +36,14 @@ import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 const statuses = ["ALL", "NEW", "REVIEWED", "SHORTLISTED", "REJECTED"] as const;
+type TierFilter = "ALL" | "UNRANKED" | ApplicantReviewTier;
 
 type Applicant = {
   id: string;
   name: string;
   email: string;
   status: string;
+  reviewTier?: ApplicantReviewTier | null;
   source: string | null;
   applicationMethod?: string | null;
   job_source_links?: {
@@ -52,6 +66,7 @@ function formatSource(sourceLink: Applicant["job_source_links"]) {
 export default function ApplicantsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<(typeof statuses)[number]>("ALL");
+  const [tier, setTier] = useState<TierFilter>("ALL");
   const { data = [], isLoading } = trpc.job.applications.useQuery(
     {},
     { enabled: true },
@@ -62,14 +77,19 @@ export default function ApplicantsPage() {
     const needle = search.trim().toLowerCase();
     return applicants.filter((applicant) => {
       const matchesStatus = status === "ALL" || applicant.status === status;
+      const matchesTier =
+        tier === "ALL" ||
+        (tier === "UNRANKED"
+          ? !applicant.reviewTier
+          : applicant.reviewTier === tier);
       const matchesSearch =
         !needle ||
         [applicant.name, applicant.email, applicant.job_postings?.title]
           .filter(Boolean)
           .some((value) => value!.toLowerCase().includes(needle));
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesTier && matchesSearch;
     });
-  }, [applicants, search, status]);
+  }, [applicants, search, status, tier]);
 
   const counts = useMemo(
     () => ({
@@ -82,11 +102,13 @@ export default function ApplicantsPage() {
     [applicants],
   );
 
-  const hasFilters = search.trim().length > 0 || status !== "ALL";
+  const hasFilters =
+    search.trim().length > 0 || status !== "ALL" || tier !== "ALL";
 
   function clearFilters() {
     setSearch("");
     setStatus("ALL");
+    setTier("ALL");
   }
 
   return (
@@ -118,6 +140,26 @@ export default function ApplicantsPage() {
             />
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Select
+              value={tier}
+              onValueChange={(value) => setTier(value as TierFilter)}
+            >
+              <SelectTrigger
+                aria-label="Filter applicants by tier"
+                className="w-full bg-[var(--skilio-control)] sm:w-36"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All tiers</SelectItem>
+                <SelectItem value="UNRANKED">Unranked</SelectItem>
+                {APPLICANT_REVIEW_TIERS.map((tier) => (
+                  <SelectItem key={tier.value} value={tier.value}>
+                    {tier.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div
               role="group"
               aria-label="Filter applicants by status"
@@ -184,6 +226,7 @@ export default function ApplicantsPage() {
                     <TableHead>Role</TableHead>
                     <TableHead>Source</TableHead>
                     <TableHead>Match</TableHead>
+                    <TableHead>Tier</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Submitted</TableHead>
                     <TableHead className="text-right">Review</TableHead>
@@ -220,6 +263,9 @@ export default function ApplicantsPage() {
                       </TableCell>
                       <TableCell className="font-medium tabular-nums text-[var(--skilio-ink)]">
                         N/A
+                      </TableCell>
+                      <TableCell>
+                        <ApplicantTierBadge tier={applicant.reviewTier} />
                       </TableCell>
                       <TableCell>
                         <ApplicantStatusBadge status={applicant.status} />
@@ -266,7 +312,10 @@ export default function ApplicantsPage() {
                         {applicant.email}
                       </p>
                     </div>
-                    <ApplicantStatusBadge status={applicant.status} />
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <ApplicantStatusBadge status={applicant.status} />
+                      <ApplicantTierBadge tier={applicant.reviewTier} />
+                    </div>
                   </div>
 
                   <div className="mt-4">

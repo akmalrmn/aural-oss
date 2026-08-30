@@ -14,6 +14,10 @@ import {
 } from "lucide-react";
 import { ApplicantStatusBadge } from "@/components/jobs/applicant-status-badge";
 import {
+  ApplicantTierBadge,
+  type ApplicantReviewTier,
+} from "@/components/jobs/applicant-tier-badge";
+import {
   EmployerMetricStrip,
   EmployerPageHeader,
 } from "@/components/jobs/employer-page";
@@ -64,6 +68,7 @@ type JobDetail = {
     name: string;
     email: string;
     status: string;
+    reviewTier?: ApplicantReviewTier | null;
     source: string | null;
     applicationMethod?: string | null;
     sourceLinkId?: string | null;
@@ -288,6 +293,7 @@ export default function JobDetailPage() {
                         <TableHead>Candidate</TableHead>
                         <TableHead>Source</TableHead>
                         <TableHead>Match</TableHead>
+                        <TableHead>Tier</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Submitted</TableHead>
                         <TableHead className="text-right">Review</TableHead>
@@ -315,6 +321,9 @@ export default function JobDetailPage() {
                           </TableCell>
                           <TableCell className="font-medium tabular-nums text-[var(--skilio-ink)]">
                             N/A
+                          </TableCell>
+                          <TableCell>
+                            <ApplicantTierBadge tier={applicant.reviewTier} />
                           </TableCell>
                           <TableCell>
                             <ApplicantStatusBadge status={applicant.status} />
@@ -359,10 +368,10 @@ export default function JobDetailPage() {
                             {applicant.email}
                           </p>
                         </div>
-                        <ApplicantStatusBadge
-                          status={applicant.status}
-                          className="shrink-0"
-                        />
+                        <div className="flex shrink-0 flex-col items-end gap-2">
+                          <ApplicantStatusBadge status={applicant.status} />
+                          <ApplicantTierBadge tier={applicant.reviewTier} />
+                        </div>
                       </div>
                       <dl className="mt-4 grid grid-cols-3 gap-3">
                         <div>

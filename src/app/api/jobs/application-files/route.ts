@@ -83,7 +83,8 @@ export async function POST(request: Request) {
   const { data: existing } = await supabaseAdmin
     .from("job_application_files")
     .select("id")
-    .eq("storagePath", storagePath)
+    .eq("applicationId", applicationId)
+    .eq("clientFileId", clientFileId)
     .maybeSingle();
   if (!existing && (count ?? 0) >= MAX_APPLICATION_FILES) {
     return errorResponse(
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
     .upsert(
       {
         applicationId,
+        clientFileId,
         kind: applicationFileKind,
         fileName: file.name.trim().slice(0, 255),
         fileType: file.type || null,
@@ -118,7 +120,7 @@ export async function POST(request: Request) {
       },
       { onConflict: "storagePath" },
     )
-    .select("id,fileName,kind,skillNames")
+    .select("id,clientFileId,fileName,kind,skillNames")
     .single();
 
   if (recordError || !data) {

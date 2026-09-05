@@ -39,6 +39,27 @@ export type PortfolioProvisioningResult = {
   nextUrl: string;
 };
 
+export type PortfolioArtefactImport = {
+  sourceArtefactId: string;
+  kind: "document" | "image" | "video" | "link";
+  name: string;
+  description: string;
+  skills: PortfolioProvisioningSkill[];
+  link?: string | null;
+  signedFileUrl?: string | null;
+  fileName?: string | null;
+  fileType?: string | null;
+  fileSize?: number | null;
+};
+
+export type PortfolioEvidenceEdit = {
+  skillId: string;
+  skillName: string;
+  evidenceId: string;
+  evidenceKind: "proof" | "video";
+  description: string;
+};
+
 function serviceSecret() {
   const secret = process.env.SKILIO_SSO_SECRET;
   if (!secret) {
@@ -125,6 +146,8 @@ export async function provisionPortfolioAccount(input: {
   country?: string | null;
   phone?: string | null;
   skills: PortfolioProvisioningSkill[];
+  artefacts?: PortfolioArtefactImport[];
+  edits?: PortfolioEvidenceEdit[];
 }) {
   return portfolioRequest<PortfolioProvisioningResult>(
     "/api/internal/assessment/accounts/provision",

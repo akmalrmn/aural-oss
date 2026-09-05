@@ -25,12 +25,10 @@ import { useAuth } from "@/components/auth-provider";
 import { ApplicationDrawingAssessment } from "@/components/drawing/application-drawing-assessment";
 import {
   ApplicationSkillsSignal,
-  type ApplicationSkillArtifact,
 } from "@/components/jobs/application-skills-signal";
 import { SkilioMotionRoot, SkilioPanel } from "@/components/jobs/skilio-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -53,6 +51,14 @@ import {
   type ApplicationFileKind,
   validateApplicationFile,
 } from "@/lib/jobs/application-files";
+import {
+  EMPTY_APPLICATION_EVIDENCE,
+  confirmedArtifactSkills,
+  serializeApplicationEvidence,
+  type ApplicationEvidenceState,
+  type PortfolioEvidenceItem,
+  type PortfolioEvidenceSkill,
+} from "@/lib/jobs/application-evidence-state";
 import type { Json } from "@/lib/supabase/types";
 
 type PublicJob = {
@@ -68,7 +74,10 @@ type PublicJob = {
     name: string;
     kind: string;
     priority: string;
+    lightcastCategoryId?: string | null;
     lightcastCategoryName?: string | null;
+    lightcastSubcategoryId?: string | null;
+    lightcastSubcategoryName?: string | null;
   }[];
   screeningQuestions?: {
     id: string;
@@ -158,50 +167,6 @@ const phoneCountryCodes = [
   ["+971", "UAE"],
 ] as const;
 
-function normalizeSkill(skill: string) {
-  return skill.trim().toLowerCase();
-}
-
-function portfolioSkillType(value: string | null) {
-  const normalized = value?.trim().toLowerCase();
-  if (normalized === "specialized skill" || normalized === "specialized") {
-    return "SPECIALIZED" as const;
-  }
-  if (normalized === "common skill" || normalized === "common") {
-    return "COMMON" as const;
-  }
-  if (normalized === "certification") return "CERTIFICATION" as const;
-  return null;
-}
-
-function applicationSkillDetails(
-  selectedSkills: string[],
-  artifacts: ApplicationSkillArtifact[],
-) {
-  const suggestions = artifacts
-    .filter((artifact) => artifact.status === "confirmed")
-    .flatMap((artifact) => artifact.suggestedSkills);
-
-  return selectedSkills.map((name) => {
-    const extracted = suggestions.find(
-      (skill) => normalizeSkill(skill.name) === normalizeSkill(name),
-    );
-    if (!extracted) return { name };
-
-    return {
-      name,
-      lightcastId: extracted.id,
-      lightcastType: portfolioSkillType(extracted.type),
-      lightcastDescription: extracted.description,
-      lightcastApiVersion: extracted.apiVersion,
-      categoryId: extracted.categoryId,
-      categoryName: extracted.categoryName,
-      subcategoryId: extracted.subcategoryId,
-      subcategoryName: extracted.subcategoryName,
-    };
-  });
-}
-
 function cleanOptionalText(value: string) {
   const trimmed = value.trim();
   return trimmed || undefined;
@@ -222,12 +187,6 @@ function asRecord(value: Json | undefined): Record<string, unknown> {
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function asStringArray(value: Json | undefined) {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    : [];
 }
 
 function firstNonEmpty(...values: unknown[]) {
@@ -264,30 +223,47 @@ function getSkillEvidence(profile: Record<string, unknown>) {
   return Array.isArray(evidence) ? (evidence as Record<string, unknown>[]) : [];
 }
 
-function summarizePortfolioEvidence(skill: string, evidence: Record<string, unknown>[]) {
-  const item = evidence.find(
-    (entry) => normalizeSkill(asString(entry.name)) === normalizeSkill(skill),
-  );
-  if (!item) return "";
-
-  const proofs = Array.isArray(item.proofs) ? (item.proofs as Record<string, unknown>[]) : [];
-  const videos = Array.isArray(item.videos) ? (item.videos as Record<string, unknown>[]) : [];
-  const proofLabels = proofs
-    .map((proof) => firstNonEmpty(proof.description, proof.fileName, proof.url, proof.fileUrl))
-    .filter(Boolean)
-    .slice(0, 3);
-  const videoLabels = videos
-    .map((video) => firstNonEmpty(video.title, video.fileName, video.url))
-    .filter(Boolean)
-    .slice(0, 2);
-  const details = [
-    firstNonEmpty(item.proficiency) && `Proficiency: ${firstNonEmpty(item.proficiency)}`,
-    typeof item.yearsOfExperience === "number" && `Experience: ${item.yearsOfExperience} years`,
-    proofLabels.length && `Proofs: ${proofLabels.join("; ")}`,
-    videoLabels.length && `Videos: ${videoLabels.join("; ")}`,
-  ].filter(Boolean);
-
-  return details.join("\n");
+function parsePortfolioEvidence(profile: Record<string, unknown>): PortfolioEvidenceSkill[] {
+  return getSkillEvidence(profile).flatMap((item, skillIndex) => {
+    const name = asString(item.name);
+    if (!name) return [];
+    const mapItems = (
+      value: unknown,
+      kind: PortfolioEvidenceItem["kind"],
+    ): PortfolioEvidenceItem[] =>
+      (Array.isArray(value) ? value : []).flatMap((raw, itemIndex) => {
+        const entry = asRecord(raw as Json);
+        const id = firstNonEmpty(entry.id, `${kind}-${skillIndex}-${itemIndex}`);
+        const createdAt = firstNonEmpty(entry.addedAt, entry.createdAt, entry.updatedAt);
+        if (!createdAt) return [];
+        return [{
+          id,
+          kind,
+          name: firstNonEmpty(entry.title, entry.fileName, entry.url, entry.fileUrl, kind === "proof" ? "Portfolio proof" : "Portfolio video"),
+          description: firstNonEmpty(entry.description, entry.title),
+          url: firstNonEmpty(entry.url, entry.fileUrl) || null,
+          fileName: firstNonEmpty(entry.fileName) || null,
+          fileType: firstNonEmpty(entry.fileType) || null,
+          fileSize: typeof entry.fileSize === "number" ? entry.fileSize : null,
+          createdAt,
+          validationStatus: kind === "proof" ? firstNonEmpty(entry.validationStatus) || null : null,
+        }];
+      });
+    return [{
+      id: firstNonEmpty(item.id, `portfolio-skill-${skillIndex}`),
+      name,
+      lightcastId: firstNonEmpty(item.lightcastId) || null,
+      lightcastType: firstNonEmpty(item.lightcastType) || null,
+      lightcastDescription: firstNonEmpty(item.lightcastDescription) || null,
+      lightcastApiVersion: firstNonEmpty(item.lightcastApiVersion) || null,
+      categoryId: firstNonEmpty(item.categoryId) || null,
+      categoryName: firstNonEmpty(item.categoryName, item.category) || null,
+      subcategoryId: firstNonEmpty(item.subcategoryId) || null,
+      subcategoryName: firstNonEmpty(item.subcategoryName) || null,
+      proofs: mapItems(item.proofs, "proof"),
+      videos: mapItems(item.videos, "video"),
+    }];
+  });
 }
 
 function StepRail({ current }: { current: number }) {
@@ -492,7 +468,6 @@ export default function CandidateApplicationPage() {
   const searchParams = useSearchParams();
   const { user, profile, skilioIdentity, loading: authLoading } = useAuth();
   const submittingRef = useRef(false);
-  const appliedSkilioSkillsRef = useRef(false);
   const attributionEventsRef = useRef(new Set<string>());
   const sourceTrackingCode = searchParams.get("src")?.trim() || null;
   const [submitted, setSubmitted] = useState(false);
@@ -504,7 +479,6 @@ export default function CandidateApplicationPage() {
   );
   const [step, setStep] = useState(0);
   const [authChoice, setAuthChoice] = useState<AuthChoice | null>(null);
-  const [createSkilioAccount, setCreateSkilioAccount] = useState(true);
   const [name, setName] = useState(profile?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? profile?.email ?? "");
   const [phoneCountryCode, setPhoneCountryCode] = useState("+60");
@@ -515,10 +489,8 @@ export default function CandidateApplicationPage() {
   const [linkedin, setLinkedin] = useState("");
   const [github, setGithub] = useState("");
   const [website, setWebsite] = useState("");
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [standaloneSkills, setStandaloneSkills] = useState<string[]>([]);
-  const [skillEvidence, setSkillEvidence] = useState<Record<string, string>>({});
-  const [skillArtifacts, setSkillArtifacts] = useState<ApplicationSkillArtifact[]>([]);
+  const [applicationEvidence, setApplicationEvidence] =
+    useState<ApplicationEvidenceState>(EMPTY_APPLICATION_EVIDENCE);
   const [screeningAnswers, setScreeningAnswers] = useState<
     Record<string, string>
   >({});
@@ -542,6 +514,7 @@ export default function CandidateApplicationPage() {
     { retry: false },
   );
   const apply = trpc.job.apply.useMutation();
+  const finalizeEvidence = trpc.job.finalizeApplicationEvidence.useMutation();
   const retryProvisioning = trpc.job.retryPortfolioProvisioning.useMutation({
     onSuccess: (data) => {
       setPortfolioProvisioning(data as PortfolioProvisioningView);
@@ -551,34 +524,21 @@ export default function CandidateApplicationPage() {
 
   const job = jobQuery.data as PublicJob | undefined;
   const jobUnavailable = jobQuery.isError || (!job && !jobQuery.isLoading);
-  const expectedSkills = useMemo(
-    () => (job?.job_skills ?? []).map((skill) => skill.name),
-    [job?.job_skills],
-  );
   const skilioProfileSnapshot = useMemo(
     () => asRecord(skilioIdentity?.profileSnapshot),
     [skilioIdentity?.profileSnapshot],
-  );
-  const skilioSkills = useMemo(
-    () => asStringArray(skilioIdentity?.skillsSnapshot),
-    [skilioIdentity?.skillsSnapshot],
   );
   const skilioCv = useMemo(
     () => getCvAttachment(skilioProfileSnapshot),
     [skilioProfileSnapshot],
   );
-  const skilioSkillEvidence = useMemo(
-    () => getSkillEvidence(skilioProfileSnapshot),
+  const skilioPortfolioSkills = useMemo(
+    () => parsePortfolioEvidence(skilioProfileSnapshot),
     [skilioProfileSnapshot],
   );
-  const skilioSkillCategories = useMemo(
-    () =>
-      Object.fromEntries(
-        skilioSkillEvidence
-          .map((item) => [asString(item.name), asString(item.category)] as const)
-          .filter(([skill, category]) => skill && category),
-      ),
-    [skilioSkillEvidence],
+  const serializedEvidence = useMemo(
+    () => serializeApplicationEvidence(applicationEvidence),
+    [applicationEvidence],
   );
 
   useEffect(() => {
@@ -672,33 +632,6 @@ export default function CandidateApplicationPage() {
     user,
   ]);
 
-  useEffect(() => {
-    if (appliedSkilioSkillsRef.current || !job || skilioSkills.length === 0) return;
-    appliedSkilioSkillsRef.current = true;
-
-    const roleSkills = expectedSkills.length
-      ? expectedSkills.filter((skill) =>
-          skilioSkills.some((candidateSkill) => normalizeSkill(candidateSkill) === normalizeSkill(skill)),
-        )
-      : [];
-    const seeded = [...roleSkills, ...selectedSkills]
-      .filter((skill, index, all) => all.findIndex((item) => normalizeSkill(item) === normalizeSkill(skill)) === index)
-      .slice(0, 12);
-
-    if (seeded.length) {
-      setSelectedSkills(seeded);
-      setStandaloneSkills(seeded);
-      setSkillEvidence((current) => ({
-        ...Object.fromEntries(
-          seeded.map((skill) => {
-            const portfolioEvidence = summarizePortfolioEvidence(skill, skilioSkillEvidence);
-            return [skill, current[skill] || portfolioEvidence];
-          }),
-        ),
-      }));
-    }
-  }, [expectedSkills, job, selectedSkills, skilioSkillEvidence, skilioSkills]);
-
   const applyingWithSkilio = Boolean(user && (authChoice === "skilio" || authChoice === null));
   const applyingManually = authChoice === "guest";
   const currentStep = step;
@@ -771,7 +704,7 @@ export default function CandidateApplicationPage() {
       setFileError(validationError);
       return;
     }
-    const attachedEvidenceFiles = skillArtifacts.filter(
+    const attachedEvidenceFiles = applicationEvidence.artifacts.filter(
       (artifact) => artifact.file,
     ).length;
     if (!resumeFile && attachedEvidenceFiles >= MAX_APPLICATION_FILES) {
@@ -882,9 +815,11 @@ export default function CandidateApplicationPage() {
           ),
           location: cleanOptionalText(location),
           coverLetter: cleanOptionalText(coverLetter),
-          skills: selectedSkills.map((skill) => skill.trim()).filter(Boolean),
-          skillDetails: applicationSkillDetails(selectedSkills, skillArtifacts),
-          createSkilioAccount: applyingManually && createSkilioAccount,
+          evidence: {
+            artifacts: serializedEvidence.artifacts,
+            portfolioSkills: serializedEvidence.portfolioSkills,
+          },
+          portfolioEdits: serializedEvidence.portfolioEdits,
           links: {
             portfolio: cleanOptionalUrl(portfolio),
             linkedin: cleanOptionalUrl(linkedin),
@@ -900,22 +835,9 @@ export default function CandidateApplicationPage() {
             portfolioUserId: skilioIdentity?.portfolioUserId,
             identityLinkId: skilioIdentity?.id,
             portfolioUsername: skilioIdentity?.username,
-            portfolioSnapshot: skilioProfileSnapshot,
-            portfolioSkills: skilioSkills,
             profileId: profile?.id,
             organization: profile?.organization,
             authChoice: applyingWithSkilio ? "signed_in" : authChoice,
-            skillEvidence,
-            evidenceSources: skillArtifacts
-              .filter((artifact) => artifact.status === "confirmed")
-              .map((artifact) => ({
-                id: artifact.id,
-                kind: artifact.kind,
-                name: artifact.name,
-                url: artifact.url ?? null,
-                summary: artifact.summary,
-                skills: artifact.skillNames,
-              })),
             screeningAnswers,
             resumeFileName,
             resumeUrl,
@@ -924,9 +846,7 @@ export default function CandidateApplicationPage() {
         session = {
           applicationId: data.id,
           fileUploadToken: data.fileUploadToken,
-          portfolioProvisioning:
-            (data.portfolioProvisioning as PortfolioProvisioningView | null) ??
-            null,
+          portfolioProvisioning: null,
         };
         setUploadSession(session);
       }
@@ -939,24 +859,31 @@ export default function CandidateApplicationPage() {
         ...(resumeFile
           ? [uploadApplicationFile(activeUploadSession, resumeFile, "resume")]
           : []),
-        ...skillArtifacts
+        ...applicationEvidence.artifacts
           .filter(
-            (artifact): artifact is ApplicationSkillArtifact & { file: File } =>
-              Boolean(
-                artifact.file &&
-                  artifact.status === "confirmed" &&
-                  artifact.skillNames.length > 0,
-              ),
+            (artifact): artifact is typeof artifact & { file: File } =>
+              Boolean(artifact.file && confirmedArtifactSkills(artifact).length > 0),
           )
           .map((artifact) =>
             uploadApplicationFile(
               activeUploadSession,
-              { id: artifact.id, file: artifact.file, skillNames: artifact.skillNames },
+              {
+                id: artifact.id,
+                file: artifact.file,
+                skillNames: confirmedArtifactSkills(artifact).map((skill) => skill.name),
+              },
               "skill_artifact",
             ),
           ),
       ]);
-      finishSubmission(activeUploadSession);
+      const finalized = await finalizeEvidence.mutateAsync({
+        applicationId: activeUploadSession.applicationId,
+        fileUploadToken: activeUploadSession.fileUploadToken,
+      });
+      finishSubmission({
+        ...activeUploadSession,
+        portfolioProvisioning: finalized.portfolioProvisioning as PortfolioProvisioningView,
+      });
     } catch (error) {
       if (session) {
         setFileError(
@@ -1160,7 +1087,7 @@ export default function CandidateApplicationPage() {
                         </div>
                         <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">
                           Your application is safely submitted. Retry only the
-                          optional Skilio account setup.
+                          Skilio portfolio sync.
                         </p>
                         <Button
                           type="button"
@@ -1312,8 +1239,7 @@ export default function CandidateApplicationPage() {
                               Continue manually
                             </span>
                             <span className="mt-0.5 block text-sm text-[var(--skilio-ink-soft)]">
-                              Fill the application now. Your details can be
-                              linked to Skilio later.
+                              Fill the application now. Submission automatically creates and saves your Skilio portfolio.
                             </span>
                           </span>
                         </span>
@@ -1380,30 +1306,12 @@ export default function CandidateApplicationPage() {
                         </Select>
                       </div>
                       {applyingManually && (
-                        <div className="md:col-span-2">
-                          <label
-                            htmlFor="create-skilio-account"
-                            className="flex cursor-pointer items-start gap-3 rounded-[var(--skilio-radius-md)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4"
-                          >
-                            <Checkbox
-                              id="create-skilio-account"
-                              checked={createSkilioAccount}
-                              onCheckedChange={(checked) =>
-                                setCreateSkilioAccount(checked === true)
-                              }
-                              className="mt-0.5 border-[var(--skilio-border-strong)] data-[state=checked]:border-[var(--skilio-brand)] data-[state=checked]:bg-[var(--skilio-brand)]"
-                            />
-                            <span>
-                              <span className="block text-sm font-semibold text-[var(--skilio-ink)]">
-                                Create my Skilio profile from this application
-                              </span>
-                              <span className="mt-1 block text-sm leading-6 text-[var(--skilio-ink-soft)]">
-                                We will create a passwordless profile with your
-                                contact details and selected skills. You will
-                                receive a code to activate it.
-                              </span>
-                            </span>
-                          </label>
+                        <div className="flex items-start gap-3 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control)] p-4 md:col-span-2">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--skilio-brand)]" />
+                          <div>
+                            <p className="text-sm font-semibold text-[var(--skilio-ink)]">Your application also becomes your Skilio portfolio</p>
+                            <p className="mt-1 text-sm leading-6 text-[var(--skilio-ink-soft)]">When you submit, we automatically create a Skilio portfolio with the profile details, skills, and evidence you confirmed. If this email already has a portfolio, we will ask you to sign in before adding evidence to it.</p>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1474,22 +1382,15 @@ export default function CandidateApplicationPage() {
                       jobSlug={params.slug}
                       jobSkills={job?.job_skills ?? []}
                       isPortfolioApplicant={applyingWithSkilio}
-                      portfolioSkills={skilioSkills}
-                      portfolioSkillCategories={skilioSkillCategories}
-                      selectedSkills={selectedSkills}
-                      setSelectedSkills={setSelectedSkills}
-                      standaloneSkills={standaloneSkills}
-                      setStandaloneSkills={setStandaloneSkills}
-                      skillEvidence={skillEvidence}
-                      setSkillEvidence={setSkillEvidence}
-                      artifacts={skillArtifacts}
-                      setArtifacts={setSkillArtifacts}
+                      portfolioSkills={skilioPortfolioSkills}
+                      evidence={applicationEvidence}
+                      setEvidence={setApplicationEvidence}
                       resumeAttached={Boolean(resumeFile)}
-                      willCreatePortfolio={applyingManually && createSkilioAccount}
                       onError={setFileError}
                       onConfirmedLink={(url) => {
-                        if (!website.trim()) setWebsite(url);
-                      }}
+                          if (!website.trim()) setWebsite(url);
+                        }}
+                      onSkip={goNext}
                     />
                     {fileError && (
                       <p
@@ -1695,11 +1596,14 @@ export default function CandidateApplicationPage() {
                       <div className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4">
                         <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--skilio-ink-muted)]">Skills selected</div>
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {selectedSkills.map((skill) => (
+                          {serializedEvidence.skillNames.map((skill) => (
                             <Badge key={skill} className="rounded-md bg-[var(--skilio-control-strong)] text-[var(--skilio-brand-strong)] hover:bg-[var(--skilio-control-strong)]">
                               {skill}
                             </Badge>
                           ))}
+                          {serializedEvidence.skillNames.length === 0 && (
+                            <span className="text-sm text-[var(--skilio-ink-muted)]">No skills evidence selected</span>
+                          )}
                         </div>
                       </div>
                       <div className="rounded-[var(--skilio-radius-lg)] border border-[var(--skilio-border)] bg-[var(--skilio-control)] p-4 md:col-span-2">

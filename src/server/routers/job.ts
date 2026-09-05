@@ -25,12 +25,17 @@ import {
   JOB_DESCRIPTION_MIN_LENGTH,
 } from "@/lib/jobs/job-description";
 import { generateJobDraft } from "@/lib/jobs/job-draft-generator";
-import { createApplicationFileUploadToken } from "@/lib/jobs/application-file-upload-token";
+import {
+  createApplicationFileUploadToken,
+  verifyApplicationFileUploadToken,
+} from "@/lib/jobs/application-file-upload-token";
 import { resolveStorageSignedUrl } from "@/lib/storage-signed-url";
 import {
   extractPortfolioSkills,
   provisionPortfolioAccount,
   searchPortfolioSkills,
+  type PortfolioArtefactImport,
+  type PortfolioEvidenceEdit,
   type PortfolioProvisioningSkill,
 } from "@/lib/skilio-service-client";
 import {
@@ -94,6 +99,68 @@ const applicationPortfolioSkillSchema = z.object({
   categoryName: z.string().trim().max(160).nullish(),
   subcategoryId: z.string().trim().max(80).nullish(),
   subcategoryName: z.string().trim().max(160).nullish(),
+});
+
+const applicationEvidenceSkillSchema = applicationPortfolioSkillSchema.extend({
+  id: z.string().trim().min(1).max(100),
+  type: z.string().trim().max(80).nullish(),
+  description: z.string().trim().max(2000).nullish(),
+  apiVersion: z.string().trim().max(40),
+  confidence: z.number().min(0).max(1).nullish(),
+}).omit({
+  lightcastId: true,
+  lightcastType: true,
+  lightcastDescription: true,
+  lightcastApiVersion: true,
+});
+
+const applicationEvidenceArtifactSchema = z.object({
+  id: z.string().uuid(),
+  kind: z.enum(["document", "image", "video", "link"]),
+  name: z.string().trim().min(1).max(255),
+  url: z.string().url().nullish(),
+  fileSize: z.number().int().positive().max(100 * 1024 * 1024).nullish(),
+  createdAt: z.string().datetime(),
+  description: z.string().trim().max(2000).default(""),
+  origin: z.enum(["general", "tier2"]),
+  requiredSkillName: z.string().trim().min(1).max(80).nullish(),
+  skills: z.array(applicationEvidenceSkillSchema).min(1).max(20),
+});
+
+const portfolioSelectionSchema = z.object({
+  skillId: z.string().trim().min(1).max(100),
+  skillName: z.string().trim().min(1).max(80),
+  tier: z.union([z.literal(1), z.literal(3)]),
+  included: z.literal(true),
+  evidenceId: z.string().trim().min(1).max(100).nullable(),
+  evidenceKind: z.enum(["proof", "video"]).nullable(),
+  evidence: z.object({
+    id: z.string().trim().min(1).max(100),
+    kind: z.enum(["proof", "video"]),
+    name: z.string().trim().max(255),
+    description: z.string().trim().max(2000),
+    url: z.string().url().nullable(),
+    fileName: z.string().trim().max(255).nullable(),
+    fileType: z.string().trim().max(160).nullable(),
+    fileSize: z.number().int().positive().max(100 * 1024 * 1024).nullable(),
+    createdAt: z.string().datetime(),
+    validationStatus: z.string().trim().max(40).nullable(),
+  }).nullable(),
+  description: z.string().trim().max(2000).default(""),
+});
+
+const portfolioEditSchema = portfolioSelectionSchema.pick({
+  skillId: true,
+  skillName: true,
+  description: true,
+}).extend({
+  evidenceId: z.string().trim().min(1).max(100),
+  evidenceKind: z.enum(["proof", "video"]),
+});
+
+const applicationEvidenceSchema = z.object({
+  artifacts: z.array(applicationEvidenceArtifactSchema).max(10).default([]),
+  portfolioSkills: z.array(portfolioSelectionSchema).max(50).default([]),
 });
 
 const screeningQuestionSchema = z.object({
@@ -302,6 +369,65 @@ function provisioningSkills(
   });
 }
 
+function uniqueSkillNames(names: string[]) {
+  const seen = new Set<string>();
+  return names.filter((name) => {
+    const key = name.trim().toLocaleLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function submittedEvidenceSkills(
+  evidence: z.infer<typeof applicationEvidenceSchema>,
+) {
+  const artifactSkills = evidence.artifacts.flatMap((artifact) => artifact.skills);
+  const skillNames = uniqueSkillNames([
+    ...evidence.portfolioSkills.map((selection) => selection.skillName),
+    ...artifactSkills.map((skill) => skill.name),
+  ]);
+  const details: PortfolioProvisioningSkill[] = artifactSkills.map((skill) => ({
+    name: skill.name,
+    lightcastId: skill.id.startsWith("custom-") ? null : skill.id,
+    lightcastType: portfolioSkillType(skill.type),
+    lightcastDescription: skill.description,
+    lightcastApiVersion: skill.apiVersion,
+    categoryId: skill.categoryId,
+    categoryName: skill.categoryName,
+    subcategoryId: skill.subcategoryId,
+    subcategoryName: skill.subcategoryName,
+  }));
+  return { skillNames, details };
+}
+
+function sanitizedApplicationProfileSnapshot(
+  value: Record<string, unknown>,
+  drawingAssessment: ApplicationDrawingAssessment,
+  drawingAssessmentReused: boolean,
+) {
+  const allowedKeys = [
+    "portfolioUserId",
+    "identityLinkId",
+    "portfolioUsername",
+    "profileId",
+    "organization",
+    "authChoice",
+    "screeningAnswers",
+    "resumeFileName",
+    "resumeUrl",
+  ];
+  return {
+    ...Object.fromEntries(
+      allowedKeys.flatMap((key) =>
+        value[key] === undefined ? [] : [[key, value[key]]],
+      ),
+    ),
+    drawingAssessment,
+    drawingAssessmentReused,
+  };
+}
+
 async function runPortfolioProvisioning(
   supabase: SupabaseLike,
   input: {
@@ -314,6 +440,8 @@ async function runPortfolioProvisioning(
     selectedSkills: string[];
     jobSkills: JobSkill[];
     skillDetails?: PortfolioProvisioningSkill[];
+    artefacts?: PortfolioArtefactImport[];
+    edits?: PortfolioEvidenceEdit[];
   },
 ): Promise<PortfolioProvisioningView> {
   const { data: current } = await supabase
@@ -362,6 +490,8 @@ async function runPortfolioProvisioning(
         input.jobSkills,
         input.skillDetails,
       ),
+      artefacts: input.artefacts,
+      edits: input.edits,
     });
     const status =
       result.status === "CREATED" ? "COMPLETED" : "EXISTING_ACCOUNT";
@@ -401,6 +531,114 @@ async function runPortfolioProvisioning(
         "Your application was submitted, but Skilio account setup needs another attempt.",
     };
   }
+}
+
+async function finalizeApplicationEvidence(
+  supabase: SupabaseLike,
+  applicationId: string,
+): Promise<PortfolioProvisioningView> {
+  const { data: application, error } = await supabase
+    .from("job_applications")
+    .select(
+      "id,name,email,phone,location,portfolioUserId,applicationMethod,evidenceSnapshot,portfolioEdits,job_postings(job_skills(*)),job_application_files(*)",
+    )
+    .eq("id", applicationId)
+    .single();
+  if (error || !application) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Application not found." });
+  }
+
+  const parsedEvidence = applicationEvidenceSchema.safeParse(application.evidenceSnapshot);
+  if (!parsedEvidence.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "The confirmed application evidence is invalid.",
+    });
+  }
+  const parsedEdits = z.array(portfolioEditSchema).safeParse(application.portfolioEdits);
+  if (!parsedEdits.success) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "The portfolio edits are invalid." });
+  }
+
+  const files = (application.job_application_files ?? []) as Array<{
+    clientFileId?: string | null;
+    fileName: string;
+    fileType?: string | null;
+    fileSize?: number | null;
+    storageBucket?: string | null;
+    storagePath?: string | null;
+  }>;
+  const artefacts: PortfolioArtefactImport[] = [];
+  for (const artifact of parsedEvidence.data.artifacts) {
+    const file = artifact.kind === "link"
+      ? null
+      : files.find((entry) => entry.clientFileId === artifact.id);
+    if (artifact.kind !== "link" && !file) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Upload ${artifact.name} before finalizing the application.`,
+      });
+    }
+    let signedFileUrl: string | null = null;
+    if (file?.storageBucket && file.storagePath) {
+      const { data, error: signedUrlError } = await supabase.storage
+        .from(file.storageBucket)
+        .createSignedUrl(file.storagePath, 15 * 60);
+      if (signedUrlError || !data?.signedUrl) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Could not prepare ${artifact.name} for portfolio import.`,
+        });
+      }
+      signedFileUrl = data.signedUrl;
+    }
+    artefacts.push({
+      sourceArtefactId: artifact.id,
+      kind: artifact.kind,
+      name: artifact.name,
+      description: artifact.description,
+      skills: artifact.skills.map((skill) => ({
+        name: skill.name,
+        lightcastId: skill.id.startsWith("custom-") ? null : skill.id,
+        lightcastType: portfolioSkillType(skill.type),
+        lightcastDescription: skill.description,
+        lightcastApiVersion: skill.apiVersion,
+        categoryId: skill.categoryId,
+        categoryName: skill.categoryName,
+        subcategoryId: skill.subcategoryId,
+        subcategoryName: skill.subcategoryName,
+      })),
+      link: artifact.url,
+      signedFileUrl,
+      fileName: file?.fileName ?? null,
+      fileType: file?.fileType ?? null,
+      fileSize: file?.fileSize ?? artifact.fileSize,
+    });
+  }
+
+  const posting = Array.isArray(application.job_postings)
+    ? application.job_postings[0]
+    : application.job_postings;
+  const submitted = submittedEvidenceSkills(parsedEvidence.data);
+  return runPortfolioProvisioning(supabase, {
+    applicationId: application.id,
+    portfolioUserId:
+      application.applicationMethod === "SKILIO"
+        ? application.portfolioUserId ?? undefined
+        : undefined,
+    name: application.name,
+    email: application.email,
+    country: application.location,
+    phone: application.phone,
+    selectedSkills: submitted.skillNames,
+    jobSkills: (posting?.job_skills ?? []) as JobSkill[],
+    skillDetails: submitted.details,
+    artefacts,
+    edits:
+      application.applicationMethod === "SKILIO"
+        ? parsedEdits.data
+        : [],
+  });
 }
 
 function drawingAssessmentFromSnapshot(
@@ -1391,7 +1629,8 @@ export const jobRouter = router({
         coverLetter: z.string().max(4000).optional(),
         skills: z.array(z.string().min(1).max(80)).max(40).default([]),
         skillDetails: z.array(applicationPortfolioSkillSchema).max(40).default([]),
-        createSkilioAccount: z.boolean().default(false),
+        evidence: applicationEvidenceSchema.default({ artifacts: [], portfolioSkills: [] }),
+        portfolioEdits: z.array(portfolioEditSchema).max(50).default([]),
         profileSnapshot: z.record(z.string(), z.unknown()).default({}),
         screeningAnswers: z.record(z.string(), z.string().max(2000)).default({}),
         drawingResponses: drawingResponsesSchema.optional(),
@@ -1443,6 +1682,13 @@ export const jobRouter = router({
             "Complete all ten Drawmetrics drawings before submitting this application.",
         });
       }
+      const submittedEvidence = submittedEvidenceSkills(input.evidence);
+      const hasTypedEvidence =
+        input.evidence.artifacts.length > 0 ||
+        input.evidence.portfolioSkills.length > 0;
+      const selectedSkillNames = hasTypedEvidence
+        ? submittedEvidence.skillNames
+        : uniqueSkillNames(input.skills);
 
       const { data: sourceVisit } = input.sourceVisitorId
         ? await supabase
@@ -1473,13 +1719,15 @@ export const jobRouter = router({
           location: input.location,
           bio: input.bio,
           coverLetter: input.coverLetter,
-          profileSnapshot: {
-            ...input.profileSnapshot,
+          profileSnapshot: sanitizedApplicationProfileSnapshot(
+            input.profileSnapshot,
             drawingAssessment,
-            drawingAssessmentReused: !freshDrawingAssessment,
-          },
+            !freshDrawingAssessment,
+          ),
+          evidenceSnapshot: input.evidence,
+          portfolioEdits: isVerifiedSkilioApplication ? input.portfolioEdits : [],
           screeningAnswers: input.screeningAnswers,
-          skillsSnapshot: input.skills,
+          skillsSnapshot: selectedSkillNames,
           links: input.links,
           matchScore: null,
         })
@@ -1503,31 +1751,31 @@ export const jobRouter = router({
           .eq("id", sourceVisit.id);
       }
 
-      const portfolioProvisioning =
-        isVerifiedSkilioApplication ||
-        (input.createSkilioAccount && applicationSource !== "SKILIO")
-          ? await runPortfolioProvisioning(supabase, {
-              applicationId: data.id,
-              portfolioUserId: isVerifiedSkilioApplication
-                ? verifiedSkilioIdentity?.portfolioUserId
-                : undefined,
-              name: input.name,
-              email: isVerifiedSkilioApplication
-                ? verifiedSkilioIdentity?.email ?? input.email.trim().toLowerCase()
-                : input.email.trim().toLowerCase(),
-              country: input.location,
-              phone: input.phone,
-              selectedSkills: input.skills,
-              jobSkills: (job.job_skills ?? []) as JobSkill[],
-              skillDetails: input.skillDetails,
-            })
-          : null;
-
       return {
         ...data,
-        portfolioProvisioning,
         fileUploadToken: createApplicationFileUploadToken(data.id),
       };
+    }),
+
+  finalizeApplicationEvidence: publicProcedure
+    .input(
+      z.object({
+        applicationId: z.string().uuid(),
+        fileUploadToken: z.string().min(20),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!verifyApplicationFileUploadToken(input.fileUploadToken, input.applicationId)) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "This application upload session has expired.",
+        });
+      }
+      const portfolioProvisioning = await finalizeApplicationEvidence(
+        ctx.supabase as SupabaseLike,
+        input.applicationId,
+      );
+      return { applicationId: input.applicationId, portfolioProvisioning };
     }),
 
   retryPortfolioProvisioning: publicProcedure
@@ -1548,7 +1796,7 @@ export const jobRouter = router({
         .ilike("email", input.email.trim())
         .single();
 
-      if (error || !application || application.applicationMethod === "SKILIO") {
+      if (error || !application) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
 
@@ -1572,21 +1820,6 @@ export const jobRouter = router({
         });
       }
 
-      const posting = Array.isArray(application.job_postings)
-        ? application.job_postings[0]
-        : application.job_postings;
-      return runPortfolioProvisioning(supabase, {
-        applicationId: application.id,
-        name: application.name,
-        email: application.email,
-        country: application.location,
-        phone: application.phone,
-        selectedSkills: Array.isArray(application.skillsSnapshot)
-          ? application.skillsSnapshot.filter(
-              (skill: unknown): skill is string => typeof skill === "string",
-            )
-          : [],
-        jobSkills: ((posting?.job_skills ?? []) as JobSkill[]),
-      });
+      return finalizeApplicationEvidence(supabase, application.id);
     }),
 });

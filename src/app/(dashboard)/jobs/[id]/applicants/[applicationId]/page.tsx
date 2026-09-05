@@ -83,6 +83,7 @@ type ApplicantDetail = {
   bio?: string | null;
   coverLetter?: string | null;
   profileSnapshot?: JsonRecord;
+  evidenceSnapshot?: JsonRecord;
   screeningAnswers?: JsonRecord;
   skillsSnapshot?: unknown;
   links?: JsonRecord;
@@ -128,6 +129,16 @@ function asStringArray(value: unknown): string[] {
 function asRecordArray(value: unknown): JsonRecord[] {
   return Array.isArray(value)
     ? value.filter((item): item is JsonRecord => !!item && typeof item === "object" && !Array.isArray(item))
+    : [];
+}
+
+function evidenceSkillNames(value: unknown) {
+  return Array.isArray(value)
+    ? value.flatMap((item) => {
+        if (typeof item === "string") return item.trim() ? [item.trim()] : [];
+        const name = firstText(asRecord(item).name);
+        return name ? [name] : [];
+      })
     : [];
 }
 
@@ -386,11 +397,15 @@ export default function ApplicantReviewPage() {
 
   const profileSnapshot = asRecord(applicant?.profileSnapshot);
   const portfolioSnapshot = asRecord(profileSnapshot.portfolioSnapshot);
+  const evidenceSnapshot = asRecord(applicant?.evidenceSnapshot);
   const links = asRecord(applicant?.links);
   const screeningAnswers = asRecord(applicant?.screeningAnswers);
   const skillEvidence = asRecord(profileSnapshot.skillEvidence);
   const portfolioEvidence = asRecordArray(portfolioSnapshot.skillEvidence);
-  const applicationEvidence = asRecordArray(profileSnapshot.evidenceSources);
+  const applicationEvidence = asRecordArray(evidenceSnapshot.artifacts).length
+    ? asRecordArray(evidenceSnapshot.artifacts)
+    : asRecordArray(profileSnapshot.evidenceSources);
+  const selectedPortfolioEvidence = asRecordArray(evidenceSnapshot.portfolioSkills);
   const skills = asStringArray(applicant?.skillsSnapshot);
   const resumeName = firstText(profileSnapshot.resumeFileName);
   const resumeUrl = firstText(profileSnapshot.resumeUrl, links.resume);
@@ -698,19 +713,32 @@ export default function ApplicantReviewPage() {
                 ) : (
                   <div className="divide-y divide-[var(--skilio-border)]">
                     {skills.map((skill) => {
+                      const selectedPortfolioItem = selectedPortfolioEvidence.find(
+                        (item) => firstText(item.skillName).trim().toLowerCase() === skill.trim().toLowerCase(),
+                      );
+                      const selectedEvidence = asRecord(selectedPortfolioItem?.evidence);
                       const portfolioItem = portfolioEvidence.find(
                         (item) => firstText(item.name).toLowerCase() === skill.toLowerCase(),
                       );
-                      const proofs = asRecordArray(portfolioItem?.proofs);
-                      const videos = asRecordArray(portfolioItem?.videos);
+                      const proofs = firstText(selectedEvidence.kind) === "proof"
+                        ? [selectedEvidence]
+                        : asRecordArray(portfolioItem?.proofs);
+                      const videos = firstText(selectedEvidence.kind) === "video"
+                        ? [selectedEvidence]
+                        : asRecordArray(portfolioItem?.videos);
                       const submittedLinks = applicationEvidence.filter(
                         (item) =>
                           Boolean(firstText(item.url)) &&
-                          asStringArray(item.skills).some(
+                          evidenceSkillNames(item.skills).some(
                             (itemSkill) =>
                               itemSkill.trim().toLowerCase() ===
                               skill.trim().toLowerCase(),
                           ),
+                      );
+                      const submittedArtifact = applicationEvidence.find((item) =>
+                        evidenceSkillNames(item.skills).some(
+                          (itemSkill) => itemSkill.trim().toLowerCase() === skill.trim().toLowerCase(),
+                        ),
                       );
                       const attachedFiles = files.filter(
                         (file) =>
@@ -730,7 +758,11 @@ export default function ApplicantReviewPage() {
                             {skill}
                           </div>
                           <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--skilio-ink-soft)]">
-                            {asString(skillEvidence[skill]) || "No written evidence provided."}
+                            {firstText(
+                              submittedArtifact?.description,
+                              selectedPortfolioItem?.description,
+                              skillEvidence[skill],
+                            ) || "No written evidence provided."}
                           </p>
                           {(proofs.length > 0 || videos.length > 0) && (
                             <div className="mt-3 grid gap-3 sm:grid-cols-2">

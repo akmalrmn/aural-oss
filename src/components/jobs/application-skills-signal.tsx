@@ -2,7 +2,6 @@
 
 import {
   Check,
-  CheckCircle2,
   ChevronDown,
   FileImage,
   FileText,
@@ -732,11 +731,6 @@ export function ApplicationSkillsSignal({
           </div>
         </section>
       )}
-
-      <div className="flex items-start gap-3 rounded-[var(--skilio-radius-md)] bg-[var(--skilio-control)] px-4 py-3 text-sm leading-6 text-[var(--skilio-ink-soft)]">
-        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--skilio-brand)]" />
-        <p>Submitting creates or updates your Skilio portfolio automatically. Pending or rejected suggestions and excluded portfolio skills are never shared.</p>
-      </div>
 
       <input ref={documentInputRef} type="file" aria-label="Upload an evidence file" tabIndex={-1} accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => { chooseFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
       <input ref={videoInputRef} type="file" aria-label="Upload a video as evidence" tabIndex={-1} accept=".mp4,video/mp4" className="sr-only" onChange={(event) => { chooseFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
